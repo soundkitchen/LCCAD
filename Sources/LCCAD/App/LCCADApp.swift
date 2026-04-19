@@ -25,7 +25,7 @@ struct LCCADApp: App {
     }
 }
 
-/// File menu commands for manual Save/Open
+/// File menu commands for manual Save/Open/Print
 struct FileCommands: Commands {
     let fileDocument: LCCADFileDocument
 
@@ -47,6 +47,17 @@ struct FileCommands: Commands {
                 openDocument()
             }
             .keyboardShortcut("o")
+        }
+
+        CommandGroup(replacing: .printItem) {
+            Button("Print...") {
+                printDocument()
+            }
+            .keyboardShortcut("p")
+
+            Button("Print Calibration Page...") {
+                PrintCoordinator.printCalibrationPage(from: NSApp.keyWindow)
+            }
         }
     }
 
@@ -102,5 +113,28 @@ struct FileCommands: Commands {
                 NSAlert(error: error).runModal()
             }
         }
+    }
+
+    @MainActor
+    private func printDocument() {
+        let store = PrinterCalibrationStore.shared
+
+        // Check if the currently selected printer has a calibration
+        let printInfo = NSPrintInfo.shared
+        let printerName = printInfo.printer.name
+        let hasCalibration = store.calibration(forPrinter: printerName) != nil
+
+        if !hasCalibration {
+            let alert = NSAlert()
+            alert.messageText = "Printer Not Calibrated"
+            alert.informativeText = "The printer \"\(printerName)\" has no calibration profile. Prints may not be physically accurate. You can calibrate in Settings > Printer Calibration."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Print Anyway")
+            alert.addButton(withTitle: "Cancel")
+            let response = alert.runModal()
+            guard response == .alertFirstButtonReturn else { return }
+        }
+
+        PrintCoordinator.printDocument(fileDocument.data, from: NSApp.keyWindow)
     }
 }

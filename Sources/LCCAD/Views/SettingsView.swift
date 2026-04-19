@@ -4,6 +4,27 @@ struct SettingsView: View {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
 
     var body: some View {
+        TabView {
+            GeneralSettingsView(appearanceMode: $appearanceMode)
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
+
+            PrinterCalibrationSettingsView()
+                .tabItem {
+                    Label("Printer Calibration", systemImage: "printer")
+                }
+        }
+        .frame(width: 480, height: 400)
+    }
+}
+
+// MARK: - General Settings
+
+private struct GeneralSettingsView: View {
+    @Binding var appearanceMode: String
+
+    var body: some View {
         Form {
             Section {
                 Picker("Color Mode", selection: $appearanceMode) {
@@ -17,10 +38,241 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 360)
-        .navigationTitle("Settings")
+        .navigationTitle("General")
         .onChange(of: appearanceMode) { _, newValue in
             AppearanceMode(rawValue: newValue)?.apply()
+        }
+    }
+}
+
+// MARK: - Printer Calibration Settings
+
+@MainActor
+struct PrinterCalibrationSettingsView: View {
+    @ObservedObject private var store = PrinterCalibrationStore.shared
+    @State private var showingCalibrationSheet = false
+    @State private var editingCalibration: PrinterCalibration?
+    @State private var selectedCalibrationId: UUID?
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Print a calibration test page, measure the 100mm square with a ruler, then enter the measured dimensions to correct for printer scaling inaccuracies.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button("Print Calibration Test Page") {
+                    PrintCoordinator.printCalibrationPage(from: NSApp.keyWindow)
+                }
+            } header: {
+                Text("Calibration")
+            }
+
+            Section {
+                if store.calibrations.isEmpty {
+                    Text("No printer calibrations configured.")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                } else {
+                    List(selection: $selectedCalibrationId) {
+                        ForEach(store.calibrations) { cal in
+                            CalibrationRow(calibration: cal)
+                                .tag(cal.id)
+                                .contextMenu {
+                                    Button("Edit...") {
+                                        editingCalibration = cal
+                                        showingCalibrationSheet = true
+                                    }
+                                    Button("Delete", role: .destructive) {
+                                        store.delete(id: cal.id)
+                                    }
+                                }
+                        }
+                    }
+                    .frame(minHeight: 100)
+                }
+
+                HStack {
+                    Button("Add Calibration...") {
+                        editingCalibration = nil
+                        showingCalibrationSheet = true
+                    }
+
+                    Spacer()
+
+                    Button("Delete") {
+                        if let id = selectedCalibrationId {
+                            store.delete(id: id)
+                            selectedCalibrationId = nil
+                        }
+                    }
+                    .disabled(selectedCalibrationId == nil)
+                }
+            } header: {
+                Text("Printer Profiles")
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Printer Calibration")
+        .sheet(isPresented: $showingCalibrationSheet) {
+            CalibrationEditSheet(
+                calibration: editingCalibration,
+                onSave: { cal in
+                    store.addOrUpdate(cal)
+                    showingCalibrationSheet = false
+                },
+                onCancel: {
+                    showingCalibrationSheet = false
+                }
+            )
+        }
+    }
+}
+
+// MARK: - Calibration Row
+
+private struct CalibrationRow: View {
+    let calibration: PrinterCalibration
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(calibration.printerName)
+                .font(.body)
+            HStack(spacing: 12) {
+                Text("X: \(String(format: "%.4f", calibration.scaleX))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Y: \(String(format: "%.4f", calibration.scaleY))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(calibration.updatedAt, style: .date)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Calibration Edit Sheet
+
+private struct CalibrationEditSheet: View {
+    let calibration: PrinterCalibration?
+    let onSave: (PrinterCalibration) -> Void
+    let onCancel: () -> Void
+
+    @State private var printerName: String = ""
+    @State private var measuredX: String = "100.0"
+    @State private var measuredY: String = "100.0"
+    @State private var computedScaleX: Double = 1.0
+    @State private var computedScaleY: Double = 1.0
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(calibration == nil ? "Add Printer Calibration" : "Edit Printer Calibration")
+                .font(.headline)
+
+            Form {
+                TextField("Printer Name:", text: $printerName)
+                    .textFieldStyle(.roundedBorder)
+
+                Divider()
+
+                Text("Enter the measured dimensions of the 100mm calibration square:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Text("Measured X (mm):")
+                    TextField("100.0", text: $measuredX)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .onChange(of: measuredX) { _, _ in recalculate() }
+                }
+
+                HStack {
+                    Text("Measured Y (mm):")
+                    TextField("100.0", text: $measuredY)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .onChange(of: measuredY) { _, _ in recalculate() }
+                }
+
+                Divider()
+
+                HStack {
+                    Text("Correction Factor X:")
+                    Text(String(format: "%.4f", computedScaleX))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                HStack {
+                    Text("Correction Factor Y:")
+                    Text(String(format: "%.4f", computedScaleY))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                let deviation = max(abs(computedScaleX - 1.0), abs(computedScaleY - 1.0)) * 100
+                if deviation > 5 {
+                    Text("Warning: Correction exceeds 5%. Verify your measurements.")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
+
+            HStack {
+                Button("Cancel") {
+                    onCancel()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button("Save") {
+                    var cal: PrinterCalibration
+                    if let existing = calibration {
+                        cal = existing
+                        cal.printerName = printerName
+                        cal.scaleX = computedScaleX
+                        cal.scaleY = computedScaleY
+                    } else {
+                        cal = PrinterCalibration(
+                            printerName: printerName,
+                            scaleX: computedScaleX,
+                            scaleY: computedScaleY
+                        )
+                    }
+                    onSave(cal)
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(printerName.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 380)
+        .onAppear {
+            if let cal = calibration {
+                printerName = cal.printerName
+                // Back-calculate measured values from existing scale
+                let mx = 100.0 / cal.scaleX
+                let my = 100.0 / cal.scaleY
+                measuredX = String(format: "%.1f", mx)
+                measuredY = String(format: "%.1f", my)
+                computedScaleX = cal.scaleX
+                computedScaleY = cal.scaleY
+            }
+        }
+    }
+
+    private func recalculate() {
+        if let mx = Double(measuredX), mx > 0 {
+            computedScaleX = 100.0 / mx
+        }
+        if let my = Double(measuredY), my > 0 {
+            computedScaleY = 100.0 / my
         }
     }
 }

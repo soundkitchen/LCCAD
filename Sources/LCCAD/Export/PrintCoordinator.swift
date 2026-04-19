@@ -1,0 +1,570 @@
+import AppKit
+import CoreGraphics
+import Foundation
+
+// MARK: - Unit Conversion
+
+/// Conversion constants between millimeters and PostScript points.
+/// 1 inch = 25.4 mm, 1 inch = 72 points, so 1 mm = 72/25.4 points.
+private let pointsPerMM: CGFloat = 72.0 / 25.4  // ~2.8346
+
+/// Convert millimeters to PostScript points.
+private func mmToPoints(_ mm: CGFloat) -> CGFloat {
+    mm * pointsPerMM
+}
+
+// MARK: - Print Coordinator
+
+@MainActor
+enum PrintCoordinator {
+
+    /// Print the document at real size (1:1) with optional tile printing.
+    static func printDocument(_ document: DocumentData, from window: NSWindow?) {
+        // Pre-fetch all calibrations so the NSView doesn't need @MainActor access at draw time
+        let calibrations = PrinterCalibrationStore.shared.calibrations
+        let view = PrintableDocumentView(document: document, calibrations: calibrations)
+
+        let printInfo = NSPrintInfo.shared.copy() as! NSPrintInfo
+        printInfo.horizontalPagination = .automatic
+        printInfo.verticalPagination = .automatic
+        printInfo.isHorizontallyCentered = false
+        printInfo.isVerticallyCentered = false
+
+        // Configure margins (10mm default for alignment marks + gluing overlap)
+        let margin = mmToPoints(10)
+        printInfo.topMargin = margin
+        printInfo.bottomMargin = margin
+        printInfo.leftMargin = margin
+        printInfo.rightMargin = margin
+
+        let op = NSPrintOperation(view: view, printInfo: printInfo)
+        op.showsPrintPanel = true
+        op.showsProgressPanel = true
+
+        if let window {
+            op.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        } else {
+            op.run()
+        }
+    }
+
+    /// Print a calibration test page with a 100mm square.
+    static func printCalibrationPage(from window: NSWindow?) {
+        let view = CalibrationTestPageView()
+
+        let printInfo = NSPrintInfo.shared.copy() as! NSPrintInfo
+        printInfo.horizontalPagination = .automatic
+        printInfo.verticalPagination = .automatic
+        printInfo.isHorizontallyCentered = true
+        printInfo.isVerticallyCentered = true
+
+        let margin = mmToPoints(15)
+        printInfo.topMargin = margin
+        printInfo.bottomMargin = margin
+        printInfo.leftMargin = margin
+        printInfo.rightMargin = margin
+
+        let op = NSPrintOperation(view: view, printInfo: printInfo)
+        op.showsPrintPanel = true
+        op.showsProgressPanel = true
+
+        if let window {
+            op.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        } else {
+            op.run()
+        }
+    }
+}
+
+// MARK: - Printable Document View (NSView for NSPrintOperation)
+
+private class PrintableDocumentView: NSView {
+    private let document: DocumentData
+    private let calibrations: [PrinterCalibration]
+    private var tileColumns: Int = 1
+    private var tileRows: Int = 1
+    private var contentBounds: CGRect = .zero  // in mm
+    private var printableAreaPerPage: CGSize = .zero  // in points
+    private let overlapMM: CGFloat = 10  // overlap between tiles for alignment
+    private let alignMarkLengthMM: CGFloat = 5
+
+    init(document: DocumentData, calibrations: [PrinterCalibration]) {
+        self.document = document
+        self.calibrations = calibrations
+        super.init(frame: .zero)
+        calculateLayout()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isFlipped: Bool { true }
+
+    private func calculateLayout() {
+        // Compute bounding box of all visible shapes (in mm)
+        contentBounds = computeBoundingBox()
+
+        // Add margin around content (5mm)
+        let contentMarginMM: CGFloat = 5
+        contentBounds = contentBounds.insetBy(dx: -contentMarginMM, dy: -contentMarginMM)
+
+        // Default to current paper size for layout calculation
+        let printInfo = NSPrintInfo.shared
+        let paperSize = printInfo.paperSize
+        let printableArea = CGSize(
+            width: paperSize.width - printInfo.leftMargin - printInfo.rightMargin,
+            height: paperSize.height - printInfo.topMargin - printInfo.bottomMargin
+        )
+        printableAreaPerPage = printableArea
+
+        // Convert content size to points
+        let contentWidthPt = mmToPoints(contentBounds.width)
+        let contentHeightPt = mmToPoints(contentBounds.height)
+
+        // Calculate overlap in points
+        let overlapPt = mmToPoints(overlapMM)
+
+        // Calculate tile count
+        if contentWidthPt <= printableArea.width {
+            tileColumns = 1
+        } else {
+            let effectiveWidth = printableArea.width - overlapPt
+            tileColumns = max(1, Int(ceil((contentWidthPt - overlapPt) / effectiveWidth)))
+        }
+
+        if contentHeightPt <= printableArea.height {
+            tileRows = 1
+        } else {
+            let effectiveHeight = printableArea.height - overlapPt
+            tileRows = max(1, Int(ceil((contentHeightPt - overlapPt) / effectiveHeight)))
+        }
+
+        // Set the view frame to encompass all pages
+        let totalWidth = printableArea.width
+        let totalHeight = printableArea.height * CGFloat(tileRows * tileColumns)
+        self.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
+    }
+
+    // MARK: - Pagination
+
+    override func knowsPageRange(_ range: NSRangePointer) -> Bool {
+        range.pointee = NSRange(location: 1, length: tileRows * tileColumns)
+        return true
+    }
+
+    override func rectForPage(_ page: Int) -> NSRect {
+        let pageIndex = page - 1
+        let pageWidth = printableAreaPerPage.width
+        let pageHeight = printableAreaPerPage.height
+        return NSRect(
+            x: 0,
+            y: CGFloat(pageIndex) * pageHeight,
+            width: pageWidth,
+            height: pageHeight
+        )
+    }
+
+    // MARK: - Drawing
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        // Determine which page we are drawing
+        let pageHeight = printableAreaPerPage.height
+        let pageIndex: Int
+        if pageHeight > 0 {
+            pageIndex = Int(dirtyRect.origin.y / pageHeight)
+        } else {
+            pageIndex = 0
+        }
+        let col = tileColumns > 1 ? pageIndex % tileColumns : 0
+        let row = tileColumns > 0 ? pageIndex / tileColumns : 0
+
+        context.saveGState()
+
+        // Clip to the page area
+        context.clip(to: dirtyRect)
+
+        // White background
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(dirtyRect)
+
+        // Get calibration for current printer
+        let calibration = currentPrinterCalibration()
+        let calScaleX = CGFloat(calibration?.scaleX ?? 1.0)
+        let calScaleY = CGFloat(calibration?.scaleY ?? 1.0)
+
+        // Calculate tile offset
+        let overlapPt = mmToPoints(overlapMM)
+        let effectiveWidthPt = printableAreaPerPage.width - overlapPt
+        let effectiveHeightPt = printableAreaPerPage.height - overlapPt
+        let tileOffsetXPt = CGFloat(col) * effectiveWidthPt
+        let tileOffsetYPt = CGFloat(row) * effectiveHeightPt
+
+        // Transform: translate to page origin, then apply mm-to-points scaling
+        // with calibration correction, then offset for the content bounds and tile
+        context.translateBy(x: dirtyRect.origin.x, y: dirtyRect.origin.y)
+
+        // Apply calibration-corrected mm-to-points conversion
+        let scaleX = pointsPerMM * calScaleX
+        let scaleY = pointsPerMM * calScaleY
+        context.scaleBy(x: scaleX, y: scaleY)
+
+        // Offset to account for content bounds origin and tile position
+        let offsetXMM = contentBounds.origin.x + tileOffsetXPt / scaleX
+        let offsetYMM = contentBounds.origin.y + tileOffsetYPt / scaleY
+        context.translateBy(x: -offsetXMM, y: -offsetYMM)
+
+        // Draw all visible shapes
+        drawShapes(in: context)
+
+        // Restore and draw alignment marks on top (in points, not mm)
+        context.restoreGState()
+
+        if tileRows * tileColumns > 1 {
+            drawAlignmentMarks(in: context, dirtyRect: dirtyRect, row: row, col: col)
+            drawPageLabel(in: context, dirtyRect: dirtyRect, row: row, col: col)
+        }
+    }
+
+    // MARK: - Shape Drawing (in mm coordinates)
+
+    private func drawShapes(in context: CGContext) {
+        for layer in document.layers where layer.isVisible {
+            for shape in layer.shapes {
+                drawShape(shape, in: context)
+            }
+
+            // Draw stitch holes
+            if !layer.stitchLines.isEmpty {
+                let stitchColor = NSColor(red: 0.831, green: 0.647, blue: 0.455, alpha: 1.0)
+                context.setFillColor(stitchColor.cgColor)
+                for stitchLine in layer.stitchLines {
+                    let iron = document.prickingIrons.first { $0.id == stitchLine.ironId }
+                    let r = (iron?.holeSize ?? 1.0) / 2
+                    for hole in stitchLine.holes {
+                        let rect = CGRect(
+                            x: hole.position.x - r,
+                            y: hole.position.y - r,
+                            width: r * 2,
+                            height: r * 2
+                        )
+                        context.fillEllipse(in: rect)
+                    }
+                }
+            }
+        }
+    }
+
+    private func drawShape(_ shape: AnyShape, in context: CGContext) {
+        let sc = shape.stroke.color
+        let strokeColor = NSColor(red: sc.r, green: sc.g, blue: sc.b, alpha: sc.a)
+        context.setStrokeColor(strokeColor.cgColor)
+        context.setFillColor(NSColor.clear.cgColor)
+        context.setLineWidth(shape.stroke.width)  // in mm, transform handles conversion
+
+        switch shape {
+        case .line(let line):
+            context.move(to: line.startPoint)
+            context.addLine(to: line.endPoint)
+            context.strokePath()
+
+        case .rectangle(let rect):
+            if rect.cornerRadius > 0 {
+                let path = CGPath(roundedRect: rect.boundingBox, cornerWidth: rect.cornerRadius, cornerHeight: rect.cornerRadius, transform: nil)
+                context.addPath(path)
+            } else {
+                context.addRect(rect.boundingBox)
+            }
+            context.strokePath()
+
+        case .ellipse(let ellipse):
+            context.addEllipse(in: ellipse.boundingBox)
+            context.strokePath()
+
+        case .arc(let arc):
+            context.addArc(center: arc.center, radius: arc.radius,
+                          startAngle: arc.startAngle, endAngle: arc.endAngle,
+                          clockwise: arc.clockwise)
+            context.strokePath()
+
+        case .dot(let dot):
+            context.setFillColor(strokeColor.cgColor)
+            let r = dot.radius
+            context.fillEllipse(in: CGRect(x: dot.position.x - r, y: dot.position.y - r,
+                                           width: r * 2, height: r * 2))
+
+        case .bezier(let bezier):
+            guard bezier.points.count >= 2 else { return }
+            context.move(to: bezier.points[0].point)
+            let segCount = bezier.isClosed ? bezier.points.count : bezier.points.count - 1
+            for i in 0..<segCount {
+                let j = (i + 1) % bezier.points.count
+                context.addCurve(to: bezier.points[j].point,
+                                control1: bezier.points[i].controlOut,
+                                control2: bezier.points[j].controlIn)
+            }
+            if bezier.isClosed { context.closePath() }
+            context.strokePath()
+
+        case .text(let text):
+            let resolvedFont = text.resolvedNSFont
+            let font = NSFont(name: resolvedFont.fontName, size: text.fontSize)
+                ?? NSFont.systemFont(ofSize: text.fontSize)
+            let color = NSColor(red: sc.r, green: sc.g, blue: sc.b, alpha: sc.a)
+            let paragraphStyle = NSMutableParagraphStyle()
+            switch text.textAlignment {
+            case .left: paragraphStyle.alignment = .left
+            case .center: paragraphStyle.alignment = .center
+            case .right: paragraphStyle.alignment = .right
+            }
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: color,
+                .paragraphStyle: paragraphStyle
+            ]
+            let attrStr = NSAttributedString(string: text.content, attributes: attrs)
+
+            // Draw text using NSAttributedString (handles flipped coordinates)
+            // Since isFlipped = true, NSAttributedString.draw works correctly
+            let textSize = attrStr.size()
+            let textRect = NSRect(
+                x: text.position.x,
+                y: text.position.y,
+                width: textSize.width,
+                height: textSize.height
+            )
+            attrStr.draw(in: textRect)
+        }
+    }
+
+    // MARK: - Alignment Marks (drawn in points)
+
+    private func drawAlignmentMarks(in context: CGContext, dirtyRect: NSRect, row: Int, col: Int) {
+        context.saveGState()
+        context.setStrokeColor(NSColor.gray.cgColor)
+        context.setLineWidth(0.5)
+
+        let markLen = mmToPoints(alignMarkLengthMM)
+        let inset: CGFloat = mmToPoints(2)
+
+        // Corner alignment marks (L-shaped at each corner)
+        let corners: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
+            (dirtyRect.minX + inset, dirtyRect.minY + inset, 1, 1),
+            (dirtyRect.maxX - inset, dirtyRect.minY + inset, -1, 1),
+            (dirtyRect.minX + inset, dirtyRect.maxY - inset, 1, -1),
+            (dirtyRect.maxX - inset, dirtyRect.maxY - inset, -1, -1),
+        ]
+
+        for (cx, cy, dx, dy) in corners {
+            context.move(to: CGPoint(x: cx, y: cy))
+            context.addLine(to: CGPoint(x: cx + markLen * dx, y: cy))
+            context.move(to: CGPoint(x: cx, y: cy))
+            context.addLine(to: CGPoint(x: cx, y: cy + markLen * dy))
+        }
+        context.strokePath()
+
+        // Cross marks at midpoints of edges
+        let crossSize = mmToPoints(2)
+        let midX = dirtyRect.midX
+        let midY = dirtyRect.midY
+
+        drawCross(in: context, at: CGPoint(x: midX, y: dirtyRect.minY + inset), size: crossSize)
+        drawCross(in: context, at: CGPoint(x: midX, y: dirtyRect.maxY - inset), size: crossSize)
+        drawCross(in: context, at: CGPoint(x: dirtyRect.minX + inset, y: midY), size: crossSize)
+        drawCross(in: context, at: CGPoint(x: dirtyRect.maxX - inset, y: midY), size: crossSize)
+
+        context.restoreGState()
+    }
+
+    private func drawCross(in context: CGContext, at point: CGPoint, size: CGFloat) {
+        context.move(to: CGPoint(x: point.x - size, y: point.y))
+        context.addLine(to: CGPoint(x: point.x + size, y: point.y))
+        context.move(to: CGPoint(x: point.x, y: point.y - size))
+        context.addLine(to: CGPoint(x: point.x, y: point.y + size))
+        context.strokePath()
+    }
+
+    private func drawPageLabel(in context: CGContext, dirtyRect: NSRect, row: Int, col: Int) {
+        let pageNum = row * tileColumns + col + 1
+        let totalPages = tileRows * tileColumns
+        let label = "Page \(pageNum)/\(totalPages) (col:\(col + 1), row:\(row + 1))"
+        let font = NSFont.systemFont(ofSize: 8)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.gray
+        ]
+        let attrStr = NSAttributedString(string: label, attributes: attrs)
+        let textSize = attrStr.size()
+        let textRect = NSRect(
+            x: dirtyRect.maxX - textSize.width - 10,
+            y: dirtyRect.maxY - textSize.height - 5,
+            width: textSize.width,
+            height: textSize.height
+        )
+        attrStr.draw(in: textRect)
+    }
+
+    // MARK: - Calibration Lookup
+
+    private func currentPrinterCalibration() -> PrinterCalibration? {
+        if let printInfo = NSPrintOperation.current?.printInfo {
+            let printerName = printInfo.printer.name
+            return calibrations.first { $0.printerName == printerName }
+        }
+        return nil
+    }
+
+    // MARK: - Bounding Box
+
+    private func computeBoundingBox() -> CGRect {
+        var minX = CGFloat.infinity, minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity, maxY = -CGFloat.infinity
+
+        for layer in document.layers where layer.isVisible {
+            for shape in layer.shapes {
+                let bb = shape.boundingBox
+                minX = min(minX, bb.minX)
+                minY = min(minY, bb.minY)
+                maxX = max(maxX, bb.maxX)
+                maxY = max(maxY, bb.maxY)
+            }
+        }
+
+        guard minX.isFinite else {
+            return CGRect(x: 0, y: 0, width: 100, height: 100)
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+}
+
+// MARK: - Calibration Test Page View
+
+private class CalibrationTestPageView: NSView {
+    private let squareSizeMM: CGFloat = 100
+
+    override init(frame: NSRect) {
+        let totalWidth = mmToPoints(180)
+        let totalHeight = mmToPoints(220)
+        super.init(frame: NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        // White background
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(dirtyRect)
+
+        // Title
+        let titleFont = NSFont.boldSystemFont(ofSize: 16)
+        let titleAttrs: [NSAttributedString.Key: Any] = [
+            .font: titleFont,
+            .foregroundColor: NSColor.black
+        ]
+        let titleStr = NSAttributedString(string: "LCCAD Printer Calibration Test Page", attributes: titleAttrs)
+        titleStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(10)))
+
+        // Instructions
+        let bodyFont = NSFont.systemFont(ofSize: 10)
+        let bodyAttrs: [NSAttributedString.Key: Any] = [
+            .font: bodyFont,
+            .foregroundColor: NSColor.darkGray
+        ]
+        let instructions = """
+        Instructions:
+        1. Print this page at 100% scale (no scaling/fit-to-page).
+        2. Measure the square below with a ruler.
+        3. The square should be exactly 100mm x 100mm.
+        4. In LCCAD Settings > Printer Calibration, enter your measured values.
+        5. LCCAD will calculate the correction factor automatically.
+        """
+        let instrStr = NSAttributedString(string: instructions, attributes: bodyAttrs)
+        instrStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(22)))
+
+        // Draw the 100mm square
+        let squareOriginX = mmToPoints(40)
+        let squareOriginY = mmToPoints(70)
+        let squareSizePt = mmToPoints(squareSizeMM)
+
+        context.setStrokeColor(NSColor.black.cgColor)
+        context.setLineWidth(1.0)
+        context.stroke(CGRect(x: squareOriginX, y: squareOriginY,
+                              width: squareSizePt, height: squareSizePt))
+
+        // Dimension labels
+        let dimFont = NSFont.systemFont(ofSize: 9)
+        let dimAttrs: [NSAttributedString.Key: Any] = [
+            .font: dimFont,
+            .foregroundColor: NSColor.black
+        ]
+
+        // Horizontal dimension (below the square)
+        let hLabel = NSAttributedString(string: "100 mm", attributes: dimAttrs)
+        let hLabelSize = hLabel.size()
+        hLabel.draw(at: NSPoint(
+            x: squareOriginX + squareSizePt / 2 - hLabelSize.width / 2,
+            y: squareOriginY + squareSizePt + mmToPoints(3)
+        ))
+
+        // Dimension line (horizontal)
+        let arrowY = squareOriginY + squareSizePt + mmToPoints(2)
+        context.setLineWidth(0.5)
+        context.move(to: CGPoint(x: squareOriginX, y: arrowY))
+        context.addLine(to: CGPoint(x: squareOriginX + squareSizePt / 2 - hLabelSize.width / 2 - mmToPoints(2), y: arrowY))
+        context.strokePath()
+        context.move(to: CGPoint(x: squareOriginX + squareSizePt / 2 + hLabelSize.width / 2 + mmToPoints(2), y: arrowY))
+        context.addLine(to: CGPoint(x: squareOriginX + squareSizePt, y: arrowY))
+        context.strokePath()
+
+        // Vertical dimension (right of the square)
+        let vLabel = NSAttributedString(string: "100 mm", attributes: dimAttrs)
+        let vLabelSize = vLabel.size()
+        context.saveGState()
+        let vLabelX = squareOriginX + squareSizePt + mmToPoints(5)
+        let vLabelY = squareOriginY + squareSizePt / 2 + vLabelSize.width / 2
+        context.translateBy(x: vLabelX, y: vLabelY)
+        context.rotate(by: -.pi / 2)
+        vLabel.draw(at: .zero)
+        context.restoreGState()
+
+        // Ruler markings along the bottom edge (every 10mm)
+        context.setLineWidth(0.3)
+        for i in 0...10 {
+            let x = squareOriginX + mmToPoints(CGFloat(i) * 10)
+            let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
+            context.move(to: CGPoint(x: x, y: squareOriginY + squareSizePt))
+            context.addLine(to: CGPoint(x: x, y: squareOriginY + squareSizePt - tickLen))
+            context.strokePath()
+        }
+
+        // Ruler markings along the left edge
+        for i in 0...10 {
+            let y = squareOriginY + mmToPoints(CGFloat(i) * 10)
+            let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
+            context.move(to: CGPoint(x: squareOriginX, y: y))
+            context.addLine(to: CGPoint(x: squareOriginX + tickLen, y: y))
+            context.strokePath()
+        }
+
+        // Footer
+        let footerAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 8),
+            .foregroundColor: NSColor.gray
+        ]
+        let footerStr = NSAttributedString(
+            string: "LCCAD - Make sure 'Scale to fit' is OFF in your print dialog.",
+            attributes: footerAttrs
+        )
+        footerStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(190)))
+    }
+}
