@@ -1,0 +1,47 @@
+name: LCCAD
+options:
+  bundleIdPrefix: com.lccad
+  deploymentTarget:
+    macOS: "14.0"
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  LCCAD:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/LCCAD
+    resources:
+      - path: Sources/LCCAD/Resources
+        excludes:
+          - Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lccad.app
+        PRODUCT_NAME: LCCAD
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_FILE: Sources/LCCAD/Resources/Info.plist
+        ENABLE_PREVIEWS: true
+    scheme:
+      testTargets:
+        - LCCADTests
+
+  LCCADTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/LCCADTests
+    dependencies:
+      - target: LCCAD
+    settings:
+      base:
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/LCCAD.app/Contents/MacOS/LCCAD
+        GENERATE_INFOPLIST_FILE: true
