@@ -49,8 +49,9 @@ struct CanvasView: View {
                 )
 
                 // 5. Selection overlay
-                if let selectedId = editor.selectedShapeId,
-                   let shape = editor.findShape(id: selectedId) {
+                if editor.isSingleSelection,
+                   let id = editor.selectedShapeIds.first,
+                   let shape = editor.findShape(id: id) {
                     if case .bezier(let bezier) = shape {
                         SelectionOverlay.drawBezierEditOverlay(
                             bezier: bezier,
@@ -66,6 +67,30 @@ struct CanvasView: View {
                             in: context
                         )
                     }
+                } else if editor.isMultiSelection {
+                    // Draw individual bounding boxes for each selected shape
+                    for id in editor.selectedShapeIds {
+                        if let shape = editor.findShape(id: id) {
+                            SelectionOverlay.drawLightBoundingBox(
+                                boundingBox: shape.boundingBox,
+                                transform: editor.transform,
+                                in: context
+                            )
+                        }
+                    }
+                    // Draw combined bounding box
+                    if let combinedBox = editor.selectionBoundingBox {
+                        SelectionOverlay.draw(
+                            boundingBox: combinedBox,
+                            transform: editor.transform,
+                            in: context
+                        )
+                    }
+                }
+
+                // 6. Marquee selection rectangle
+                if let marqueeRect = editor.marqueeRect {
+                    SelectionOverlay.drawMarquee(rect: marqueeRect, in: context)
                 }
             }
             .onChange(of: geometry.size) { _, newSize in
@@ -84,7 +109,8 @@ struct CanvasView: View {
                 }
             }
             .onTapGesture { location in
-                editor.handleClick(at: location)
+                let shiftHeld = NSEvent.modifierFlags.contains(.shift)
+                editor.handleClick(at: location, shiftHeld: shiftHeld)
             }
             .onKeyPress(.escape) {
                 editor.cancelDrawing()
@@ -121,34 +147,65 @@ struct CanvasView: View {
                     y: value.translation.height - (editor.lastPanTranslation?.height ?? 0)
                 )
                 let shiftHeld = NSEvent.modifierFlags.contains(.shift)
-                if editor.currentTool == .select && editor.selectedShapeId != nil {
+
+                if editor.currentTool == .select {
                     if editor.draggingBezierPointIndex != nil {
                         // Continue bezier point drag
                         editor.dragBezierPoint(to: value.location, shiftHeld: shiftHeld)
+                    } else if editor.marqueeStart != nil {
+                        // Continue marquee selection
+                        editor.updateMarquee(to: value.location, shiftHeld: shiftHeld)
                     } else if editor.lastPanTranslation == nil {
-                        // First drag event: try bezier point drag first
-                        if editor.startBezierPointDrag(startScreenPoint: value.startLocation) {
-                            editor.dragBezierPoint(to: value.location, shiftHeld: shiftHeld)
-                        } else {
-                            // Normal shape move
+                        // First drag event: determine what to do
+                        let worldPoint = editor.transform.screenToWorld(value.startLocation)
+                        let tolerance = editor.transform.screenToWorldDistance(5)
+                        let hitId = editor.hitTestPublic(at: worldPoint, tolerance: tolerance)
+
+                        if let hitId = hitId, editor.selectedShapeIds.contains(hitId) {
+                            // Drag on a selected shape: try bezier point drag first, then move
+                            if editor.startBezierPointDrag(startScreenPoint: value.startLocation) {
+                                editor.dragBezierPoint(to: value.location, shiftHeld: shiftHeld)
+                            } else {
+                                editor.moveUndoSnapshot = editor.document
+                                let worldDelta = CGPoint(
+                                    x: delta.x / editor.transform.scale,
+                                    y: delta.y / editor.transform.scale
+                                )
+                                editor.moveSelectedShapes(by: worldDelta)
+                            }
+                        } else if let hitId = hitId {
+                            // Drag on an unselected shape: select it first, then start move
+                            if shiftHeld {
+                                editor.selectedShapeIds.insert(hitId)
+                            } else {
+                                editor.selectedShapeIds = [hitId]
+                            }
                             editor.moveUndoSnapshot = editor.document
                             let worldDelta = CGPoint(
                                 x: delta.x / editor.transform.scale,
                                 y: delta.y / editor.transform.scale
                             )
-                            editor.moveSelectedShape(by: worldDelta)
+                            editor.moveSelectedShapes(by: worldDelta)
+                        } else {
+                            // Drag on empty area: start marquee selection
+                            if !shiftHeld {
+                                editor.selectedShapeIds = []
+                            }
+                            editor.beginMarquee(at: value.startLocation)
+                            editor.updateMarquee(to: value.location, shiftHeld: shiftHeld)
                         }
-                    } else {
+                    } else if editor.hasSelection && editor.marqueeStart == nil {
                         // Continue normal shape move
                         let worldDelta = CGPoint(
                             x: delta.x / editor.transform.scale,
                             y: delta.y / editor.transform.scale
                         )
-                        editor.moveSelectedShape(by: worldDelta)
+                        editor.moveSelectedShapes(by: worldDelta)
                     }
-                    editor.updateEdgeScroll(cursorScreenPoint: value.location, canvasSize: canvasSize)
-                } else if editor.currentTool == .select {
-                    editor.transform.pan(by: delta)
+
+                    if editor.hasSelection && editor.marqueeStart == nil {
+                        editor.updateEdgeScroll(cursorScreenPoint: value.location, canvasSize: canvasSize)
+                    }
                 } else {
                     editor.handleDrag(startLocation: value.startLocation, currentLocation: value.location, phase: .changed, shiftHeld: shiftHeld)
                 }
@@ -156,14 +213,18 @@ struct CanvasView: View {
             }
             .onEnded { value in
                 editor.stopEdgeScroll()
-                if editor.draggingBezierPointIndex != nil {
-                    editor.endBezierPointDrag()
-                } else if editor.currentTool == .select && editor.selectedShapeId != nil {
-                    if let snapshot = editor.moveUndoSnapshot {
-                        editor.commitMoveWithUndo(oldDocument: snapshot)
-                        editor.moveUndoSnapshot = nil
+                if editor.currentTool == .select {
+                    if editor.draggingBezierPointIndex != nil {
+                        editor.endBezierPointDrag()
+                    } else if editor.marqueeStart != nil {
+                        editor.endMarquee()
+                    } else if editor.hasSelection {
+                        if let snapshot = editor.moveUndoSnapshot {
+                            editor.commitMoveWithUndo(oldDocument: snapshot)
+                            editor.moveUndoSnapshot = nil
+                        }
                     }
-                } else if editor.currentTool != .select || editor.selectedShapeId == nil {
+                } else {
                     let shiftHeld = NSEvent.modifierFlags.contains(.shift)
                     editor.handleDrag(startLocation: value.startLocation, currentLocation: value.location, phase: .ended, shiftHeld: shiftHeld)
                 }

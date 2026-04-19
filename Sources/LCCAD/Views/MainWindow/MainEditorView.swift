@@ -41,7 +41,7 @@ struct MainEditorView: View {
         }
         .focusedValue(\.editor, editor)
         .onDeleteCommand {
-            editor.deleteSelectedShape()
+            editor.deleteSelectedShapes()
         }
     }
 }

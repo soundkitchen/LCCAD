@@ -21,8 +21,32 @@ struct RightPanelView: View {
                     Rectangle().fill(DesignTokens.border(colorScheme)).frame(height: 1)
                 }
 
-                if let selectedId = editor.selectedShapeId,
-                   let shape = editor.findShape(id: selectedId) {
+                if editor.isMultiSelection {
+                    // Multi-selection: show count and combined bounding box
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(editor.selectedShapeIds.count) items selected")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(DesignTokens.textPrimary(colorScheme))
+                            .padding(.horizontal, 12)
+                            .padding(.top, 12)
+                    }
+
+                    if let bbox = editor.selectionBoundingBox {
+                        PositionSection(editor: editor, boundingBox: bbox, unit: editor.document.settings.unit)
+                        SizeSection(boundingBox: bbox, unit: editor.document.settings.unit)
+                    }
+
+                    // Show stroke section for batch editing (uses first selected shape's stroke)
+                    if let firstShape = editor.selectedShapes.first {
+                        if case .text = firstShape {
+                            // skip text section for multi-select
+                        } else {
+                            StrokeSection(editor: editor, stroke: firstShape.stroke)
+                        }
+                    }
+                } else if editor.isSingleSelection,
+                          let selectedId = editor.selectedShapeIds.first,
+                          let shape = editor.findShape(id: selectedId) {
                     PositionSection(editor: editor, boundingBox: shape.boundingBox, unit: editor.document.settings.unit)
                     SizeSection(boundingBox: shape.boundingBox, unit: editor.document.settings.unit)
 

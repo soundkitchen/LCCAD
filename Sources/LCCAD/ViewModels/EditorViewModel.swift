@@ -101,9 +101,40 @@ final class EditorViewModel {
     }
     var transform: CanvasTransform = CanvasTransform()
     var currentTool: DrawingTool = .select
-    var selectedShapeId: UUID?
+    var selectedShapeIds: Set<UUID> = []
     var cursorWorldPosition: CGPoint = .zero
     var activeLayerIndex: Int = 0
+
+    // Marquee selection
+    var marqueeStart: CGPoint?
+    var marqueeRect: CGRect?
+
+    // MARK: - Selection Helpers
+
+    /// Convenience: the single selected shape ID when exactly one shape is selected.
+    var selectedShapeId: UUID? {
+        selectedShapeIds.count == 1 ? selectedShapeIds.first : nil
+    }
+
+    var hasSelection: Bool { !selectedShapeIds.isEmpty }
+    var isSingleSelection: Bool { selectedShapeIds.count == 1 }
+    var isMultiSelection: Bool { selectedShapeIds.count > 1 }
+
+    /// All currently selected shapes.
+    var selectedShapes: [AnyShape] {
+        selectedShapeIds.compactMap { findShape(id: $0) }
+    }
+
+    /// Combined bounding box of all selected shapes.
+    var selectionBoundingBox: CGRect? {
+        let shapes = selectedShapes
+        guard let first = shapes.first else { return nil }
+        var combined = first.boundingBox
+        for shape in shapes.dropFirst() {
+            combined = combined.union(shape.boundingBox)
+        }
+        return combined
+    }
 
     // Drag state
     var lastPanTranslation: CGSize?
@@ -211,10 +242,10 @@ final class EditorViewModel {
         let screenDelta = CGPoint(x: d.x * transform.scale, y: d.y * transform.scale)
         transform.pan(by: screenDelta)
 
-        // Move the selected shape in the opposite world direction
-        // so it tracks with the cursor position (skip during bezier point drag)
-        if selectedShapeId != nil && draggingBezierPointIndex == nil {
-            moveSelectedShape(by: CGPoint(x: -d.x, y: -d.y))
+        // Move the selected shapes in the opposite world direction
+        // so they track with the cursor position (skip during bezier point drag)
+        if hasSelection && draggingBezierPointIndex == nil {
+            moveSelectedShapes(by: CGPoint(x: -d.x, y: -d.y))
         }
     }
 
@@ -252,35 +283,43 @@ final class EditorViewModel {
 
     // MARK: - Position Editing
 
-    /// Move the selected shape so its boundingBox.origin equals the given world position (mm).
+    /// Move the selected shape(s) so the selection bounding box origin equals the given world position (mm).
     func setSelectedShapePosition(x: CGFloat?, y: CGFloat?) {
-        guard let id = selectedShapeId,
-              let (li, si) = findShapeLocation(id: id) else { return }
-        let current = document.layers[li].shapes[si].boundingBox.origin
+        guard let bbox = selectionBoundingBox else { return }
+        let current = bbox.origin
         let dx = (x ?? current.x) - current.x
         let dy = (y ?? current.y) - current.y
         guard dx != 0 || dy != 0 else { return }
         let old = document
-        document.layers[li].shapes[si].translate(by: CGPoint(x: dx, y: dy))
+        let delta = CGPoint(x: dx, y: dy)
+        for id in selectedShapeIds {
+            if let (li, si) = findShapeLocation(id: id) {
+                document.layers[li].shapes[si].translate(by: delta)
+            }
+        }
         registerUndo(actionName: "Move Shape", oldDocument: old)
     }
 
     // MARK: - Stroke Property Editing
 
     func updateStroke(_ update: (inout StrokeStyle) -> Void) {
-        guard let id = selectedShapeId,
-              let (li, si) = findShapeLocation(id: id) else { return }
+        guard hasSelection else { return }
         let old = document
-        var stroke = document.layers[li].shapes[si].stroke
-        update(&stroke)
-        document.layers[li].shapes[si].stroke = stroke
+        for id in selectedShapeIds {
+            if let (li, si) = findShapeLocation(id: id) {
+                var stroke = document.layers[li].shapes[si].stroke
+                update(&stroke)
+                document.layers[li].shapes[si].stroke = stroke
+            }
+        }
         registerUndo(actionName: "Edit Stroke", oldDocument: old)
     }
 
     // MARK: - Text Property Editing
 
     func updateTextProperty(_ update: (inout TextShape) -> Void) {
-        guard let id = selectedShapeId,
+        // For text editing, use the single selected shape (text editing requires single selection)
+        guard let id = selectedShapeIds.first,
               let (li, si) = findShapeLocation(id: id),
               case .text(var text) = document.layers[li].shapes[si] else { return }
         let old = document
@@ -326,7 +365,8 @@ final class EditorViewModel {
     }
 
     func startBezierPointDrag(startScreenPoint: CGPoint) -> Bool {
-        guard let id = selectedShapeId,
+        guard isSingleSelection,
+              let id = selectedShapeIds.first,
               let shape = findShape(id: id),
               case .bezier(let bezier) = shape else { return false }
 
@@ -346,7 +386,7 @@ final class EditorViewModel {
     func dragBezierPoint(to screenPoint: CGPoint, shiftHeld: Bool = false) {
         guard let pointIndex = draggingBezierPointIndex,
               let target = draggingBezierTarget,
-              let id = selectedShapeId,
+              let id = selectedShapeIds.first,
               let (li, si) = findShapeLocation(id: id),
               case .bezier(var bezier) = document.layers[li].shapes[si] else { return }
 
@@ -410,9 +450,11 @@ final class EditorViewModel {
         moveUndoSnapshot = nil
         drawingPreview = nil
         activeSnapCandidate = nil
+        marqueeStart = nil
+        marqueeRect = nil
         currentTool = tool
         if tool != .select {
-            selectedShapeId = nil
+            selectedShapeIds = []
         }
     }
 
@@ -449,14 +491,31 @@ final class EditorViewModel {
         return result.snappedPoint
     }
 
-    func handleClick(at screenPoint: CGPoint) {
+    func handleClick(at screenPoint: CGPoint, shiftHeld: Bool = false) {
         let worldPoint = snappedWorldPoint(from: screenPoint)
         let tolerance = transform.screenToWorldDistance(5)
 
         switch currentTool {
         case .select:
             activeSnapCandidate = nil
-            selectedShapeId = hitTest(at: worldPoint, tolerance: tolerance)
+            let hitId = hitTest(at: worldPoint, tolerance: tolerance)
+            if shiftHeld {
+                // Shift+click: toggle shape in/out of selection
+                if let id = hitId {
+                    if selectedShapeIds.contains(id) {
+                        selectedShapeIds.remove(id)
+                    } else {
+                        selectedShapeIds.insert(id)
+                    }
+                }
+            } else {
+                // Normal click: select only this shape (deselect others)
+                if let id = hitId {
+                    selectedShapeIds = [id]
+                } else {
+                    selectedShapeIds = []
+                }
+            }
 
         case .line:
             if let start = dragStartWorldPoint {
@@ -498,27 +557,27 @@ final class EditorViewModel {
         case .text:
             let textShape = TextShape(position: worldPoint)
             addShapeWithUndo(.text(textShape), actionName: "Add Text")
-            selectedShapeId = textShape.id
+            selectedShapeIds = [textShape.id]
             activeSnapCandidate = nil
 
         case .offset:
             // Click on a shape to offset it
             if let hitId = hitTest(at: worldPoint, tolerance: tolerance) {
-                selectedShapeId = hitId
+                selectedShapeIds = [hitId]
                 offsetSelectedShape(distance: 3.0)
             }
 
         case .trim:
             // Click on a line to trim at the clicked point
             if let hitId = hitTest(at: worldPoint, tolerance: tolerance) {
-                selectedShapeId = hitId
+                selectedShapeIds = [hitId]
                 trimSelectedShape(clickPoint: worldPoint)
             }
 
         case .bevel:
             // Click on a line to bevel its corner
             if let hitId = hitTest(at: worldPoint, tolerance: tolerance) {
-                selectedShapeId = hitId
+                selectedShapeIds = [hitId]
                 bevelCorner(radius: 2.0)
             }
 
@@ -661,10 +720,12 @@ final class EditorViewModel {
         }
     }
 
-    func moveSelectedShape(by worldDelta: CGPoint) {
-        guard let id = selectedShapeId,
-              let (li, si) = findShapeLocation(id: id) else { return }
-        document.layers[li].shapes[si].translate(by: worldDelta)
+    func moveSelectedShapes(by worldDelta: CGPoint) {
+        for id in selectedShapeIds {
+            if let (li, si) = findShapeLocation(id: id) {
+                document.layers[li].shapes[si].translate(by: worldDelta)
+            }
+        }
     }
 
     func commitMove() {
@@ -672,12 +733,14 @@ final class EditorViewModel {
         // For now, we track this simply via document snapshot
     }
 
-    func deleteSelectedShape() {
-        guard let id = selectedShapeId,
-              let (li, si) = findShapeLocation(id: id) else { return }
+    func deleteSelectedShapes() {
+        guard hasSelection else { return }
         let old = document
-        document.layers[li].shapes.remove(at: si)
-        selectedShapeId = nil
+        let idsToDelete = selectedShapeIds
+        for (li, layer) in document.layers.enumerated() {
+            document.layers[li].shapes = layer.shapes.filter { !idsToDelete.contains($0.id) }
+        }
+        selectedShapeIds = []
         registerUndo(actionName: "Delete Shape", oldDocument: old)
     }
 
@@ -693,6 +756,8 @@ final class EditorViewModel {
         isDraggingBezierHandle = false
         drawingPreview = nil
         activeSnapCandidate = nil
+        marqueeStart = nil
+        marqueeRect = nil
     }
 
     /// Commit the current bezier path (called by Enter/Escape/double-click)
@@ -770,7 +835,7 @@ final class EditorViewModel {
 
     /// Offset the selected shape by a distance (mm). Positive = outward, negative = inward.
     func offsetSelectedShape(distance: CGFloat) {
-        guard let id = selectedShapeId,
+        guard let id = selectedShapeIds.first,
               let shape = findShape(id: id) else { return }
 
         let old = document
@@ -795,7 +860,7 @@ final class EditorViewModel {
 
     /// Trim the selected shape at intersections with other shapes, removing the clicked segment.
     func trimSelectedShape(clickPoint: CGPoint) {
-        guard let id = selectedShapeId,
+        guard let id = selectedShapeIds.first,
               let (li, si) = findShapeLocation(id: id) else { return }
 
         let shape = document.layers[li].shapes[si]
@@ -805,13 +870,13 @@ final class EditorViewModel {
         let old = document
         document.layers[li].shapes.remove(at: si)
         document.layers[li].shapes.insert(contentsOf: result.replacements, at: si)
-        selectedShapeId = nil
+        selectedShapeIds = []
         registerUndo(actionName: "Trim", oldDocument: old)
     }
 
     /// Trim selected shape from toolbar (uses midpoint as click point).
     func trimSelectedShapeAtCenter() {
-        guard let id = selectedShapeId,
+        guard let id = selectedShapeIds.first,
               let shape = findShape(id: id) else { return }
         trimSelectedShape(clickPoint: shape.boundingBox.center)
     }
@@ -820,7 +885,7 @@ final class EditorViewModel {
     func bevelCorner(radius: CGFloat) {
         // For now, bevel requires exactly two lines to be adjacent
         // This is a simplified version — the user selects a line, and we find the adjacent one
-        guard let id = selectedShapeId,
+        guard let id = selectedShapeIds.first,
               let (li, si) = findShapeLocation(id: id),
               case .line(let line1) = document.layers[li].shapes[si] else { return }
 
@@ -838,7 +903,52 @@ final class EditorViewModel {
         }
     }
 
+    // MARK: - Select All
+
+    func selectAll() {
+        let layer = activeLayer
+        selectedShapeIds = Set(layer.shapes.map(\.id))
+    }
+
+    // MARK: - Marquee Selection
+
+    func beginMarquee(at screenPoint: CGPoint) {
+        marqueeStart = screenPoint
+        marqueeRect = CGRect(origin: screenPoint, size: .zero)
+    }
+
+    func updateMarquee(to screenPoint: CGPoint, shiftHeld: Bool) {
+        guard let start = marqueeStart else { return }
+        let rect = CGRect(from: start, to: screenPoint)
+        marqueeRect = rect
+
+        // Convert marquee rect from screen to world coordinates
+        let worldOrigin = transform.screenToWorld(rect.origin)
+        let worldEnd = transform.screenToWorld(CGPoint(x: rect.maxX, y: rect.maxY))
+        let worldRect = CGRect(from: worldOrigin, to: worldEnd)
+
+        // Find all shapes whose bounding box intersects the marquee
+        var newSelection = shiftHeld ? selectedShapeIds : Set<UUID>()
+        for layer in document.layers where layer.isVisible {
+            for shape in layer.shapes {
+                if shape.boundingBox.intersects(worldRect) {
+                    newSelection.insert(shape.id)
+                }
+            }
+        }
+        selectedShapeIds = newSelection
+    }
+
+    func endMarquee() {
+        marqueeStart = nil
+        marqueeRect = nil
+    }
+
     // MARK: - Hit Testing
+
+    func hitTestPublic(at worldPoint: CGPoint, tolerance: CGFloat) -> UUID? {
+        hitTest(at: worldPoint, tolerance: tolerance)
+    }
 
     private func hitTest(at worldPoint: CGPoint, tolerance: CGFloat) -> UUID? {
         for layer in document.layers.reversed() where layer.isVisible {
@@ -879,7 +989,7 @@ final class EditorViewModel {
     // MARK: - Auto Stitch
 
     func autoStitchSelectedShape() {
-        guard let id = selectedShapeId,
+        guard let id = selectedShapeIds.first,
               let shape = findShape(id: id),
               let iron = activePrickingIron else { return }
 

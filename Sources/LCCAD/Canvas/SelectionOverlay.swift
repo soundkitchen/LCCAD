@@ -31,6 +31,24 @@ enum SelectionOverlay {
         }
     }
 
+    /// Draw a lightweight bounding box for individual shapes in a multi-selection (no corner handles).
+    static func drawLightBoundingBox(boundingBox: CGRect, transform: CanvasTransform, in context: GraphicsContext) {
+        let screenRect = transform.worldToScreen(boundingBox)
+        let boxPath = Path(screenRect)
+        context.stroke(boxPath, with: .color(handleColor.opacity(0.4)), style: SwiftUI.StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
+    }
+
+    /// Draw a marquee selection rectangle (in screen coordinates).
+    static func drawMarquee(rect: CGRect, in context: GraphicsContext) {
+        let marqueeColor = Color(red: 0.29, green: 0.56, blue: 0.85) // #4A90D9
+        let fillColor = marqueeColor.opacity(0.08)
+        let strokeColor = marqueeColor.opacity(0.6)
+
+        let path = Path(rect)
+        context.fill(path, with: .color(fillColor))
+        context.stroke(path, with: .color(strokeColor), style: SwiftUI.StrokeStyle(lineWidth: 1, dash: [4, 3]))
+    }
+
     // MARK: - Bezier Point Edit Overlay
 
     static func drawBezierEditOverlay(

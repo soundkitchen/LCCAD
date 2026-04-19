@@ -55,6 +55,20 @@ struct AppCommands: Commands {
             .keyboardShortcut("g", modifiers: [.command, .shift])
         }
 
+        // Edit menu — Select All
+        CommandGroup(after: .pasteboard) {
+            Divider()
+            Button("Select All") {
+                editor?.selectAll()
+            }
+            .keyboardShortcut("a")
+
+            Button("Deselect All") {
+                editor?.selectedShapeIds = []
+            }
+            .keyboardShortcut("d")
+        }
+
         // Draw menu — tool switching (shortcuts are single-key, handled via onKeyPress in CanvasView)
         CommandMenu("Draw") {
             Button("Select Tool (V)") { editor?.selectTool(.select) }

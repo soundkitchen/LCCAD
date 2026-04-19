@@ -6,7 +6,7 @@ struct TextSection: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private var textShape: TextShape? {
-        guard let id = editor.selectedShapeId,
+        guard let id = editor.selectedShapeIds.first,
               let shape = editor.findShape(id: id),
               case .text(let t) = shape else { return nil }
         return t
