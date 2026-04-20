@@ -177,37 +177,41 @@ private struct CalibrationEditSheet: View {
             Text(calibration == nil ? "キャリブレーション追加" : "キャリブレーション編集")
                 .font(.headline)
 
-            Form {
-                if availablePrinters.isEmpty {
-                    TextField("プリンター名:", text: $printerName)
-                        .textFieldStyle(.roundedBorder)
-                } else {
-                    Picker("プリンター:", selection: $printerName) {
-                        Text("選択してください").tag("")
-                        ForEach(availablePrinters, id: \.self) { name in
-                            Text(name).tag(name)
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                GridRow {
+                    Text("プリンター:")
+                        .gridColumnAlignment(.trailing)
+                    if availablePrinters.isEmpty {
+                        TextField("プリンター名", text: $printerName)
+                            .textFieldStyle(.roundedBorder)
+                    } else {
+                        Picker("", selection: $printerName) {
+                            Text("選択してください").tag("")
+                            ForEach(availablePrinters, id: \.self) { name in
+                                Text(name).tag(name)
+                            }
                         }
+                        .labelsHidden()
                     }
                 }
 
-                Divider()
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    Text("キャリブレーション用 100mm 正方形の実測値を入力してください:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
-                Text("キャリブレーション用 100mm 正方形の実測値を入力してください:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack {
+                GridRow {
                     Text("実測 X (mm):")
-                        .frame(width: 100, alignment: .trailing)
                     TextField("100.0", text: $measuredX)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
                         .onChange(of: measuredX) { _, _ in recalculate() }
                 }
 
-                HStack {
+                GridRow {
                     Text("実測 Y (mm):")
-                        .frame(width: 100, alignment: .trailing)
                     TextField("100.0", text: $measuredY)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
@@ -215,18 +219,18 @@ private struct CalibrationEditSheet: View {
                 }
 
                 Divider()
+                    .gridCellUnsizedAxes(.vertical)
+                    .gridCellColumns(2)
 
-                HStack {
+                GridRow {
                     Text("補正倍率 X:")
-                        .frame(width: 100, alignment: .trailing)
                     Text(String(format: "%.4f", computedScaleX))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
 
-                HStack {
+                GridRow {
                     Text("補正倍率 Y:")
-                        .frame(width: 100, alignment: .trailing)
                     Text(String(format: "%.4f", computedScaleY))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
@@ -234,9 +238,12 @@ private struct CalibrationEditSheet: View {
 
                 let deviation = max(abs(computedScaleX - 1.0), abs(computedScaleY - 1.0)) * 100
                 if deviation > 5 {
-                    Text("警告: 補正が 5% を超えています。測定値を確認してください。")
-                        .font(.caption)
-                        .foregroundColor(.orange)
+                    GridRow {
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                        Text("警告: 補正が 5% を超えています。測定値を確認してください。")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
                 }
             }
 
