@@ -29,32 +29,45 @@ struct ScrollZoomRepresentable: NSViewRepresentable {
 
 class ScrollZoomNSView: NSView {
     var editor: EditorViewModel?
+    private var lastMiddleDragLocation: NSPoint?
 
     override func scrollWheel(with event: NSEvent) {
         guard let editor else { return }
 
-        if event.modifierFlags.contains(.command) || event.phase == .changed || event.momentumPhase == .changed {
-            // ⌘+scroll or trackpad pinch → zoom
-            let zoomDelta = event.scrollingDeltaY
-            guard abs(zoomDelta) > 0.01 else { return }
+        // Scroll wheel → zoom (at cursor position)
+        let zoomDelta = event.scrollingDeltaY
+        guard abs(zoomDelta) > 0.01 else { return }
 
-            let factor: CGFloat = 1 + zoomDelta * 0.01
-            let mouseLocation = convert(event.locationInWindow, from: nil)
-            let flippedY = bounds.height - mouseLocation.y
-            let center = CGPoint(x: mouseLocation.x, y: flippedY)
+        let factor: CGFloat = 1 + zoomDelta * 0.01
+        let mouseLocation = convert(event.locationInWindow, from: nil)
+        let flippedY = bounds.height - mouseLocation.y
+        let center = CGPoint(x: mouseLocation.x, y: flippedY)
 
-            Task { @MainActor in
-                editor.transform.zoom(by: factor, center: center)
-            }
-        } else {
-            // Normal scroll → pan
-            let dx = event.scrollingDeltaX
-            let dy = event.scrollingDeltaY
-
-            Task { @MainActor in
-                editor.transform.pan(by: CGPoint(x: dx, y: -dy))
-            }
+        Task { @MainActor in
+            editor.transform.zoom(by: factor, center: center)
         }
+    }
+
+    // MARK: - Middle mouse button drag → pan
+
+    override func otherMouseDown(with event: NSEvent) {
+        lastMiddleDragLocation = convert(event.locationInWindow, from: nil)
+    }
+
+    override func otherMouseDragged(with event: NSEvent) {
+        guard let editor, let last = lastMiddleDragLocation else { return }
+        let current = convert(event.locationInWindow, from: nil)
+        let dx = current.x - last.x
+        let dy = current.y - last.y
+
+        Task { @MainActor in
+            editor.transform.pan(by: CGPoint(x: dx, y: dy))
+        }
+        lastMiddleDragLocation = current
+    }
+
+    override func otherMouseUp(with event: NSEvent) {
+        lastMiddleDragLocation = nil
     }
 
     override var acceptsFirstResponder: Bool { true }
