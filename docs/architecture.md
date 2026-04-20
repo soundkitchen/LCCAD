@@ -83,6 +83,7 @@ Sources/LCCAD/
 │   │   ├── PrickingIron.swift   # 目打ち定義
 │   │   ├── StitchHole.swift     # 縫い穴
 │   │   └── StitchLine.swift     # ステッチライン
+│   ├── PrinterCalibration.swift # プリンターキャリブレーション + 永続化ストア
 │   └── Geometry/
 │       ├── GeometryUtils.swift  # 2D 座標 (mm)、LengthUnit、CGPoint/CGRect 拡張
 │       └── Intersection.swift   # 交点計算
@@ -106,10 +107,10 @@ Sources/LCCAD/
 │   ├── Shared/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField
 │   │   └── DesignTokens.swift   # Pencil デザイン変数の Swift 転写
-│   └── SettingsView.swift       # 設定画面（カラーモード切替）
+│   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
 │
 ├── ViewModels/
-│   └── EditorViewModel.swift    # エディタ全体の状態管理
+│   └── EditorViewModel.swift    # エディタ全体の状態管理（マルチセレクト対応）
 │
 ├── Canvas/
 │   ├── CanvasView.swift         # キャンバス SwiftUI View + ジェスチャー
@@ -118,9 +119,9 @@ Sources/LCCAD/
 │   ├── GridRenderer.swift       # 適応グリッド描画（1-2-5 系列、10 分割固定）
 │   ├── SnapEngine.swift         # スナップ計算
 │   ├── SnapOverlay.swift        # スナップインジケータ描画
-│   ├── SelectionOverlay.swift   # 選択ハンドル描画
+│   ├── SelectionOverlay.swift   # 選択ハンドル描画（マルチセレクト、マーキー選択）
 │   ├── DrawingPreviewRenderer.swift # 描画中プレビュー
-│   └── ScrollZoomView.swift     # スクロールズーム
+│   └── ScrollZoomView.swift     # ホイールズーム + 中ボタンパン
 │
 ├── Tools/
 │   ├── OffsetTool.swift
@@ -134,7 +135,8 @@ Sources/LCCAD/
 ├── Export/
 │   ├── SVGExporter.swift
 │   ├── DXFExporter.swift
-│   └── ExportCoordinator.swift
+│   ├── ExportCoordinator.swift
+│   └── PrintCoordinator.swift  # 実寸印刷 + タイル印刷 + キャリブレーション適用
 │
 └── Resources/
     ├── Info.plist
@@ -167,12 +169,33 @@ Sources/LCCAD/
 
 | カテゴリ | メソッド | 説明 |
 |---------|---------|------|
+| **選択** | `handleClick(at:shiftHeld:)` | クリック選択。Shift で追加/解除トグル |
+| **選択** | `selectAll()` | アクティブレイヤーの全図形を選択 (⌘A) |
+| **選択** | `beginMarquee(at:)` / `updateMarquee(to:shiftHeld:)` / `endMarquee()` | マーキー（矩形範囲）選択 |
 | **位置編集** | `setSelectedShapePosition(x:y:)` | boundingBox.origin 基準で絶対座標移動（Undo 対応） |
+| **移動** | `moveSelectedShapes(by:)` | 全選択図形を一括移動 |
+| **削除** | `deleteSelectedShapes()` | 全選択図形を一括削除（Undo 対応） |
 | **ストローク編集** | `updateStroke(_:)` | 選択図形の stroke.color / stroke.width を更新（Undo 対応） |
 | **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応） |
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
 | **ズーム** | `zoomToFit()` | 実際のキャンバスサイズに基づく Fit |
+
+### マルチセレクト
+
+選択モデルは `selectedShapeIds: Set<UUID>` で複数図形の同時選択に対応:
+
+| 操作 | 動作 |
+|------|------|
+| **クリック** | 単一選択（他は解除） |
+| **Shift+クリック** | 追加/解除トグル |
+| **空白ドラッグ** | マーキー（矩形範囲）選択 |
+| **⌘A** | 全選択 |
+| **⌘D** | 全解除 |
+| **ドラッグ（選択図形上）** | 全選択図形を一括移動 |
+| **Delete** | 全選択図形を一括削除 |
+
+複数選択時、Properties パネルは「N items selected」表示 + 共通 Stroke 編集。
 
 ### キャンバス描画
 
@@ -183,7 +206,8 @@ CanvasView (SwiftUI Canvas + GeometryReader)
   ├── StitchRenderer       # ステッチ穴描画
   ├── DrawingPreviewRenderer # ツール操作中のプレビュー
   ├── SnapOverlay          # スナップインジケータ
-  └── SelectionOverlay     # 選択ハンドル / ベジエ制御点
+  ├── SelectionOverlay     # 選択ハンドル / ベジエ制御点 / マーキー矩形
+  └── ScrollZoomView       # ホイールズーム + 中ボタンパン (NSView)
 ```
 
 描画は Core Graphics (`CGContext`) ベースで、`draw()` メソッドでレイヤー順に描画。
@@ -213,6 +237,59 @@ SettingsView
 ```
 
 `NSApp.appearance` を使うことで、SwiftUI の `preferredColorScheme` のシーン間伝播遅延を回避。
+
+## 印刷 + プリンターキャリブレーション
+
+### 実寸印刷
+
+`PrintCoordinator` が `NSPrintOperation` を使って実寸 (1:1) 印刷を実行:
+
+- **単位変換**: 1mm = 72/25.4 ポイント（`pointsPerMM ≈ 2.8346`）
+- **`scalingFactor = 1.0`**: OS レベルのスケーリングを強制無効化
+- **タイル印刷**: 用紙サイズを超える図面を複数ページに自動分割
+  - のりしろ 10mm のオーバーラップ
+  - L字コーナーマーク + 十字位置合わせマーク
+  - ページ番号ラベル（例: "Page 1/6 (col:1, row:2)"）
+
+### プリンターキャリブレーション
+
+プリンター固有のスケーリング誤差を補正:
+
+```
+1. テストページ印刷（150mm 正方形）
+2. ノギスで実測 → measuredX, measuredY
+3. 補正倍率計算: scaleX = 150.0 / measuredX
+4. 印刷時に squareSize * scaleX で補正適用
+```
+
+#### データモデル
+
+```swift
+struct PrinterCalibration: Codable, Identifiable {
+    var printerName: String
+    var scaleX: Double   // 補正倍率 (default: 1.0)
+    var scaleY: Double
+}
+```
+
+#### 永続化
+
+- **保存先**: `~/Library/Application Support/LCCAD/printer_calibrations.json`
+- **ストア**: `PrinterCalibrationStore` (シングルトン、`@MainActor`、`ObservableObject`)
+- **プリンター識別**: `NSPrintOperation.current?.printInfo.printer.name` でマッチング
+
+#### テストページの精度配慮
+
+- ストローク幅 (0.75pt) を考慮し、パス矩形からストローク幅を差し引いて外辺間距離が正確に 150mm になるよう調整
+- キャリブレーション済みプリンターではテストページにも補正を適用（検証用）
+- キャリブレーション状態をテストページに表示
+
+#### 設定画面
+
+- Settings > Printer Calibration タブ
+- プリンタープルダウン（`NSPrinter.printerNames` から選択）
+- Grid レイアウトで実測値入力 + 補正倍率表示
+- `.sheet(item:)` で毎回正しい値が渡されるよう管理
 
 ## 座標系
 

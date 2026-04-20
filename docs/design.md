@@ -12,8 +12,10 @@
 - `design/lccad.pen` — Pencil デザインファイル（Single Source of Truth）
   - `Main Editor - Light` — ライトモードのメインエディタ
   - `Main Editor - Dark` — ダークモードのメインエディタ
-  - `Settings - Light` — ライトモードの設定画面
-  - `Settings - Dark` — ダークモードの設定画面
+  - `Settings - Light` — ライトモードの設定画面（General タブ）
+  - `Settings - Dark` — ダークモードの設定画面（General タブ）
+  - `Settings - Calibration - Light` — ライトモードのキャリブレーション設定
+  - `Settings - Calibration - Dark` — ダークモードのキャリブレーション設定
 
 ## レイアウト構成
 
@@ -163,12 +165,15 @@
 
 ## 設定画面 (Settings)
 
-macOS 標準の `Settings` シーン（⌘,）:
+macOS 標準の `Settings` シーン（⌘,）。TabView で 2 タブ構成:
+
+### General タブ
 
 ```
 ┌──────────────────────────────────┐
 │ Settings                         │
 ├──────────────────────────────────┤
+│ [General] [Printer Calibration]  │
 │                                  │
 │ APPEARANCE                       │
 │ Color Mode  [System][Light][Dark]│
@@ -177,8 +182,38 @@ macOS 標準の `Settings` シーン（⌘,）:
 ```
 
 - セグメントピッカー（`Picker(.segmented)`）で 3 択
-- 選択時に `NSApp.appearance` で即時反映（Settings ウィンドウを閉じなくても反映）
+- 選択時に `NSApp.appearance` で即時反映
 - `@AppStorage("appearanceMode")` で永続化
+
+### Printer Calibration タブ
+
+```
+┌──────────────────────────────────────────┐
+│ Settings                                  │
+├──────────────────────────────────────────┤
+│ [General] [Printer Calibration]           │
+│                                           │
+│ CALIBRATION                               │
+│ テストページを印刷し、150mmの正方形を     │
+│ 定規で測定してください。                  │
+│ [🖨 テストページを印刷]                   │
+│                                           │
+│ PRINTER PROFILES                          │
+│ ┌───────────────────────────────────────┐ │
+│ │ EPSON EP-886A                         │ │
+│ │ X: 1.0023  Y: 0.9981     2026/04/20  │ │
+│ ├───────────────────────────────────────┤ │
+│ │ Brother HL-L2375DW                    │ │
+│ │ X: 0.9956  Y: 1.0012     2026/04/15  │ │
+│ └───────────────────────────────────────┘ │
+│ [+ キャリブレーション追加]    [Edit][削除] │
+└──────────────────────────────────────────┘
+```
+
+- プリンターごとに補正倍率 (scaleX/scaleY) を管理
+- プロファイルの追加・編集・削除
+- プリンター名はシステム認識プリンターからプルダウン選択
+- 実測値入力で補正倍率を自動計算（Grid レイアウト）
 
 ## 共通入力コンポーネント
 
