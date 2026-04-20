@@ -49,7 +49,7 @@ private struct GeneralSettingsView: View {
 
 @MainActor
 struct PrinterCalibrationSettingsView: View {
-    @ObservedObject private var store = PrinterCalibrationStore.shared
+    @StateObject private var store = PrinterCalibrationStore.shared
     @State private var showingCalibrationSheet = false
     @State private var editingCalibration: PrinterCalibration?
     @State private var selectedCalibrationId: UUID?
@@ -123,6 +123,9 @@ struct PrinterCalibrationSettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Printer Calibration")
+        .onAppear {
+            store.load()
+        }
         .sheet(isPresented: $showingCalibrationSheet) {
             CalibrationEditSheet(
                 calibration: editingCalibration,
