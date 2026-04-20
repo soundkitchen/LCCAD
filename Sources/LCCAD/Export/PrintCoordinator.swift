@@ -49,8 +49,11 @@ enum PrintCoordinator {
     }
 
     /// Print a calibration test page with a 100mm square.
+    /// If the selected printer has a calibration profile, the correction is applied
+    /// so the user can verify the calibration is working correctly.
     static func printCalibrationPage(from window: NSWindow?) {
-        let view = CalibrationTestPageView()
+        let calibrations = PrinterCalibrationStore.shared.calibrations
+        let view = CalibrationTestPageView(calibrations: calibrations)
 
         let printInfo = NSPrintInfo.shared.copy() as! NSPrintInfo
         printInfo.horizontalPagination = .automatic
@@ -444,8 +447,10 @@ private class PrintableDocumentView: NSView {
 
 private class CalibrationTestPageView: NSView {
     private let squareSizeMM: CGFloat = 100
+    private let calibrations: [PrinterCalibration]
 
-    override init(frame: NSRect) {
+    init(calibrations: [PrinterCalibration]) {
+        self.calibrations = calibrations
         let totalWidth = mmToPoints(180)
         let totalHeight = mmToPoints(220)
         super.init(frame: NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
@@ -458,6 +463,14 @@ private class CalibrationTestPageView: NSView {
 
     override var isFlipped: Bool { true }
 
+    private func currentPrinterCalibration() -> PrinterCalibration? {
+        if let printInfo = NSPrintOperation.current?.printInfo {
+            let printerName = printInfo.printer.name
+            return calibrations.first { $0.printerName == printerName }
+        }
+        return nil
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
 
@@ -465,14 +478,37 @@ private class CalibrationTestPageView: NSView {
         context.setFillColor(NSColor.white.cgColor)
         context.fill(dirtyRect)
 
+        // Apply calibration if available
+        let calibration = currentPrinterCalibration()
+        let calScaleX = CGFloat(calibration?.scaleX ?? 1.0)
+        let calScaleY = CGFloat(calibration?.scaleY ?? 1.0)
+
         // Title
         let titleFont = NSFont.boldSystemFont(ofSize: 16)
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .font: titleFont,
             .foregroundColor: NSColor.black
         ]
-        let titleStr = NSAttributedString(string: "LCCAD Printer Calibration Test Page", attributes: titleAttrs)
+        let titleStr = NSAttributedString(string: "LCCAD プリンターキャリブレーション", attributes: titleAttrs)
         titleStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(10)))
+
+        // Calibration status
+        let statusFont = NSFont.systemFont(ofSize: 9)
+        let statusText: String
+        let statusColor: NSColor
+        if let cal = calibration {
+            statusText = "キャリブレーション適用中: X=\(String(format: "%.4f", cal.scaleX))  Y=\(String(format: "%.4f", cal.scaleY))"
+            statusColor = .systemBlue
+        } else {
+            statusText = "キャリブレーション未設定（補正なしで印刷）"
+            statusColor = .systemOrange
+        }
+        let statusAttrs: [NSAttributedString.Key: Any] = [
+            .font: statusFont,
+            .foregroundColor: statusColor
+        ]
+        NSAttributedString(string: statusText, attributes: statusAttrs)
+            .draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(20)))
 
         // Instructions
         let bodyFont = NSFont.systemFont(ofSize: 10)
@@ -481,25 +517,26 @@ private class CalibrationTestPageView: NSView {
             .foregroundColor: NSColor.darkGray
         ]
         let instructions = """
-        Instructions:
-        1. Print this page at 100% scale (no scaling/fit-to-page).
-        2. Measure the square below with a ruler.
-        3. The square should be exactly 100mm x 100mm.
-        4. In LCCAD Settings > Printer Calibration, enter your measured values.
-        5. LCCAD will calculate the correction factor automatically.
+        手順:
+        1. このページを拡大縮小なし（100%）で印刷してください。
+        2. 下の正方形を定規で測ってください。
+        3. 正方形は正確に 100mm × 100mm であるべきです。
+        4. LCCAD 設定 > Printer Calibration で測定値を入力してください。
+        5. 補正倍率が自動計算されます。
         """
         let instrStr = NSAttributedString(string: instructions, attributes: bodyAttrs)
-        instrStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(22)))
+        instrStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(26)))
 
-        // Draw the 100mm square
+        // Draw the 100mm square with calibration applied
         let squareOriginX = mmToPoints(40)
-        let squareOriginY = mmToPoints(70)
-        let squareSizePt = mmToPoints(squareSizeMM)
+        let squareOriginY = mmToPoints(75)
+        let squareWidthPt = mmToPoints(squareSizeMM) * calScaleX
+        let squareHeightPt = mmToPoints(squareSizeMM) * calScaleY
 
         context.setStrokeColor(NSColor.black.cgColor)
         context.setLineWidth(1.0)
         context.stroke(CGRect(x: squareOriginX, y: squareOriginY,
-                              width: squareSizePt, height: squareSizePt))
+                              width: squareWidthPt, height: squareHeightPt))
 
         // Dimension labels
         let dimFont = NSFont.systemFont(ofSize: 9)
@@ -512,26 +549,26 @@ private class CalibrationTestPageView: NSView {
         let hLabel = NSAttributedString(string: "100 mm", attributes: dimAttrs)
         let hLabelSize = hLabel.size()
         hLabel.draw(at: NSPoint(
-            x: squareOriginX + squareSizePt / 2 - hLabelSize.width / 2,
-            y: squareOriginY + squareSizePt + mmToPoints(3)
+            x: squareOriginX + squareWidthPt / 2 - hLabelSize.width / 2,
+            y: squareOriginY + squareHeightPt + mmToPoints(3)
         ))
 
         // Dimension line (horizontal)
-        let arrowY = squareOriginY + squareSizePt + mmToPoints(2)
+        let arrowY = squareOriginY + squareHeightPt + mmToPoints(2)
         context.setLineWidth(0.5)
         context.move(to: CGPoint(x: squareOriginX, y: arrowY))
-        context.addLine(to: CGPoint(x: squareOriginX + squareSizePt / 2 - hLabelSize.width / 2 - mmToPoints(2), y: arrowY))
+        context.addLine(to: CGPoint(x: squareOriginX + squareWidthPt / 2 - hLabelSize.width / 2 - mmToPoints(2), y: arrowY))
         context.strokePath()
-        context.move(to: CGPoint(x: squareOriginX + squareSizePt / 2 + hLabelSize.width / 2 + mmToPoints(2), y: arrowY))
-        context.addLine(to: CGPoint(x: squareOriginX + squareSizePt, y: arrowY))
+        context.move(to: CGPoint(x: squareOriginX + squareWidthPt / 2 + hLabelSize.width / 2 + mmToPoints(2), y: arrowY))
+        context.addLine(to: CGPoint(x: squareOriginX + squareWidthPt, y: arrowY))
         context.strokePath()
 
         // Vertical dimension (right of the square)
         let vLabel = NSAttributedString(string: "100 mm", attributes: dimAttrs)
         let vLabelSize = vLabel.size()
         context.saveGState()
-        let vLabelX = squareOriginX + squareSizePt + mmToPoints(5)
-        let vLabelY = squareOriginY + squareSizePt / 2 + vLabelSize.width / 2
+        let vLabelX = squareOriginX + squareWidthPt + mmToPoints(5)
+        let vLabelY = squareOriginY + squareHeightPt / 2 + vLabelSize.width / 2
         context.translateBy(x: vLabelX, y: vLabelY)
         context.rotate(by: -.pi / 2)
         vLabel.draw(at: .zero)
@@ -540,16 +577,16 @@ private class CalibrationTestPageView: NSView {
         // Ruler markings along the bottom edge (every 10mm)
         context.setLineWidth(0.3)
         for i in 0...10 {
-            let x = squareOriginX + mmToPoints(CGFloat(i) * 10)
+            let x = squareOriginX + mmToPoints(CGFloat(i) * 10) * calScaleX
             let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
-            context.move(to: CGPoint(x: x, y: squareOriginY + squareSizePt))
-            context.addLine(to: CGPoint(x: x, y: squareOriginY + squareSizePt - tickLen))
+            context.move(to: CGPoint(x: x, y: squareOriginY + squareHeightPt))
+            context.addLine(to: CGPoint(x: x, y: squareOriginY + squareHeightPt - tickLen))
             context.strokePath()
         }
 
         // Ruler markings along the left edge
         for i in 0...10 {
-            let y = squareOriginY + mmToPoints(CGFloat(i) * 10)
+            let y = squareOriginY + mmToPoints(CGFloat(i) * 10) * calScaleY
             let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
             context.move(to: CGPoint(x: squareOriginX, y: y))
             context.addLine(to: CGPoint(x: squareOriginX + tickLen, y: y))
@@ -562,9 +599,9 @@ private class CalibrationTestPageView: NSView {
             .foregroundColor: NSColor.gray
         ]
         let footerStr = NSAttributedString(
-            string: "LCCAD - Make sure 'Scale to fit' is OFF in your print dialog.",
+            string: "LCCAD — 印刷ダイアログで「用紙に合わせる」がオフになっていることを確認してください。",
             attributes: footerAttrs
         )
-        footerStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(190)))
+        footerStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(195)))
     }
 }

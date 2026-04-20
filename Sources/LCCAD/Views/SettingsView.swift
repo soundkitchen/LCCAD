@@ -15,7 +15,7 @@ struct SettingsView: View {
                     Label("Printer Calibration", systemImage: "printer")
                 }
         }
-        .frame(width: 480, height: 400)
+        .frame(width: 500, height: 420)
     }
 }
 
@@ -168,70 +168,87 @@ private struct CalibrationEditSheet: View {
     @State private var computedScaleX: Double = 1.0
     @State private var computedScaleY: Double = 1.0
 
+    private var availablePrinters: [String] {
+        NSPrinter.printerNames
+    }
+
     var body: some View {
         VStack(spacing: 16) {
-            Text(calibration == nil ? "Add Printer Calibration" : "Edit Printer Calibration")
+            Text(calibration == nil ? "キャリブレーション追加" : "キャリブレーション編集")
                 .font(.headline)
 
             Form {
-                TextField("Printer Name:", text: $printerName)
-                    .textFieldStyle(.roundedBorder)
+                if availablePrinters.isEmpty {
+                    TextField("プリンター名:", text: $printerName)
+                        .textFieldStyle(.roundedBorder)
+                } else {
+                    Picker("プリンター:", selection: $printerName) {
+                        Text("選択してください").tag("")
+                        ForEach(availablePrinters, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                }
 
                 Divider()
 
-                Text("Enter the measured dimensions of the 100mm calibration square:")
+                Text("キャリブレーション用 100mm 正方形の実測値を入力してください:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 HStack {
-                    Text("Measured X (mm):")
+                    Text("実測 X (mm):")
+                        .frame(width: 100, alignment: .trailing)
                     TextField("100.0", text: $measuredX)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                        .frame(width: 120)
                         .onChange(of: measuredX) { _, _ in recalculate() }
                 }
 
                 HStack {
-                    Text("Measured Y (mm):")
+                    Text("実測 Y (mm):")
+                        .frame(width: 100, alignment: .trailing)
                     TextField("100.0", text: $measuredY)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                        .frame(width: 120)
                         .onChange(of: measuredY) { _, _ in recalculate() }
                 }
 
                 Divider()
 
                 HStack {
-                    Text("Correction Factor X:")
+                    Text("補正倍率 X:")
+                        .frame(width: 100, alignment: .trailing)
                     Text(String(format: "%.4f", computedScaleX))
-                        .foregroundStyle(.secondary)
                         .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
 
                 HStack {
-                    Text("Correction Factor Y:")
+                    Text("補正倍率 Y:")
+                        .frame(width: 100, alignment: .trailing)
                     Text(String(format: "%.4f", computedScaleY))
-                        .foregroundStyle(.secondary)
                         .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
 
                 let deviation = max(abs(computedScaleX - 1.0), abs(computedScaleY - 1.0)) * 100
                 if deviation > 5 {
-                    Text("Warning: Correction exceeds 5%. Verify your measurements.")
+                    Text("警告: 補正が 5% を超えています。測定値を確認してください。")
                         .font(.caption)
                         .foregroundColor(.orange)
                 }
             }
 
             HStack {
-                Button("Cancel") {
+                Button("キャンセル") {
                     onCancel()
                 }
                 .keyboardShortcut(.cancelAction)
 
                 Spacer()
 
-                Button("Save") {
+                Button("保存") {
                     var cal: PrinterCalibration
                     if let existing = calibration {
                         cal = existing
@@ -252,11 +269,10 @@ private struct CalibrationEditSheet: View {
             }
         }
         .padding()
-        .frame(width: 380)
+        .frame(width: 420)
         .onAppear {
             if let cal = calibration {
                 printerName = cal.printerName
-                // Back-calculate measured values from existing scale
                 let mx = 100.0 / cal.scaleX
                 let my = 100.0 / cal.scaleY
                 measuredX = String(format: "%.1f", mx)
