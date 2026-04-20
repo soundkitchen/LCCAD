@@ -454,7 +454,7 @@ private class CalibrationTestPageView: NSView {
         // Fit within A4 printable area (210-30=180mm width, 297-30=267mm height)
         // with 15mm print margins on each side
         let totalWidth = mmToPoints(175)
-        let totalHeight = mmToPoints(205)
+        let totalHeight = mmToPoints(220)
         super.init(frame: NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
     }
 
@@ -519,14 +519,19 @@ private class CalibrationTestPageView: NSView {
             .foregroundColor: NSColor.darkGray
         ]
         let instructions = """
-        手順: 1. 拡大縮小なし(100%)で印刷  2. 正方形を定規で測定(150mm×150mmが正確)  3. 設定で測定値を入力
+        手順:
+        1. このページを拡大縮小なし（100%）で印刷してください。
+        2. 下の正方形を定規で測ってください。
+        3. 正方形は正確に 150mm × 150mm であるべきです。
+        4. LCCAD 設定 > Printer Calibration で測定値を入力してください。
+        5. 補正倍率が自動計算されます。
         """
         let instrStr = NSAttributedString(string: instructions, attributes: bodyAttrs)
         instrStr.draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(19)))
 
         // Draw the 150mm square with calibration applied
         let squareOriginX = mmToPoints(5)
-        let squareOriginY = mmToPoints(28)
+        let squareOriginY = mmToPoints(48)
         let squareWidthPt = mmToPoints(squareSizeMM) * calScaleX
         let squareHeightPt = mmToPoints(squareSizeMM) * calScaleY
 
@@ -599,6 +604,6 @@ private class CalibrationTestPageView: NSView {
             string: "LCCAD — 印刷ダイアログで「用紙に合わせる」がオフになっていることを確認してください。",
             attributes: footerAttrs
         )
-        footerStr.draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(195)))
+        footerStr.draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(210)))
     }
 }
