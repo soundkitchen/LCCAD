@@ -18,7 +18,7 @@ struct MainEditorView: View {
                 LeftPanelView(editor: editor)
                     .frame(minWidth: 180, idealWidth: 240, maxWidth: 320)
 
-                CanvasView(editor: editor)
+                canvasWithRuler
                     .frame(minWidth: 400)
 
                 RightPanelView(editor: editor)
@@ -42,6 +42,26 @@ struct MainEditorView: View {
         .focusedValue(\.editor, editor)
         .onDeleteCommand {
             editor.deleteSelectedShapes()
+        }
+    }
+
+    // MARK: - Canvas with Ruler
+
+    @ViewBuilder
+    private var canvasWithRuler: some View {
+        if editor.document.settings.showRuler {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    RulerCornerView()
+                    HorizontalRulerView(editor: editor)
+                }
+                HStack(spacing: 0) {
+                    VerticalRulerView(editor: editor)
+                    CanvasView(editor: editor)
+                }
+            }
+        } else {
+            CanvasView(editor: editor)
         }
     }
 }
