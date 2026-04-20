@@ -172,8 +172,8 @@ private struct CalibrationEditSheet: View {
     let onCancel: () -> Void
 
     @State private var printerName: String = ""
-    @State private var measuredX: String = "150.0"
-    @State private var measuredY: String = "150.0"
+    @State private var measuredX: String = "150.00"
+    @State private var measuredY: String = "150.00"
     @State private var computedScaleX: Double = 1.0
     @State private var computedScaleY: Double = 1.0
 
@@ -213,7 +213,7 @@ private struct CalibrationEditSheet: View {
 
                 GridRow {
                     Text("実測 X (mm):")
-                    TextField("150.0", text: $measuredX)
+                    TextField("150.00", text: $measuredX)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
                         .onChange(of: measuredX) { _, _ in recalculate() }
@@ -221,7 +221,7 @@ private struct CalibrationEditSheet: View {
 
                 GridRow {
                     Text("実測 Y (mm):")
-                    TextField("150.0", text: $measuredY)
+                    TextField("150.00", text: $measuredY)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
                         .onChange(of: measuredY) { _, _ in recalculate() }
@@ -291,8 +291,8 @@ private struct CalibrationEditSheet: View {
                 printerName = cal.printerName
                 let mx = 150.0 / cal.scaleX
                 let my = 150.0 / cal.scaleY
-                measuredX = String(format: "%.1f", mx)
-                measuredY = String(format: "%.1f", my)
+                measuredX = String(format: "%.2f", mx)
+                measuredY = String(format: "%.2f", my)
                 computedScaleX = cal.scaleX
                 computedScaleY = cal.scaleY
             }
