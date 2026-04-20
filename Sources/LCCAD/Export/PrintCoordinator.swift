@@ -29,6 +29,7 @@ enum PrintCoordinator {
         printInfo.verticalPagination = .automatic
         printInfo.isHorizontallyCentered = false
         printInfo.isVerticallyCentered = false
+        printInfo.scalingFactor = 1.0  // Ensure no OS-level scaling
 
         // Configure margins (10mm default for alignment marks + gluing overlap)
         let margin = mmToPoints(10)
@@ -60,6 +61,7 @@ enum PrintCoordinator {
         printInfo.verticalPagination = .automatic
         printInfo.isHorizontallyCentered = true
         printInfo.isVerticallyCentered = true
+        printInfo.scalingFactor = 1.0  // Ensure no OS-level scaling
 
         let margin = mmToPoints(15)
         printInfo.topMargin = margin
@@ -529,14 +531,19 @@ private class CalibrationTestPageView: NSView {
         let instrStr = NSAttributedString(string: instructions, attributes: bodyAttrs)
         instrStr.draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(19)))
 
-        // Draw the 150mm square with calibration applied
-        let squareOriginX = mmToPoints(5)
-        let squareOriginY = mmToPoints(48)
-        let squareWidthPt = mmToPoints(squareSizeMM) * calScaleX
-        let squareHeightPt = mmToPoints(squareSizeMM) * calScaleY
+        // Draw the 150mm square with calibration applied.
+        // The stroke is drawn centered on the path, so the outer-edge-to-outer-edge
+        // distance = path size + strokeWidth. To ensure the OUTER edges measure
+        // exactly 150mm when measured with calipers, subtract the stroke width
+        // from the path rectangle.
+        let strokeWidth: CGFloat = 0.75
+        let squareOriginX = mmToPoints(5) + strokeWidth / 2
+        let squareOriginY = mmToPoints(48) + strokeWidth / 2
+        let squareWidthPt = mmToPoints(squareSizeMM) * calScaleX - strokeWidth
+        let squareHeightPt = mmToPoints(squareSizeMM) * calScaleY - strokeWidth
 
         context.setStrokeColor(NSColor.black.cgColor)
-        context.setLineWidth(1.0)
+        context.setLineWidth(strokeWidth)
         context.stroke(CGRect(x: squareOriginX, y: squareOriginY,
                               width: squareWidthPt, height: squareHeightPt))
 
@@ -547,51 +554,57 @@ private class CalibrationTestPageView: NSView {
             .foregroundColor: NSColor.black
         ]
 
+        // Outer edges of the square (what calipers measure)
+        let outerLeft = squareOriginX - strokeWidth / 2
+        let outerTop = squareOriginY - strokeWidth / 2
+        let outerWidth = squareWidthPt + strokeWidth   // = mmToPoints(150) * calScale
+        let outerHeight = squareHeightPt + strokeWidth
+
         // Horizontal dimension (below the square)
         let hLabel = NSAttributedString(string: "150 mm", attributes: dimAttrs)
         let hLabelSize = hLabel.size()
         hLabel.draw(at: NSPoint(
-            x: squareOriginX + squareWidthPt / 2 - hLabelSize.width / 2,
-            y: squareOriginY + squareHeightPt + mmToPoints(3)
+            x: outerLeft + outerWidth / 2 - hLabelSize.width / 2,
+            y: outerTop + outerHeight + mmToPoints(3)
         ))
 
         // Dimension line (horizontal)
-        let arrowY = squareOriginY + squareHeightPt + mmToPoints(2)
+        let arrowY = outerTop + outerHeight + mmToPoints(2)
         context.setLineWidth(0.5)
-        context.move(to: CGPoint(x: squareOriginX, y: arrowY))
-        context.addLine(to: CGPoint(x: squareOriginX + squareWidthPt / 2 - hLabelSize.width / 2 - mmToPoints(2), y: arrowY))
+        context.move(to: CGPoint(x: outerLeft, y: arrowY))
+        context.addLine(to: CGPoint(x: outerLeft + outerWidth / 2 - hLabelSize.width / 2 - mmToPoints(2), y: arrowY))
         context.strokePath()
-        context.move(to: CGPoint(x: squareOriginX + squareWidthPt / 2 + hLabelSize.width / 2 + mmToPoints(2), y: arrowY))
-        context.addLine(to: CGPoint(x: squareOriginX + squareWidthPt, y: arrowY))
+        context.move(to: CGPoint(x: outerLeft + outerWidth / 2 + hLabelSize.width / 2 + mmToPoints(2), y: arrowY))
+        context.addLine(to: CGPoint(x: outerLeft + outerWidth, y: arrowY))
         context.strokePath()
 
         // Vertical dimension (right of the square)
         let vLabel = NSAttributedString(string: "150 mm", attributes: dimAttrs)
         let vLabelSize = vLabel.size()
         context.saveGState()
-        let vLabelX = squareOriginX + squareWidthPt + mmToPoints(5)
-        let vLabelY = squareOriginY + squareHeightPt / 2 + vLabelSize.width / 2
+        let vLabelX = outerLeft + outerWidth + mmToPoints(5)
+        let vLabelY = outerTop + outerHeight / 2 + vLabelSize.width / 2
         context.translateBy(x: vLabelX, y: vLabelY)
         context.rotate(by: -.pi / 2)
         vLabel.draw(at: .zero)
         context.restoreGState()
 
-        // Ruler markings along the bottom edge (every 10mm)
+        // Ruler markings along the bottom edge (every 10mm, from outer edge)
         context.setLineWidth(0.3)
         for i in 0...15 {
-            let x = squareOriginX + mmToPoints(CGFloat(i) * 10) * calScaleX
+            let x = outerLeft + mmToPoints(CGFloat(i) * 10) * calScaleX
             let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
-            context.move(to: CGPoint(x: x, y: squareOriginY + squareHeightPt))
-            context.addLine(to: CGPoint(x: x, y: squareOriginY + squareHeightPt - tickLen))
+            context.move(to: CGPoint(x: x, y: outerTop + outerHeight))
+            context.addLine(to: CGPoint(x: x, y: outerTop + outerHeight - tickLen))
             context.strokePath()
         }
 
-        // Ruler markings along the left edge
+        // Ruler markings along the left edge (from outer edge)
         for i in 0...15 {
-            let y = squareOriginY + mmToPoints(CGFloat(i) * 10) * calScaleY
+            let y = outerTop + mmToPoints(CGFloat(i) * 10) * calScaleY
             let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
-            context.move(to: CGPoint(x: squareOriginX, y: y))
-            context.addLine(to: CGPoint(x: squareOriginX + tickLen, y: y))
+            context.move(to: CGPoint(x: outerLeft, y: y))
+            context.addLine(to: CGPoint(x: outerLeft + tickLen, y: y))
             context.strokePath()
         }
 
