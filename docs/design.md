@@ -16,6 +16,8 @@
   - `Settings - Dark` — ダークモードの設定画面（General タブ）
   - `Settings - Calibration - Light` — ライトモードのキャリブレーション設定
   - `Settings - Calibration - Dark` — ダークモードのキャリブレーション設定
+  - `Pricking Iron Sheet - Light` — ライトモードの目打ち管理シート
+  - `Pricking Iron Sheet - Dark` — ダークモードの目打ち管理シート
 
 ## レイアウト構成
 
