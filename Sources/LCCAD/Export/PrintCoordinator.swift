@@ -451,10 +451,10 @@ private class CalibrationTestPageView: NSView {
 
     init(calibrations: [PrinterCalibration]) {
         self.calibrations = calibrations
-        // 15mm left margin + 150mm square + 15mm dim label + 10mm right margin = 190mm
-        // 65mm top content + 150mm square + 15mm dim label + 15mm footer = 245mm
-        let totalWidth = mmToPoints(190)
-        let totalHeight = mmToPoints(250)
+        // Fit within A4 printable area (210-30=180mm width, 297-30=267mm height)
+        // with 15mm print margins on each side
+        let totalWidth = mmToPoints(175)
+        let totalHeight = mmToPoints(205)
         super.init(frame: NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
     }
 
@@ -486,16 +486,16 @@ private class CalibrationTestPageView: NSView {
         let calScaleY = CGFloat(calibration?.scaleY ?? 1.0)
 
         // Title
-        let titleFont = NSFont.boldSystemFont(ofSize: 16)
+        let titleFont = NSFont.boldSystemFont(ofSize: 14)
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .font: titleFont,
             .foregroundColor: NSColor.black
         ]
         let titleStr = NSAttributedString(string: "LCCAD プリンターキャリブレーション", attributes: titleAttrs)
-        titleStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(10)))
+        titleStr.draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(5)))
 
         // Calibration status
-        let statusFont = NSFont.systemFont(ofSize: 9)
+        let statusFont = NSFont.systemFont(ofSize: 8)
         let statusText: String
         let statusColor: NSColor
         if let cal = calibration {
@@ -510,28 +510,23 @@ private class CalibrationTestPageView: NSView {
             .foregroundColor: statusColor
         ]
         NSAttributedString(string: statusText, attributes: statusAttrs)
-            .draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(20)))
+            .draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(13)))
 
         // Instructions
-        let bodyFont = NSFont.systemFont(ofSize: 10)
+        let bodyFont = NSFont.systemFont(ofSize: 9)
         let bodyAttrs: [NSAttributedString.Key: Any] = [
             .font: bodyFont,
             .foregroundColor: NSColor.darkGray
         ]
         let instructions = """
-        手順:
-        1. このページを拡大縮小なし（100%）で印刷してください。
-        2. 下の正方形を定規で測ってください。
-        3. 正方形は正確に 150mm × 150mm であるべきです。
-        4. LCCAD 設定 > Printer Calibration で測定値を入力してください。
-        5. 補正倍率が自動計算されます。
+        手順: 1. 拡大縮小なし(100%)で印刷  2. 正方形を定規で測定(150mm×150mmが正確)  3. 設定で測定値を入力
         """
         let instrStr = NSAttributedString(string: instructions, attributes: bodyAttrs)
-        instrStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(26)))
+        instrStr.draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(19)))
 
         // Draw the 150mm square with calibration applied
-        let squareOriginX = mmToPoints(15)
-        let squareOriginY = mmToPoints(65)
+        let squareOriginX = mmToPoints(5)
+        let squareOriginY = mmToPoints(28)
         let squareWidthPt = mmToPoints(squareSizeMM) * calScaleX
         let squareHeightPt = mmToPoints(squareSizeMM) * calScaleY
 
@@ -604,6 +599,6 @@ private class CalibrationTestPageView: NSView {
             string: "LCCAD — 印刷ダイアログで「用紙に合わせる」がオフになっていることを確認してください。",
             attributes: footerAttrs
         )
-        footerStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(235)))
+        footerStr.draw(at: NSPoint(x: mmToPoints(5), y: mmToPoints(195)))
     }
 }
