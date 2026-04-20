@@ -57,7 +57,7 @@ struct PrinterCalibrationSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Text("Print a calibration test page, measure the 100mm square with a ruler, then enter the measured dimensions to correct for printer scaling inaccuracies.")
+                Text("Print a calibration test page, measure the 150mm square with a ruler, then enter the measured dimensions to correct for printer scaling inaccuracies.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -163,8 +163,8 @@ private struct CalibrationEditSheet: View {
     let onCancel: () -> Void
 
     @State private var printerName: String = ""
-    @State private var measuredX: String = "100.0"
-    @State private var measuredY: String = "100.0"
+    @State private var measuredX: String = "150.0"
+    @State private var measuredY: String = "150.0"
     @State private var computedScaleX: Double = 1.0
     @State private var computedScaleY: Double = 1.0
 
@@ -197,14 +197,14 @@ private struct CalibrationEditSheet: View {
 
                 GridRow {
                     Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                    Text("キャリブレーション用 100mm 正方形の実測値を入力してください:")
+                    Text("キャリブレーション用 150mm 正方形の実測値を入力してください:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 GridRow {
                     Text("実測 X (mm):")
-                    TextField("100.0", text: $measuredX)
+                    TextField("150.0", text: $measuredX)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
                         .onChange(of: measuredX) { _, _ in recalculate() }
@@ -212,7 +212,7 @@ private struct CalibrationEditSheet: View {
 
                 GridRow {
                     Text("実測 Y (mm):")
-                    TextField("100.0", text: $measuredY)
+                    TextField("150.0", text: $measuredY)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
                         .onChange(of: measuredY) { _, _ in recalculate() }
@@ -280,8 +280,8 @@ private struct CalibrationEditSheet: View {
         .onAppear {
             if let cal = calibration {
                 printerName = cal.printerName
-                let mx = 100.0 / cal.scaleX
-                let my = 100.0 / cal.scaleY
+                let mx = 150.0 / cal.scaleX
+                let my = 150.0 / cal.scaleY
                 measuredX = String(format: "%.1f", mx)
                 measuredY = String(format: "%.1f", my)
                 computedScaleX = cal.scaleX
@@ -292,10 +292,10 @@ private struct CalibrationEditSheet: View {
 
     private func recalculate() {
         if let mx = Double(measuredX), mx > 0 {
-            computedScaleX = 100.0 / mx
+            computedScaleX = 150.0 / mx
         }
         if let my = Double(measuredY), my > 0 {
-            computedScaleY = 100.0 / my
+            computedScaleY = 150.0 / my
         }
     }
 }

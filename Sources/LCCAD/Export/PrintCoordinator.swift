@@ -446,7 +446,7 @@ private class PrintableDocumentView: NSView {
 // MARK: - Calibration Test Page View
 
 private class CalibrationTestPageView: NSView {
-    private let squareSizeMM: CGFloat = 100
+    private let squareSizeMM: CGFloat = 150
     private let calibrations: [PrinterCalibration]
 
     init(calibrations: [PrinterCalibration]) {
@@ -520,7 +520,7 @@ private class CalibrationTestPageView: NSView {
         手順:
         1. このページを拡大縮小なし（100%）で印刷してください。
         2. 下の正方形を定規で測ってください。
-        3. 正方形は正確に 100mm × 100mm であるべきです。
+        3. 正方形は正確に 150mm × 150mm であるべきです。
         4. LCCAD 設定 > Printer Calibration で測定値を入力してください。
         5. 補正倍率が自動計算されます。
         """
@@ -546,7 +546,7 @@ private class CalibrationTestPageView: NSView {
         ]
 
         // Horizontal dimension (below the square)
-        let hLabel = NSAttributedString(string: "100 mm", attributes: dimAttrs)
+        let hLabel = NSAttributedString(string: "150 mm", attributes: dimAttrs)
         let hLabelSize = hLabel.size()
         hLabel.draw(at: NSPoint(
             x: squareOriginX + squareWidthPt / 2 - hLabelSize.width / 2,
@@ -564,7 +564,7 @@ private class CalibrationTestPageView: NSView {
         context.strokePath()
 
         // Vertical dimension (right of the square)
-        let vLabel = NSAttributedString(string: "100 mm", attributes: dimAttrs)
+        let vLabel = NSAttributedString(string: "150 mm", attributes: dimAttrs)
         let vLabelSize = vLabel.size()
         context.saveGState()
         let vLabelX = squareOriginX + squareWidthPt + mmToPoints(5)
@@ -576,7 +576,7 @@ private class CalibrationTestPageView: NSView {
 
         // Ruler markings along the bottom edge (every 10mm)
         context.setLineWidth(0.3)
-        for i in 0...10 {
+        for i in 0...15 {
             let x = squareOriginX + mmToPoints(CGFloat(i) * 10) * calScaleX
             let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
             context.move(to: CGPoint(x: x, y: squareOriginY + squareHeightPt))
@@ -585,7 +585,7 @@ private class CalibrationTestPageView: NSView {
         }
 
         // Ruler markings along the left edge
-        for i in 0...10 {
+        for i in 0...15 {
             let y = squareOriginY + mmToPoints(CGFloat(i) * 10) * calScaleY
             let tickLen: CGFloat = (i % 5 == 0) ? mmToPoints(3) : mmToPoints(1.5)
             context.move(to: CGPoint(x: squareOriginX, y: y))

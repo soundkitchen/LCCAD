@@ -20,13 +20,13 @@ struct PrinterCalibration: Codable, Identifiable, Equatable, Sendable {
     }
 
     /// Create a calibration from measured values.
-    /// The user prints a 100mm square and measures the result.
-    /// scaleX = 100.0 / measuredX, scaleY = 100.0 / measuredY
+    /// The user prints a 150mm square and measures the result.
+    /// scaleX = 150.0 / measuredX, scaleY = 150.0 / measuredY
     static func fromMeasurement(printerName: String, measuredX: Double, measuredY: Double) -> PrinterCalibration {
         PrinterCalibration(
             printerName: printerName,
-            scaleX: 100.0 / measuredX,
-            scaleY: 100.0 / measuredY
+            scaleX: 150.0 / measuredX,
+            scaleY: 150.0 / measuredY
         )
     }
 }
