@@ -43,5 +43,8 @@ struct MainEditorView: View {
         .onDeleteCommand {
             editor.deleteSelectedShapes()
         }
+        .sheet(isPresented: $editor.showPrickingIronSheet) {
+            PrickingIronSheet(editor: editor)
+        }
     }
 }

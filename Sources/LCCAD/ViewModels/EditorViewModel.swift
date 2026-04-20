@@ -166,6 +166,7 @@ final class EditorViewModel {
 
     // Stitch state
     var selectedIronId: UUID?
+    var showPrickingIronSheet: Bool = false
 
     var activePrickingIron: PrickingIron? {
         if let id = selectedIronId {
@@ -1001,6 +1002,32 @@ final class EditorViewModel {
         let old = document
         activeLayer.stitchLines.append(stitchLine)
         registerUndo(actionName: "Auto Stitch", oldDocument: old)
+    }
+
+    // MARK: - Pricking Iron CRUD
+
+    func addPrickingIron(_ iron: PrickingIron) {
+        let old = document
+        document.prickingIrons.append(iron)
+        selectedIronId = iron.id
+        registerUndo(actionName: "Add Pricking Iron", oldDocument: old)
+    }
+
+    func updatePrickingIron(_ iron: PrickingIron) {
+        let old = document
+        if let index = document.prickingIrons.firstIndex(where: { $0.id == iron.id }) {
+            document.prickingIrons[index] = iron
+        }
+        registerUndo(actionName: "Update Pricking Iron", oldDocument: old)
+    }
+
+    func deletePrickingIron(id: UUID) {
+        let old = document
+        document.prickingIrons.removeAll { $0.id == id }
+        if selectedIronId == id {
+            selectedIronId = document.prickingIrons.first?.id
+        }
+        registerUndo(actionName: "Delete Pricking Iron", oldDocument: old)
     }
 
     func removeStitchLine(id: UUID) {

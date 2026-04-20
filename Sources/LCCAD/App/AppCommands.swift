@@ -93,7 +93,7 @@ struct AppCommands: Commands {
             Divider()
 
             Button("Pricking Iron Settings...") {
-                // TODO: open pricking iron management sheet
+                editor?.showPrickingIronSheet = true
             }
         }
     }
