@@ -100,6 +100,15 @@ struct PrinterCalibrationSettingsView: View {
 
                     Spacer()
 
+                    Button("Edit...") {
+                        if let id = selectedCalibrationId,
+                           let cal = store.calibrations.first(where: { $0.id == id }) {
+                            editingCalibration = cal
+                            showingCalibrationSheet = true
+                        }
+                    }
+                    .disabled(selectedCalibrationId == nil)
+
                     Button("Delete") {
                         if let id = selectedCalibrationId {
                             store.delete(id: id)
