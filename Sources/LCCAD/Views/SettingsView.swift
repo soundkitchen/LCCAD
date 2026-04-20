@@ -49,7 +49,7 @@ private struct GeneralSettingsView: View {
 
 @MainActor
 struct PrinterCalibrationSettingsView: View {
-    @StateObject private var store = PrinterCalibrationStore.shared
+    @ObservedObject private var store = PrinterCalibrationStore.shared
     @State private var showingCalibrationSheet = false
     @State private var editingCalibration: PrinterCalibration?
     @State private var selectedCalibrationId: UUID?

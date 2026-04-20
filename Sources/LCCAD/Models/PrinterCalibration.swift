@@ -39,11 +39,13 @@ final class PrinterCalibrationStore: ObservableObject {
 
     static let shared = PrinterCalibrationStore()
 
-    private static var storageURL: URL {
+    private static var storageDirectory: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = appSupport.appendingPathComponent("LCCAD", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("printer_calibrations.json")
+        return appSupport.appendingPathComponent("LCCAD", isDirectory: true)
+    }
+
+    private static var storageURL: URL {
+        storageDirectory.appendingPathComponent("printer_calibrations.json")
     }
 
     init() {
@@ -52,24 +54,27 @@ final class PrinterCalibrationStore: ObservableObject {
 
     func load() {
         let url = Self.storageURL
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
         do {
             let data = try Data(contentsOf: url)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            calibrations = try decoder.decode([PrinterCalibration].self, from: data)
+            let loaded = try decoder.decode([PrinterCalibration].self, from: data)
+            calibrations = loaded
         } catch {
-            print("Failed to load printer calibrations: \(error)")
+            // File doesn't exist yet or decode failed — keep current calibrations
         }
     }
 
     func save() {
+        let dir = Self.storageDirectory
+        let url = Self.storageURL
         do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(calibrations)
-            try data.write(to: Self.storageURL, options: .atomic)
+            try data.write(to: url, options: .atomic)
         } catch {
             print("Failed to save printer calibrations: \(error)")
         }
