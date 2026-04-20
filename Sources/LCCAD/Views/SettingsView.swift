@@ -47,11 +47,17 @@ private struct GeneralSettingsView: View {
 
 // MARK: - Printer Calibration Settings
 
+/// Wrapper to ensure `.sheet(item:)` creates a fresh view every time.
+/// Each instance has a unique ID, so SwiftUI never reuses stale state.
+struct CalibrationSheetItem: Identifiable {
+    let id = UUID()
+    let calibration: PrinterCalibration?
+}
+
 @MainActor
 struct PrinterCalibrationSettingsView: View {
     @ObservedObject private var store = PrinterCalibrationStore.shared
-    @State private var showingCalibrationSheet = false
-    @State private var editingCalibration: PrinterCalibration?
+    @State private var sheetItem: CalibrationSheetItem?
     @State private var selectedCalibrationId: UUID?
 
     var body: some View {
@@ -80,8 +86,7 @@ struct PrinterCalibrationSettingsView: View {
                                 .tag(cal.id)
                                 .contextMenu {
                                     Button("Edit...") {
-                                        editingCalibration = cal
-                                        showingCalibrationSheet = true
+                                        sheetItem = CalibrationSheetItem(calibration: cal)
                                     }
                                     Button("Delete", role: .destructive) {
                                         store.delete(id: cal.id)
@@ -94,8 +99,7 @@ struct PrinterCalibrationSettingsView: View {
 
                 HStack {
                     Button("Add Calibration...") {
-                        editingCalibration = nil
-                        showingCalibrationSheet = true
+                        sheetItem = CalibrationSheetItem(calibration: nil)
                     }
 
                     Spacer()
@@ -103,8 +107,7 @@ struct PrinterCalibrationSettingsView: View {
                     Button("Edit...") {
                         if let id = selectedCalibrationId,
                            let cal = store.calibrations.first(where: { $0.id == id }) {
-                            editingCalibration = cal
-                            showingCalibrationSheet = true
+                            sheetItem = CalibrationSheetItem(calibration: cal)
                         }
                     }
                     .disabled(selectedCalibrationId == nil)
@@ -126,15 +129,15 @@ struct PrinterCalibrationSettingsView: View {
         .onAppear {
             store.load()
         }
-        .sheet(isPresented: $showingCalibrationSheet) {
+        .sheet(item: $sheetItem) { item in
             CalibrationEditSheet(
-                calibration: editingCalibration,
+                calibration: item.calibration,
                 onSave: { cal in
                     store.addOrUpdate(cal)
-                    showingCalibrationSheet = false
+                    sheetItem = nil
                 },
                 onCancel: {
-                    showingCalibrationSheet = false
+                    sheetItem = nil
                 }
             )
         }
