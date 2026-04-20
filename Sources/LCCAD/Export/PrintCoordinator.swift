@@ -451,8 +451,10 @@ private class CalibrationTestPageView: NSView {
 
     init(calibrations: [PrinterCalibration]) {
         self.calibrations = calibrations
-        let totalWidth = mmToPoints(180)
-        let totalHeight = mmToPoints(220)
+        // 15mm left margin + 150mm square + 15mm dim label + 10mm right margin = 190mm
+        // 65mm top content + 150mm square + 15mm dim label + 15mm footer = 245mm
+        let totalWidth = mmToPoints(190)
+        let totalHeight = mmToPoints(250)
         super.init(frame: NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight))
     }
 
@@ -527,9 +529,9 @@ private class CalibrationTestPageView: NSView {
         let instrStr = NSAttributedString(string: instructions, attributes: bodyAttrs)
         instrStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(26)))
 
-        // Draw the 100mm square with calibration applied
-        let squareOriginX = mmToPoints(40)
-        let squareOriginY = mmToPoints(75)
+        // Draw the 150mm square with calibration applied
+        let squareOriginX = mmToPoints(15)
+        let squareOriginY = mmToPoints(65)
         let squareWidthPt = mmToPoints(squareSizeMM) * calScaleX
         let squareHeightPt = mmToPoints(squareSizeMM) * calScaleY
 
@@ -602,6 +604,6 @@ private class CalibrationTestPageView: NSView {
             string: "LCCAD — 印刷ダイアログで「用紙に合わせる」がオフになっていることを確認してください。",
             attributes: footerAttrs
         )
-        footerStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(195)))
+        footerStr.draw(at: NSPoint(x: mmToPoints(15), y: mmToPoints(235)))
     }
 }
