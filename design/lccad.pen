@@ -1259,8 +1259,8 @@
                   "x": 0,
                   "y": 0,
                   "name": "Ruler Corner",
-                  "width": 20,
-                  "height": 20,
+                  "width": 24,
+                  "height": 24,
                   "fill": "$bg-toolbar",
                   "stroke": {
                     "thickness": {
@@ -1274,12 +1274,12 @@
                 {
                   "type": "frame",
                   "id": "kusJf",
-                  "x": 20,
+                  "x": 24,
                   "y": 0,
                   "name": "H Ruler",
                   "clip": true,
                   "width": 920,
-                  "height": 20,
+                  "height": 24,
                   "fill": "$bg-toolbar",
                   "stroke": {
                     "thickness": {
@@ -1300,10 +1300,10 @@
                         0,
                         0,
                         920,
-                        20
+                        24
                       ],
                       "width": 920,
-                      "height": 20,
+                      "height": 24,
                       "stroke": {
                         "align": "center",
                         "thickness": 0.5,
@@ -1314,72 +1314,72 @@
                       "type": "text",
                       "id": "8MKKF",
                       "x": 2,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl0",
                       "fill": "$text-secondary",
                       "content": "0",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "svTTa",
                       "x": 145,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl50",
                       "fill": "$text-secondary",
                       "content": "50",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "Y2rz6",
                       "x": 292,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl100",
                       "fill": "$text-secondary",
                       "content": "100",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "UgkuE",
                       "x": 442,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl150",
                       "fill": "$text-secondary",
                       "content": "150",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "fZjQ6",
                       "x": 592,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl200",
                       "fill": "$text-secondary",
                       "content": "200",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "QUZJL",
                       "x": 742,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl250",
                       "fill": "$text-secondary",
                       "content": "250",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
@@ -1390,7 +1390,7 @@
                       "name": "H Mouse Indicator",
                       "fill": "#E74C3C",
                       "width": 1,
-                      "height": 20
+                      "height": 24
                     }
                   ]
                 },
@@ -1398,10 +1398,10 @@
                   "type": "frame",
                   "id": "CecY3",
                   "x": 0,
-                  "y": 20,
+                  "y": 24,
                   "name": "V Ruler",
                   "clip": true,
-                  "width": 20,
+                  "width": 24,
                   "height": 774,
                   "fill": "$bg-toolbar",
                   "stroke": {
@@ -1422,10 +1422,10 @@
                       "viewBox": [
                         0,
                         0,
-                        20,
+                        24,
                         774
                       ],
-                      "width": 20,
+                      "width": 24,
                       "height": 774,
                       "stroke": {
                         "align": "center",
@@ -1437,60 +1437,65 @@
                       "type": "text",
                       "id": "IaExk",
                       "x": 2,
-                      "y": 2,
+                      "y": 10,
                       "name": "vl0",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "0",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "wTTx0",
-                      "x": 1,
-                      "y": 152,
+                      "x": 2,
+                      "y": 155,
                       "name": "vl50",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "50",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "PzpUw",
-                      "x": 0,
-                      "y": 302,
+                      "x": 2,
+                      "y": 305,
                       "name": "vl100",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "100",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "j0c9d",
-                      "x": 0,
-                      "y": 452,
+                      "x": 2,
+                      "y": 455,
                       "name": "vl150",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "150",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "O3aA6",
-                      "x": 0,
-                      "y": 602,
+                      "x": 2,
+                      "y": 605,
                       "name": "vl200",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "200",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
@@ -1500,7 +1505,7 @@
                       "y": 200,
                       "name": "V Mouse Indicator",
                       "fill": "#E74C3C",
-                      "width": 20,
+                      "width": 24,
                       "height": 1
                     }
                   ]
@@ -3706,8 +3711,8 @@
                   "x": 0,
                   "y": 0,
                   "name": "Ruler Corner",
-                  "width": 20,
-                  "height": 20,
+                  "width": 24,
+                  "height": 24,
                   "fill": "$bg-toolbar",
                   "stroke": {
                     "thickness": {
@@ -3721,12 +3726,12 @@
                 {
                   "type": "frame",
                   "id": "qnOzN",
-                  "x": 20,
+                  "x": 24,
                   "y": 0,
                   "name": "H Ruler",
                   "clip": true,
                   "width": 920,
-                  "height": 20,
+                  "height": 24,
                   "fill": "$bg-toolbar",
                   "stroke": {
                     "thickness": {
@@ -3747,10 +3752,10 @@
                         0,
                         0,
                         920,
-                        20
+                        24
                       ],
                       "width": 920,
-                      "height": 20,
+                      "height": 24,
                       "stroke": {
                         "align": "center",
                         "thickness": 0.5,
@@ -3761,72 +3766,72 @@
                       "type": "text",
                       "id": "gOuDs",
                       "x": 2,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl0",
                       "fill": "$text-secondary",
                       "content": "0",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "11rZr",
                       "x": 145,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl50",
                       "fill": "$text-secondary",
                       "content": "50",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "jBhdt",
                       "x": 292,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl100",
                       "fill": "$text-secondary",
                       "content": "100",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "21PBZ",
                       "x": 442,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl150",
                       "fill": "$text-secondary",
                       "content": "150",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "JOzdg",
                       "x": 592,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl200",
                       "fill": "$text-secondary",
                       "content": "200",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "TRnCq",
                       "x": 742,
-                      "y": 1,
+                      "y": 2,
                       "name": "hl250",
                       "fill": "$text-secondary",
                       "content": "250",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
@@ -3837,7 +3842,7 @@
                       "name": "H Mouse Indicator",
                       "fill": "#E74C3C",
                       "width": 1,
-                      "height": 20
+                      "height": 24
                     }
                   ]
                 },
@@ -3845,10 +3850,10 @@
                   "type": "frame",
                   "id": "lzTpq",
                   "x": 0,
-                  "y": 20,
+                  "y": 24,
                   "name": "V Ruler",
                   "clip": true,
-                  "width": 20,
+                  "width": 24,
                   "height": 774,
                   "fill": "$bg-toolbar",
                   "stroke": {
@@ -3869,10 +3874,10 @@
                       "viewBox": [
                         0,
                         0,
-                        20,
+                        24,
                         774
                       ],
-                      "width": 20,
+                      "width": 24,
                       "height": 774,
                       "stroke": {
                         "align": "center",
@@ -3884,60 +3889,65 @@
                       "type": "text",
                       "id": "LGPLh",
                       "x": 2,
-                      "y": 2,
+                      "y": 10,
                       "name": "vl0",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "0",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "CcmwS",
-                      "x": 1,
-                      "y": 152,
+                      "x": 2,
+                      "y": 155,
                       "name": "vl50",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "50",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "kFFoX",
-                      "x": 0,
-                      "y": 302,
+                      "x": 2,
+                      "y": 305,
                       "name": "vl100",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "100",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "JjwtJ",
-                      "x": 0,
-                      "y": 452,
+                      "x": 2,
+                      "y": 455,
                       "name": "vl150",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "150",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
                       "type": "text",
                       "id": "dJmmS",
-                      "x": 0,
-                      "y": 602,
+                      "x": 2,
+                      "y": 605,
                       "name": "vl200",
+                      "rotation": 90,
                       "fill": "$text-secondary",
                       "content": "200",
                       "fontFamily": "Geist Mono",
-                      "fontSize": 7,
+                      "fontSize": 11,
                       "fontWeight": "normal"
                     },
                     {
@@ -3947,7 +3957,7 @@
                       "y": 200,
                       "name": "V Mouse Indicator",
                       "fill": "#E74C3C",
-                      "width": 20,
+                      "width": 24,
                       "height": 1
                     }
                   ]
