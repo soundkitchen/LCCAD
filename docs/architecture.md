@@ -71,7 +71,7 @@ Sources/LCCAD/
 │   │   ├── Layer.swift          # レイヤー
 │   │   └── ProjectSettings.swift
 │   ├── Shapes/
-│   │   ├── Shape.swift          # Shape プロトコル、AnyShape、StrokeStyle、CodableColor
+│   │   ├── Shape.swift          # Shape プロトコル、AnyShape、LineStyle、StrokeStyle、CodableColor
 │   │   ├── LineShape.swift
 │   │   ├── RectangleShape.swift
 │   │   ├── EllipseShape.swift
@@ -100,13 +100,15 @@ Sources/LCCAD/
 │   │   ├── RightPanelView.swift
 │   │   ├── PositionSection.swift  # X/Y 直接入力で図形移動
 │   │   ├── SizeSection.swift
-│   │   ├── StrokeSection.swift    # ColorPicker + 線幅入力
+│   │   ├── StrokeSection.swift    # ColorPicker + 線幅入力 + 線種ピッカー
 │   │   ├── ArcSection.swift
 │   │   ├── StitchSection.swift
 │   │   └── TextSection.swift
 │   ├── Shared/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField
-│   │   └── DesignTokens.swift   # Pencil デザイン変数の Swift 転写
+│   │   ├── DesignTokens.swift   # Pencil デザイン変数の Swift 転写
+│   │   └── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
+│   ├── PrickingIronSheet.swift  # 目打ち管理シート
 │   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
 │
 ├── ViewModels/
@@ -121,6 +123,8 @@ Sources/LCCAD/
 │   ├── SnapOverlay.swift        # スナップインジケータ描画
 │   ├── SelectionOverlay.swift   # 選択ハンドル描画（マルチセレクト、マーキー選択）
 │   ├── DrawingPreviewRenderer.swift # 描画中プレビュー
+│   ├── RulerRenderer.swift      # ルーラー描画
+│   ├── RulerView.swift          # ルーラー配置 (上辺・左辺)
 │   └── ScrollZoomView.swift     # ホイールズーム + 中ボタンパン
 │
 ├── Tools/
@@ -175,7 +179,7 @@ Sources/LCCAD/
 | **位置編集** | `setSelectedShapePosition(x:y:)` | boundingBox.origin 基準で絶対座標移動（Undo 対応） |
 | **移動** | `moveSelectedShapes(by:)` | 全選択図形を一括移動 |
 | **削除** | `deleteSelectedShapes()` | 全選択図形を一括削除（Undo 対応） |
-| **ストローク編集** | `updateStroke(_:)` | 選択図形の stroke.color / stroke.width を更新（Undo 対応） |
+| **ストローク編集** | `updateStroke(_:)` | 選択図形の stroke.color / stroke.width / stroke.lineStyle を更新（Undo 対応） |
 | **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応） |
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
@@ -246,6 +250,7 @@ SettingsView
 
 - **単位変換**: 1mm = 72/25.4 ポイント（`pointsPerMM ≈ 2.8346`）
 - **`scalingFactor = 1.0`**: OS レベルのスケーリングを強制無効化
+- **線種対応**: `StrokeStyle.dashPattern` を `CGContext.setLineDash` で反映
 - **タイル印刷**: 用紙サイズを超える図面を複数ページに自動分割
   - のりしろ 10mm のオーバーラップ
   - L字コーナーマーク + 十字位置合わせマーク

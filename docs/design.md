@@ -141,6 +141,9 @@
 ### 3. Stroke セクション（非テキスト図形）
 - **ColorPicker**: 線色を直接変更（Undo 対応）
 - **W（線幅）**: `EditablePropertyField` で mm 単位入力（範囲 0.01〜100）
+- **Style（線種）**: ドロップダウンで線種を選択（プレビュー線 + スタイル名表示）
+  - Solid（実線）、Dashed（破線 3-2mm）、Dotted（点線 0.5-1.5mm）、Dash-Dot（一点鎖線 3-1.5-0.5-1.5mm）
+  - キャンバス描画はズーム連動、印刷・SVG・DXF エクスポートにも反映
 - デザインに合わせ、カラースウォッチに `cornerRadius: 4` + border
 
 ### 3'. Text セクション（テキスト図形）
