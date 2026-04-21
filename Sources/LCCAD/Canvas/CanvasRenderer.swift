@@ -9,7 +9,9 @@ struct CanvasRenderer {
         // Ensure lines are always visible (min 0.75px) but scale with zoom
         let scaledWidth = transform.worldToScreenDistance(shape.stroke.width)
         let lineWidth = max(0.75, min(scaledWidth, 4.0))
-        let strokeStyle = SwiftUI.StrokeStyle(lineWidth: lineWidth)
+        let dash: [CGFloat] = (shape.stroke.dashPattern ?? [])
+            .map { max(1, transform.worldToScreenDistance($0)) }
+        let strokeStyle = SwiftUI.StrokeStyle(lineWidth: lineWidth, dash: dash)
 
         switch shape {
         case .line(let line):

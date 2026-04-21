@@ -28,6 +28,54 @@ struct StrokeSection: View {
                     }
                 )
             }
+
+            HStack(spacing: 8) {
+                Text("Style")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DesignTokens.textMuted(colorScheme))
+
+                Menu {
+                    ForEach(LineStyle.allCases, id: \.self) { style in
+                        Button {
+                            editor.updateStroke {
+                                $0.lineStyle = style
+                                $0.dashPattern = style.dashPattern
+                            }
+                        } label: {
+                            Text(style.displayName)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        LineStylePreview(
+                            style: stroke.lineStyle,
+                            color: DesignTokens.textPrimary(colorScheme)
+                        )
+                        .frame(width: 30, height: 12)
+
+                        Text(stroke.lineStyle.displayName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(DesignTokens.textPrimary(colorScheme))
+
+                        Spacer()
+
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9))
+                            .foregroundStyle(DesignTokens.textMuted(colorScheme))
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(DesignTokens.bgInput(colorScheme))
+                    .cornerRadius(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+            }
         }
     }
 

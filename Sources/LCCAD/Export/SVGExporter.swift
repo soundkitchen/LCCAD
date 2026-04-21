@@ -100,7 +100,11 @@ enum SVGExporter {
     // MARK: - Helpers
 
     private static func strokeAttributes(_ stroke: StrokeStyle) -> String {
-        "fill=\"none\" stroke=\"\(colorHex(stroke.color))\" stroke-width=\"\(fmt(stroke.width))\""
+        var attrs = "fill=\"none\" stroke=\"\(colorHex(stroke.color))\" stroke-width=\"\(fmt(stroke.width))\""
+        if let pattern = stroke.dashPattern, !pattern.isEmpty {
+            attrs += " stroke-dasharray=\"\(pattern.map { fmt($0) }.joined(separator: ","))\""
+        }
+        return attrs
     }
 
     private static func colorHex(_ c: CodableColor) -> String {

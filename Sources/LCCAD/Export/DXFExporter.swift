@@ -34,12 +34,56 @@ enum DXFExporter {
     }
 
     private static func tablesSection(document: DocumentData) -> String {
-        var s = "0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n\(document.layers.count + 1)\n"
+        // Collect all distinct non-solid line styles used in the document
+        var usedStyles = Set<LineStyle>()
+        for layer in document.layers {
+            for shape in layer.shapes {
+                if shape.stroke.lineStyle != .solid {
+                    usedStyles.insert(shape.stroke.lineStyle)
+                }
+            }
+        }
+
+        var s = "0\nSECTION\n2\nTABLES\n"
+
+        // LTYPE table
+        s += "0\nTABLE\n2\nLTYPE\n70\n\(usedStyles.count + 1)\n"
+        // CONTINUOUS is always defined
+        s += "0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n"
+        for style in usedStyles {
+            s += ltypeDefinition(for: style)
+        }
+        s += "0\nENDTAB\n"
+
+        // LAYER table
+        s += "0\nTABLE\n2\nLAYER\n70\n\(document.layers.count + 1)\n"
         for layer in document.layers {
             s += "0\nLAYER\n2\n\(sanitize(layer.name))\n70\n0\n62\n7\n6\nCONTINUOUS\n"
         }
         s += "0\nLAYER\n2\nSTITCH\n70\n0\n62\n1\n6\nCONTINUOUS\n"
         s += "0\nENDTAB\n0\nENDSEC\n"
+        return s
+    }
+
+    private static func ltypeDefinition(for style: LineStyle) -> String {
+        guard let pattern = style.dashPattern else { return "" }
+        // DXF LTYPE: positive = dash, 0 = dot (very short dash), negative = gap
+        var elements: [CGFloat] = []
+        for (i, val) in pattern.enumerated() {
+            if i % 2 == 0 {
+                // Dash segment: use 0 for dots (values < 0.6mm)
+                elements.append(val < 0.6 ? 0 : val)
+            } else {
+                // Gap segment: negative value
+                elements.append(-val)
+            }
+        }
+        let totalLen = elements.reduce(0) { $0 + abs($1) }
+        var s = "0\nLTYPE\n2\n\(style.dxfName)\n70\n0\n3\n\(style.displayName)\n72\n65\n"
+        s += "73\n\(elements.count)\n40\n\(fmt(totalLen))\n"
+        for e in elements {
+            s += "49\n\(fmt(e))\n"
+        }
         return s
     }
 
@@ -65,12 +109,14 @@ enum DXFExporter {
     // MARK: - Shape → DXF Entities
 
     private static func dxfEntities(for shape: AnyShape, layer: String, options: DXFExportOptions) -> String {
+        let lt = shape.stroke.lineStyle.dxfName
+
         switch shape {
         case .line(let line):
             return lineEntity(
                 x1: line.startPoint.x, y1: yVal(line.startPoint.y, options),
                 x2: line.endPoint.x, y2: yVal(line.endPoint.y, options),
-                layer: layer
+                layer: layer, linetype: lt
             )
 
         case .rectangle(let rect):
@@ -87,7 +133,7 @@ enum DXFExporter {
                 s += lineEntity(
                     x1: corners[i].0, y1: yVal(corners[i].1, options),
                     x2: corners[j].0, y2: yVal(corners[j].1, options),
-                    layer: layer
+                    layer: layer, linetype: lt
                 )
             }
             return s
@@ -101,7 +147,7 @@ enum DXFExporter {
                 radius: arc.radius,
                 startAngle: options.flipY ? -endDeg : startDeg,
                 endAngle: options.flipY ? -startDeg : endDeg,
-                layer: layer
+                layer: layer, linetype: lt
             )
 
         case .ellipse:
@@ -130,7 +176,7 @@ enum DXFExporter {
                     s += lineEntity(
                         x1: prevPt.x, y1: yVal(prevPt.y, options),
                         x2: pt.x, y2: yVal(pt.y, options),
-                        layer: layer
+                        layer: layer, linetype: lt
                     )
                     prevPt = pt
                 }
@@ -147,13 +193,15 @@ enum DXFExporter {
 
     // MARK: - DXF Entity Builders
 
-    private static func lineEntity(x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat, layer: String) -> String {
-        "0\nLINE\n8\n\(layer)\n10\n\(fmt(x1))\n20\n\(fmt(y1))\n11\n\(fmt(x2))\n21\n\(fmt(y2))\n"
+    private static func lineEntity(x1: CGFloat, y1: CGFloat, x2: CGFloat, y2: CGFloat,
+                                    layer: String, linetype: String = "CONTINUOUS") -> String {
+        "0\nLINE\n8\n\(layer)\n6\n\(linetype)\n10\n\(fmt(x1))\n20\n\(fmt(y1))\n11\n\(fmt(x2))\n21\n\(fmt(y2))\n"
     }
 
     private static func arcEntity(cx: CGFloat, cy: CGFloat, radius: CGFloat,
-                                   startAngle: CGFloat, endAngle: CGFloat, layer: String) -> String {
-        "0\nARC\n8\n\(layer)\n10\n\(fmt(cx))\n20\n\(fmt(cy))\n40\n\(fmt(radius))\n50\n\(fmt(startAngle))\n51\n\(fmt(endAngle))\n"
+                                   startAngle: CGFloat, endAngle: CGFloat,
+                                   layer: String, linetype: String = "CONTINUOUS") -> String {
+        "0\nARC\n8\n\(layer)\n6\n\(linetype)\n10\n\(fmt(cx))\n20\n\(fmt(cy))\n40\n\(fmt(radius))\n50\n\(fmt(startAngle))\n51\n\(fmt(endAngle))\n"
     }
 
     private static func pointEntity(x: CGFloat, y: CGFloat, layer: String) -> String {

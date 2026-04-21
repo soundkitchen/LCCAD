@@ -1974,6 +1974,87 @@
                           ]
                         }
                       ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "vAzGo",
+                      "name": "rpStyleRow",
+                      "width": "fill_container",
+                      "height": 28,
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "K3XgF",
+                          "name": "rpStyleLabel",
+                          "fill": "$text-muted",
+                          "content": "Style",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "eKJkl",
+                          "name": "rpStyleBox",
+                          "width": "fill_container",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": {
+                            "thickness": 1,
+                            "fill": "$border"
+                          },
+                          "gap": 6,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "line",
+                              "id": "Vcj94",
+                              "name": "rpStylePreview",
+                              "width": 30,
+                              "height": 0,
+                              "stroke": {
+                                "align": "center",
+                                "thickness": 1.5,
+                                "fill": "$text-primary"
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "id": "SK88G",
+                              "name": "rpStyleName",
+                              "fill": "$text-primary",
+                              "content": "Solid",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Ulbwi",
+                              "name": "rpStyleSpacer",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "afRU3",
+                              "name": "rpStyleChevron",
+                              "width": 12,
+                              "height": 12,
+                              "iconFontName": "chevron-down",
+                              "iconFontFamily": "lucide",
+                              "fill": "$text-muted"
+                            }
+                          ]
+                        }
+                      ]
                     }
                   ]
                 },
@@ -4422,6 +4503,87 @@
                               "fontFamily": "Inter",
                               "fontSize": 9,
                               "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "3i7UA",
+                      "name": "rpStyleRow",
+                      "width": "fill_container",
+                      "height": 28,
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ISK7B",
+                          "name": "rpStyleLabel",
+                          "fill": "$text-muted",
+                          "content": "Style",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "6Kpat",
+                          "name": "rpStyleBox",
+                          "width": "fill_container",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": {
+                            "thickness": 1,
+                            "fill": "$border"
+                          },
+                          "gap": 6,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "line",
+                              "id": "QTjt5",
+                              "name": "rpStylePreview",
+                              "width": 30,
+                              "height": 0,
+                              "stroke": {
+                                "align": "center",
+                                "thickness": 1.5,
+                                "fill": "$text-primary"
+                              }
+                            },
+                            {
+                              "type": "text",
+                              "id": "VWxuS",
+                              "name": "rpStyleName",
+                              "fill": "$text-primary",
+                              "content": "Solid",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "0K77S",
+                              "name": "rpStyleSpacer",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "icon_font",
+                              "id": "89lxh",
+                              "name": "rpStyleChevron",
+                              "width": 12,
+                              "height": 12,
+                              "iconFontName": "chevron-down",
+                              "iconFontFamily": "lucide",
+                              "fill": "$text-muted"
                             }
                           ]
                         }

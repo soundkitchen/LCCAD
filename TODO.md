@@ -16,6 +16,8 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
 | 5 | E. カーブ系 Trim / Offset | 大 | 高 | 一部実装 |
 | 6 | F. 整列・分布ツール | 中 | 低 | 未着手 |
 | 7 | G. ステッチ穴の図形追従 | 小 | 低 | 未着手 |
+| 8 | H. 線種サポート | 小 | 低 | ✅ 完了 |
+| 9 | I. ページレイアウトエディタ | 大 | 中 | 未着手 |
 
 ### 依存関係
 
@@ -31,6 +33,7 @@ G (ステッチ穴追従) — 独立
 ```
 
 A と B は独立しており並行して進められる。
+H と I は独立しており、E/F/G とも独立。H → I の順で実装する。
 
 ---
 
@@ -197,4 +200,68 @@ A と B は独立しており並行して進められる。
   - `Sources/LCCAD/ViewModels/EditorViewModel.swift` — `moveSelectedShapes(by:)` 内でステッチ穴の座標更新
 - 完了条件
   - 図形を移動するとステッチ穴が追従する。
+  - Undo / Redo 対応。
+
+## H. 線種サポート
+
+- 背景
+  - `StrokeStyle.dashPattern: [CGFloat]?` は既にモデルに存在するが、描画・UI ともに未使用。
+  - レザークラフトでは折り線（破線）、ステッチガイド（点線）、縫い代（一点鎖線）などの線種が必要。
+- やること
+  - `LineStyle` enum を追加: `solid` / `dashed`(3-2mm) / `dotted`(0.5-1.5mm) / `dashDot`(3-1.5-0.5-1.5mm)。
+  - `StrokeStyle` に `lineStyle: LineStyle` プロパティを追加（後方互換あり）。
+  - キャンバス描画 (`CanvasRenderer`) で dash パターンをズーム連動で描画。
+  - 印刷 (`PrintCoordinator`) で `CGContext.setLineDash` を適用。
+  - SVG エクスポートで `stroke-dasharray` 属性を出力。
+  - DXF エクスポートで LTYPE テーブル + エンティティ参照を追加。
+  - 右パネル `StrokeSection` に線種ピッカー（プレビュー付き）を追加。
+- 主な影響箇所
+  - `Sources/LCCAD/Models/Shapes/Shape.swift` — `LineStyle` enum、`StrokeStyle` 変更
+  - `Sources/LCCAD/Canvas/CanvasRenderer.swift` — dash パターン描画
+  - `Sources/LCCAD/Export/PrintCoordinator.swift` — 印刷時 dash 描画
+  - `Sources/LCCAD/Export/SVGExporter.swift` — `stroke-dasharray` 出力
+  - `Sources/LCCAD/Export/DXFExporter.swift` — LTYPE + group code 6
+  - `Sources/LCCAD/Views/RightPanel/StrokeSection.swift` — 線種ピッカー UI
+  - `Sources/LCCAD/Views/Shared/LineStylePreview.swift` — 新規: プレビュービュー
+- 完了条件
+  - 4種の線種を選択・適用でき、キャンバス上で正しく描画される。
+  - ズームに連動して dash パターンがスケールする。
+  - 印刷・SVG・DXF エクスポートに線種が反映される。
+  - 古いファイル（`lineStyle` なし）が実線として正しく開ける。
+
+## I. ページレイアウトエディタ
+
+- 背景
+  - 現在の印刷は全図形のバウンディングボックスから自動タイリングするのみ。
+  - どのパーツを何ページ目に含めるか、ユーザーが制御できない。
+  - 大きなパーツが2ページに跨ぐ場合、貼り合わせ用のオーバーラップも必要。
+- 方式: 自由配置 + 専用 Page ツール + ページ間スナップ
+- やること
+  - データモデル: `PrintPage`（origin, paperSize, orientation, margin）、`PageLayoutSettings`（pages 配列, overlapMM, showPageFrames）を `ProjectSettings` に追加。
+  - 専用 Page ツール: ツールバーに追加。クリックでページ追加、ドラッグで移動、Delete で削除。
+  - ページ間スナップ: ページをドラッグ中、隣接ページと `overlapMM` 分だけ重なる位置に吸着。
+  - キャンバスオーバーレイ (`PageLayoutOverlay`): ページフレーム枠・番号・印刷可能領域・オーバーラップゾーンを描画。
+  - 右パネル (`PageSection`): ページリスト、用紙サイズ・向き・位置・マージンの編集。
+  - メニュー: View > Show Page Frames (⇧⌘P)。
+  - 印刷統合: `PrintCoordinator` をページフレームベースの印刷に対応（フォールバック: ページなしなら従来の自動タイリング）。
+  - ステータスバーにページ数表示。
+- 主な影響箇所
+  - `Sources/LCCAD/Models/Document/ProjectSettings.swift` — `PrintPage`, `PaperSize`, `PageLayoutSettings` 追加
+  - `Sources/LCCAD/ViewModels/EditorViewModel.swift` — `.page` ツール、ページ選択・ドラッグ
+  - `Sources/LCCAD/Canvas/CanvasView.swift` — オーバーレイ挿入、Page ツール操作
+  - `Sources/LCCAD/Canvas/PageLayoutOverlay.swift` — 新規: ページフレーム描画
+  - `Sources/LCCAD/Canvas/PageSnapEngine.swift` — 新規: ページ間スナップ
+  - `Sources/LCCAD/Views/Toolbar/ToolbarView.swift` — Page ツールボタン
+  - `Sources/LCCAD/Views/RightPanel/PageSection.swift` — 新規: ページプロパティ UI
+  - `Sources/LCCAD/Views/RightPanel/RightPanelView.swift` — Page ツール時の分岐
+  - `Sources/LCCAD/Views/StatusBar/StatusBarView.swift` — ページ数表示
+  - `Sources/LCCAD/Views/Shared/DesignTokens.swift` — ページ関連カラートークン
+  - `Sources/LCCAD/Export/PrintCoordinator.swift` — 自由配置ページ対応
+  - `Sources/LCCAD/App/AppCommands.swift` — Show Page Frames メニュー
+- 完了条件
+  - Page ツールでキャンバス上にページフレームを追加・移動・削除できる。
+  - ページ間スナップでオーバーラップ量に応じた吸着が動作する。
+  - 右パネルで用紙サイズ・向き・位置を編集できる。
+  - ⌘P で印刷: 各ページフレームの内容が正しいページに印刷される。
+  - ページレイアウト未設定の古いファイルでは従来の自動タイリングにフォールバック。
   - Undo / Redo 対応。

@@ -269,6 +269,11 @@ private class PrintableDocumentView: NSView {
         context.setStrokeColor(strokeColor.cgColor)
         context.setFillColor(NSColor.clear.cgColor)
         context.setLineWidth(shape.stroke.width)  // in mm, transform handles conversion
+        if let pattern = shape.stroke.dashPattern, !pattern.isEmpty {
+            context.setLineDash(phase: 0, lengths: pattern)
+        } else {
+            context.setLineDash(phase: 0, lengths: [])
+        }
 
         switch shape {
         case .line(let line):
