@@ -81,6 +81,11 @@ enum DesignTokens {
         scheme == .dark ? Color(hex: 0x333333) : Color(hex: 0xEFEFEF)
     }
 
+    // MARK: - Ruler
+
+    static let rulerIndicatorColor = Color(hex: 0xE74C3C)
+    static let rulerHeight: CGFloat = 24
+
     // MARK: - Accent
 
     static let accent = Color(hex: 0x4A90D9)

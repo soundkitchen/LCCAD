@@ -53,6 +53,11 @@ struct AppCommands: Commands {
                 editor?.document.settings.showGrid.toggle()
             }
             .keyboardShortcut("g", modifiers: [.command, .shift])
+
+            Button("Toggle Ruler") {
+                editor?.document.settings.showRuler.toggle()
+            }
+            .keyboardShortcut("r", modifiers: [.command])
         }
 
         // Edit menu — Select All
