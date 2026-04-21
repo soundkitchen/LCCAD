@@ -138,11 +138,11 @@ struct RulerRenderer {
                     .foregroundColor(tickColor)
                 var labelContext = context
                 labelContext.translateBy(x: 3, y: screenY + 3)
-                labelContext.rotate(by: .degrees(90))
+                labelContext.rotate(by: .degrees(-90))
                 labelContext.draw(
                     context.resolve(text),
                     at: CGPoint(x: 0, y: 0),
-                    anchor: .topLeading
+                    anchor: .bottomLeading
                 )
             }
 
