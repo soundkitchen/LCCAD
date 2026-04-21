@@ -137,12 +137,12 @@ struct RulerRenderer {
                     .font(.custom("Geist Mono", size: 9))
                     .foregroundColor(tickColor)
                 var labelContext = context
-                labelContext.translateBy(x: 3, y: screenY + 3)
+                labelContext.translateBy(x: 2, y: screenY - 2)
                 labelContext.rotate(by: .degrees(-90))
                 labelContext.draw(
                     context.resolve(text),
                     at: CGPoint(x: 0, y: 0),
-                    anchor: .bottomLeading
+                    anchor: .topLeading
                 )
             }
 
