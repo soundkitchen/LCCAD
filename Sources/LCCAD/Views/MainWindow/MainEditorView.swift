@@ -49,19 +49,19 @@ struct MainEditorView: View {
 
     @ViewBuilder
     private var canvasWithRuler: some View {
-        if editor.document.settings.showRuler {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
+            if editor.document.settings.showRuler {
                 HStack(spacing: 0) {
                     RulerCornerView()
                     HorizontalRulerView(editor: editor)
                 }
-                HStack(spacing: 0) {
-                    VerticalRulerView(editor: editor)
-                    CanvasView(editor: editor)
-                }
             }
-        } else {
-            CanvasView(editor: editor)
+            HStack(spacing: 0) {
+                if editor.document.settings.showRuler {
+                    VerticalRulerView(editor: editor)
+                }
+                CanvasView(editor: editor)
+            }
         }
     }
 }
