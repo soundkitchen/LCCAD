@@ -73,7 +73,7 @@ struct RulerRenderer {
             if isCoarse {
                 let label = formatLabel(value: x, unit: unit)
                 let text = Text(label)
-                    .font(.custom("Geist Mono", size: 9))
+                    .font(.custom("Geist Mono", size: 11))
                     .foregroundColor(tickColor)
                 context.draw(
                     context.resolve(text),
@@ -134,7 +134,7 @@ struct RulerRenderer {
             if isCoarse {
                 let label = formatLabel(value: y, unit: unit)
                 let text = Text(label)
-                    .font(.custom("Geist Mono", size: 9))
+                    .font(.custom("Geist Mono", size: 11))
                     .foregroundColor(tickColor)
                 var labelContext = context
                 labelContext.translateBy(x: 2, y: screenY - 2)
