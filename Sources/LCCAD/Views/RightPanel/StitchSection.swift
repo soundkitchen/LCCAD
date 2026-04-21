@@ -30,6 +30,16 @@ struct StitchSection: View {
                 }
                 .labelsHidden()
                 .frame(height: 28)
+
+                Button {
+                    editor.showPrickingIronSheet = true
+                } label: {
+                    Image(systemName: "gear")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.iconSecondary(colorScheme))
+                }
+                .buttonStyle(.plain)
+                .help("Pricking Iron Settings")
             }
 
             // Pitch row
