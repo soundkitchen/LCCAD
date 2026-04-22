@@ -52,7 +52,7 @@ struct AppCommands: Commands {
             Button("Toggle Grid") {
                 editor?.document.settings.showGrid.toggle()
             }
-            .keyboardShortcut("g", modifiers: [.command, .shift])
+            .keyboardShortcut("g", modifiers: [.command, .option])
 
             Button("Toggle Ruler") {
                 editor?.document.settings.showRuler.toggle()
@@ -72,6 +72,20 @@ struct AppCommands: Commands {
                 editor?.selectedShapeIds = []
             }
             .keyboardShortcut("d")
+
+            Divider()
+
+            Button("Group") {
+                editor?.groupSelectedShapes()
+            }
+            .keyboardShortcut("g")
+            .disabled(!(editor?.isMultiSelection ?? false))
+
+            Button("Ungroup") {
+                editor?.ungroupSelectedShapes()
+            }
+            .keyboardShortcut("g", modifiers: [.command, .shift])
+            .disabled(!(editor?.hasSelectedGroup ?? false))
         }
 
         // Draw menu — tool switching (shortcuts are single-key, handled via onKeyPress in CanvasView)

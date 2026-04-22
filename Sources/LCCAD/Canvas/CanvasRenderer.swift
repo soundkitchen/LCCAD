@@ -28,6 +28,10 @@ struct CanvasRenderer {
             drawBezier(bezier, color: color, strokeStyle: strokeStyle, in: context)
         case .text(let text):
             drawText(text, color: color, in: context)
+        case .group(let group):
+            for child in group.children {
+                draw(shape: child, in: context)
+            }
         }
     }
 

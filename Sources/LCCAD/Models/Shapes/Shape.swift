@@ -123,6 +123,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
     case dot(DotShape)
     case bezier(BezierShape)
     case text(TextShape)
+    case group(GroupShape)
 
     var id: UUID {
         switch self {
@@ -133,6 +134,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(let s): return s.id
         case .bezier(let s): return s.id
         case .text(let s): return s.id
+        case .group(let s): return s.id
         }
     }
 
@@ -146,6 +148,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
             case .dot(let s): return s.stroke
             case .bezier(let s): return s.stroke
             case .text(let s): return s.stroke
+            case .group(let s): return s.stroke
             }
         }
         set {
@@ -157,6 +160,34 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
             case .dot(var s): s.stroke = newValue; self = .dot(s)
             case .bezier(var s): s.stroke = newValue; self = .bezier(s)
             case .text(var s): s.stroke = newValue; self = .text(s)
+            case .group(var s): s.stroke = newValue; self = .group(s)
+            }
+        }
+    }
+
+    var isLocked: Bool {
+        get {
+            switch self {
+            case .line(let s): return s.isLocked
+            case .rectangle(let s): return s.isLocked
+            case .ellipse(let s): return s.isLocked
+            case .arc(let s): return s.isLocked
+            case .dot(let s): return s.isLocked
+            case .bezier(let s): return s.isLocked
+            case .text(let s): return s.isLocked
+            case .group(let s): return s.isLocked
+            }
+        }
+        set {
+            switch self {
+            case .line(var s): s.isLocked = newValue; self = .line(s)
+            case .rectangle(var s): s.isLocked = newValue; self = .rectangle(s)
+            case .ellipse(var s): s.isLocked = newValue; self = .ellipse(s)
+            case .arc(var s): s.isLocked = newValue; self = .arc(s)
+            case .dot(var s): s.isLocked = newValue; self = .dot(s)
+            case .bezier(var s): s.isLocked = newValue; self = .bezier(s)
+            case .text(var s): s.isLocked = newValue; self = .text(s)
+            case .group(var s): s.isLocked = newValue; self = .group(s)
             }
         }
     }
@@ -170,6 +201,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(let s): return s.boundingBox
         case .bezier(let s): return s.boundingBox
         case .text(let s): return s.boundingBox
+        case .group(let s): return s.boundingBox
         }
     }
 
@@ -182,6 +214,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(let s): return s.hitTest(point: point, tolerance: tolerance)
         case .bezier(let s): return s.hitTest(point: point, tolerance: tolerance)
         case .text(let s): return s.hitTest(point: point, tolerance: tolerance)
+        case .group(let s): return s.hitTest(point: point, tolerance: tolerance)
         }
     }
 
@@ -194,6 +227,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(var s): s.translate(by: delta); self = .dot(s)
         case .bezier(var s): s.translate(by: delta); self = .bezier(s)
         case .text(var s): s.translate(by: delta); self = .text(s)
+        case .group(var s): s.translate(by: delta); self = .group(s)
         }
     }
 }

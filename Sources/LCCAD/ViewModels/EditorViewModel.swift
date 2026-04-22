@@ -908,6 +908,64 @@ final class EditorViewModel {
         }
     }
 
+    // MARK: - Group / Ungroup
+
+    /// Group the currently selected shapes into a single group.
+    func groupSelectedShapes() {
+        guard selectedShapeIds.count >= 2 else { return }
+        let old = document
+
+        var groupChildren: [AnyShape] = []
+        var remainingShapes: [AnyShape] = []
+        var insertionIndex: Int?
+
+        for (i, shape) in activeLayer.shapes.enumerated() {
+            if selectedShapeIds.contains(shape.id) {
+                groupChildren.append(shape)
+                if insertionIndex == nil { insertionIndex = i }
+            } else {
+                remainingShapes.append(shape)
+            }
+        }
+
+        guard groupChildren.count >= 2 else { return }
+
+        let group = GroupShape(children: groupChildren)
+        let idx = min(insertionIndex ?? 0, remainingShapes.count)
+        remainingShapes.insert(.group(group), at: idx)
+        activeLayer.shapes = remainingShapes
+
+        selectedShapeIds = [group.id]
+        registerUndo(actionName: "Group", oldDocument: old)
+    }
+
+    /// Ungroup selected groups, restoring their children to the layer.
+    func ungroupSelectedShapes() {
+        let old = document
+        var changed = false
+        var childIds = Set<UUID>()
+
+        // Process in reverse to preserve indices
+        for id in selectedShapeIds {
+            guard let (li, si) = findShapeLocation(id: id),
+                  case .group(let group) = document.layers[li].shapes[si] else { continue }
+
+            for child in group.children { childIds.insert(child.id) }
+            document.layers[li].shapes.remove(at: si)
+            document.layers[li].shapes.insert(contentsOf: group.children, at: si)
+            changed = true
+        }
+
+        guard changed else { return }
+        selectedShapeIds = childIds
+        registerUndo(actionName: "Ungroup", oldDocument: old)
+    }
+
+    /// Whether any of the selected shapes is a group.
+    var hasSelectedGroup: Bool {
+        selectedShapes.contains { if case .group = $0 { return true } else { return false } }
+    }
+
     // MARK: - Select All
 
     func selectAll() {

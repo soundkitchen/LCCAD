@@ -71,7 +71,8 @@ Sources/LCCAD/
 │   │   ├── Layer.swift          # レイヤー
 │   │   └── ProjectSettings.swift
 │   ├── Shapes/
-│   │   ├── Shape.swift          # Shape プロトコル、AnyShape、LineStyle、StrokeStyle、CodableColor
+│   │   ├── Shape.swift          # Shape プロトコル、AnyShape（8 cases + group）、LineStyle、StrokeStyle、CodableColor
+│   │   ├── GroupShape.swift     # グループ（children: [AnyShape] で再帰構造）
 │   │   ├── LineShape.swift
 │   │   ├── RectangleShape.swift
 │   │   ├── EllipseShape.swift

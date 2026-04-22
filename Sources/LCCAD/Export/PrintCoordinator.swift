@@ -347,6 +347,11 @@ private class PrintableDocumentView: NSView {
                 height: textSize.height
             )
             attrStr.draw(in: textRect)
+
+        case .group(let group):
+            for child in group.children {
+                drawShape(child, in: context)
+            }
         }
     }
 

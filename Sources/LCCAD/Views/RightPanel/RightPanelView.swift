@@ -50,7 +50,14 @@ struct RightPanelView: View {
                     PositionSection(editor: editor, boundingBox: shape.boundingBox, unit: editor.document.settings.unit)
                     SizeSection(boundingBox: shape.boundingBox, unit: editor.document.settings.unit)
 
-                    if case .text = shape {
+                    if case .group(let group) = shape {
+                        Text("Group (\(group.children.count) items)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(DesignTokens.textPrimary(colorScheme))
+                            .padding(.horizontal, 12)
+                            .padding(.top, 12)
+                        StrokeSection(editor: editor, stroke: shape.stroke)
+                    } else if case .text = shape {
                         TextSection(editor: editor)
                     } else {
                         StrokeSection(editor: editor, stroke: shape.stroke)

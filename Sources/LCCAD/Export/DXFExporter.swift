@@ -188,6 +188,9 @@ enum DXFExporter {
                 x: text.position.x, y: yVal(text.position.y, options),
                 height: text.fontSize, content: text.content, layer: layer
             )
+
+        case .group(let group):
+            return group.children.map { dxfEntities(for: $0, layer: layer, options: options) }.joined()
         }
     }
 

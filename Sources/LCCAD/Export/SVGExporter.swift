@@ -94,6 +94,14 @@ enum SVGExporter {
 
         case .text(let text):
             return "<text x=\"\(fmt(text.position.x))\" y=\"\(fmt(text.position.y))\" font-size=\"\(fmt(text.fontSize))\" fill=\"\(colorHex(text.stroke.color))\">\(escapeXML(text.content))</text>"
+
+        case .group(let group):
+            var s = "<g>"
+            for child in group.children {
+                s += "\n  " + svgElement(for: child)
+            }
+            s += "\n</g>"
+            return s
         }
     }
 
