@@ -50,6 +50,35 @@ enum Intersection {
         return results
     }
 
+    /// Find intersection points of a line segment with an arc (circle segment constrained by angle range).
+    static func lineArcIntersection(
+        lineStart: CGPoint, lineEnd: CGPoint,
+        arc: ArcShape
+    ) -> [CGPoint] {
+        let hits = lineCircleIntersection(
+            lineStart: lineStart, lineEnd: lineEnd,
+            center: arc.center, radius: arc.radius
+        )
+        return hits.filter { pt in
+            let angle = atan2(pt.y - arc.center.y, pt.x - arc.center.x)
+            return arc.isAngleInArc(angle)
+        }
+    }
+
+    /// Find intersection points of two arcs using analytical circle-circle intersection
+    /// filtered by both arcs' angle ranges.
+    static func arcArcIntersection(arc1: ArcShape, arc2: ArcShape) -> [CGPoint] {
+        let hits = circleCircleIntersection(
+            c1: arc1.center, r1: arc1.radius,
+            c2: arc2.center, r2: arc2.radius
+        )
+        return hits.filter { pt in
+            let angle1 = atan2(pt.y - arc1.center.y, pt.x - arc1.center.x)
+            let angle2 = atan2(pt.y - arc2.center.y, pt.x - arc2.center.x)
+            return arc1.isAngleInArc(angle1) && arc2.isAngleInArc(angle2)
+        }
+    }
+
     /// Find intersection points of two circles.
     static func circleCircleIntersection(
         c1: CGPoint, r1: CGFloat,

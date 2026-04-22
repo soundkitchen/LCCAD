@@ -36,7 +36,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
         case .arc: return "circle.and.line.horizontal"
         case .bezier: return "point.topleft.down.to.point.bottomright.curvepath"
         case .text: return "character"
-        case .offset: return "doc.on.doc"
+        case .offset: return "square.inset.filled"
         case .trim: return "scissors"
         case .bevel: return "arrow.turn.up.right"
         }
@@ -849,6 +849,10 @@ final class EditorViewModel {
             newShape = .rectangle(OffsetTool.offsetRectangle(rect, distance: distance))
         case .ellipse(let ellipse):
             newShape = .ellipse(OffsetTool.offsetEllipse(ellipse, distance: distance))
+        case .arc(let arc):
+            newShape = OffsetTool.offsetArc(arc, distance: distance).map { .arc($0) }
+        case .bezier(let bezier):
+            newShape = .bezier(OffsetTool.offsetBezier(bezier, distance: distance))
         default:
             break
         }

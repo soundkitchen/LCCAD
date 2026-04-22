@@ -86,7 +86,7 @@ Sources/LCCAD/
 │   ├── PrinterCalibration.swift # プリンターキャリブレーション + 永続化ストア
 │   └── Geometry/
 │       ├── GeometryUtils.swift  # 2D 座標 (mm)、LengthUnit、CGPoint/CGRect 拡張
-│       └── Intersection.swift   # 交点計算
+│       └── Intersection.swift   # 交点計算 (line-line, line-circle, line-arc, arc-arc, circle-circle)
 │
 ├── Views/
 │   ├── MainWindow/

@@ -240,6 +240,19 @@ enum TrimTool {
         var results: [CGFloat] = []
         for other in others {
             guard other.id != shape.id else { continue }
+
+            // Arc-Arc: use analytical solution for exact intersection
+            if case .arc(let targetArc) = shape, case .arc(let otherArc) = other {
+                let hits = Intersection.arcArcIntersection(arc1: targetArc, arc2: otherArc)
+                for pt in hits {
+                    let angle = atan2(pt.y - targetArc.center.y, pt.x - targetArc.center.x)
+                    if let t = targetArc.parameterForAngle(angle) {
+                        results.append(t)
+                    }
+                }
+                continue
+            }
+
             let otherSegments = toSegments(other)
             for (s1, s2) in otherSegments {
                 let ts = intersectTargetWithSegment(target: shape, segStart: s1, segEnd: s2)
