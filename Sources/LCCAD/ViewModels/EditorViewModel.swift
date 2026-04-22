@@ -1099,6 +1099,109 @@ final class EditorViewModel {
         registerUndo(actionName: "Remove Stitch", oldDocument: old)
     }
 
+    // MARK: - Align & Distribute
+
+    enum AlignEdge {
+        case left, right, top, bottom, centerH, centerV
+    }
+
+    func alignSelectedShapes(_ edge: AlignEdge) {
+        let shapes = selectedShapes
+        guard shapes.count >= 2 else { return }
+
+        let boxes = shapes.map { ($0.id, $0.boundingBox) }
+        let old = document
+
+        for (id, box) in boxes {
+            guard let (li, si) = findShapeLocation(id: id) else { continue }
+            var delta = CGPoint.zero
+            switch edge {
+            case .left:
+                let target = boxes.map(\.1.minX).min()!
+                delta.x = target - box.minX
+            case .right:
+                let target = boxes.map(\.1.maxX).max()!
+                delta.x = target - box.maxX
+            case .top:
+                let target = boxes.map(\.1.minY).min()!
+                delta.y = target - box.minY
+            case .bottom:
+                let target = boxes.map(\.1.maxY).max()!
+                delta.y = target - box.maxY
+            case .centerH:
+                let combined = selectionBoundingBox!
+                let target = combined.midY
+                delta.y = target - box.midY
+            case .centerV:
+                let combined = selectionBoundingBox!
+                let target = combined.midX
+                delta.x = target - box.midX
+            }
+            if delta.x != 0 || delta.y != 0 {
+                document.layers[li].shapes[si].translate(by: delta)
+            }
+        }
+
+        guard old != document else { return }
+        registerUndo(actionName: "Align", oldDocument: old)
+    }
+
+    enum DistributeDirection {
+        case horizontal, vertical
+    }
+
+    func distributeSelectedShapes(_ direction: DistributeDirection) {
+        let shapes = selectedShapes
+        guard shapes.count >= 3 else { return }
+
+        let sorted: [(UUID, CGRect)]
+        switch direction {
+        case .horizontal:
+            sorted = shapes.map { ($0.id, $0.boundingBox) }.sorted { $0.1.midX < $1.1.midX }
+        case .vertical:
+            sorted = shapes.map { ($0.id, $0.boundingBox) }.sorted { $0.1.midY < $1.1.midY }
+        }
+
+        let old = document
+
+        switch direction {
+        case .horizontal:
+            let totalWidth = sorted.reduce(CGFloat(0)) { $0 + $1.1.width }
+            let spanMin = sorted.first!.1.minX
+            let spanMax = sorted.last!.1.maxX
+            let totalSpace = (spanMax - spanMin) - totalWidth
+            let gap = totalSpace / CGFloat(sorted.count - 1)
+
+            var currentX = spanMin
+            for (id, box) in sorted {
+                let dx = currentX - box.minX
+                if dx != 0, let (li, si) = findShapeLocation(id: id) {
+                    document.layers[li].shapes[si].translate(by: CGPoint(x: dx, y: 0))
+                }
+                currentX += box.width + gap
+            }
+
+        case .vertical:
+            let totalHeight = sorted.reduce(CGFloat(0)) { $0 + $1.1.height }
+            let spanMin = sorted.first!.1.minY
+            let spanMax = sorted.last!.1.maxY
+            let totalSpace = (spanMax - spanMin) - totalHeight
+            let gap = totalSpace / CGFloat(sorted.count - 1)
+
+            var currentY = spanMin
+            for (id, box) in sorted {
+                let dy = currentY - box.minY
+                if dy != 0, let (li, si) = findShapeLocation(id: id) {
+                    document.layers[li].shapes[si].translate(by: CGPoint(x: 0, y: dy))
+                }
+                currentY += box.height + gap
+            }
+        }
+
+        guard old != document else { return }
+        registerUndo(actionName: "Distribute", oldDocument: old)
+    }
+
     // MARK: - Export
 
     func exportSVG() {

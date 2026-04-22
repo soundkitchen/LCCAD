@@ -88,6 +88,60 @@ struct AppCommands: Commands {
             .disabled(!(editor?.hasSelectedGroup ?? false))
         }
 
+        // Arrange menu — alignment & distribution
+        CommandMenu("Arrange") {
+            let hasMulti = editor?.isMultiSelection ?? false
+            let hasThreeOrMore = (editor?.selectedShapeIds.count ?? 0) >= 3
+
+            Button("Align Left") {
+                editor?.alignSelectedShapes(.left)
+            }
+            .keyboardShortcut("[", modifiers: [.command, .control])
+            .disabled(!hasMulti)
+
+            Button("Align Right") {
+                editor?.alignSelectedShapes(.right)
+            }
+            .keyboardShortcut("]", modifiers: [.command, .control])
+            .disabled(!hasMulti)
+
+            Button("Align Top") {
+                editor?.alignSelectedShapes(.top)
+            }
+            .keyboardShortcut("[", modifiers: [.command, .option])
+            .disabled(!hasMulti)
+
+            Button("Align Bottom") {
+                editor?.alignSelectedShapes(.bottom)
+            }
+            .keyboardShortcut("]", modifiers: [.command, .option])
+            .disabled(!hasMulti)
+
+            Divider()
+
+            Button("Align Center Horizontally") {
+                editor?.alignSelectedShapes(.centerH)
+            }
+            .disabled(!hasMulti)
+
+            Button("Align Center Vertically") {
+                editor?.alignSelectedShapes(.centerV)
+            }
+            .disabled(!hasMulti)
+
+            Divider()
+
+            Button("Distribute Horizontally") {
+                editor?.distributeSelectedShapes(.horizontal)
+            }
+            .disabled(!hasThreeOrMore)
+
+            Button("Distribute Vertically") {
+                editor?.distributeSelectedShapes(.vertical)
+            }
+            .disabled(!hasThreeOrMore)
+        }
+
         // Draw menu — tool switching (shortcuts are single-key, handled via onKeyPress in CanvasView)
         CommandMenu("Draw") {
             Button("Select Tool (V)") { editor?.selectTool(.select) }

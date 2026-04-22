@@ -62,7 +62,7 @@ targets:
 Sources/LCCAD/
 ├── App/
 │   ├── LCCADApp.swift           # @main エントリポイント、Settings シーン
-│   ├── AppCommands.swift        # macOS メニューバー定義
+│   ├── AppCommands.swift        # macOS メニューバー定義 (File/Edit/View/Arrange/Draw/Stitch)
 │   └── AppearanceMode.swift     # カラーモード (System/Light/Dark) 管理
 │
 ├── Models/
@@ -185,6 +185,8 @@ Sources/LCCAD/
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
 | **ズーム** | `zoomToFit()` | 実際のキャンバスサイズに基づく Fit |
+| **整列** | `alignSelectedShapes(_:)` | 左/右/上/下/水平中央/垂直中央揃え（Undo 対応） |
+| **分布** | `distributeSelectedShapes(_:)` | 水平/垂直等間隔分布（3個以上必要、Undo 対応） |
 
 ### マルチセレクト
 
