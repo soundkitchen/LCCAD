@@ -86,6 +86,24 @@ enum DesignTokens {
     static let rulerIndicatorColor = Color(hex: 0xE74C3C)
     static let rulerHeight: CGFloat = 24
 
+    // MARK: - Page Layout
+
+    static func pageFrame(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: 0x4A90D9, opacity: 0.7) : Color(hex: 0x2E7BD6, opacity: 0.7)
+    }
+    static func pageFrameSelected(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: 0x4A90D9) : Color(hex: 0x2E7BD6)
+    }
+    static func pageOverlap(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: 0xFFAA00, opacity: 0.15) : Color(hex: 0xFFAA00, opacity: 0.1)
+    }
+    static func pagePrintableArea(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: 0x4A90D9, opacity: 0.3) : Color(hex: 0x2E7BD6, opacity: 0.2)
+    }
+    static func pageNumber(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: 0x888888) : Color(hex: 0x666666)
+    }
+
     // MARK: - Accent
 
     static let accent = Color(hex: 0x4A90D9)

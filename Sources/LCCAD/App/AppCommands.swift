@@ -58,6 +58,11 @@ struct AppCommands: Commands {
                 editor?.document.settings.showRuler.toggle()
             }
             .keyboardShortcut("r", modifiers: [.command])
+
+            Button("Show Page Frames") {
+                editor?.document.settings.pageLayout.showPageFrames.toggle()
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
         }
 
         // Edit menu — Select All

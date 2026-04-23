@@ -21,6 +21,13 @@ struct ToolbarView: View {
 
             toolbarSeparator
 
+            // Layout tools
+            ForEach(DrawingTool.layoutTools, id: \.self) { tool in
+                toolButton(tool)
+            }
+
+            toolbarSeparator
+
             // Stitch tools (warm color)
             stitchToolButton(icon: "grid", label: "Auto Stitch") {
                 editor.autoStitchSelectedShape()

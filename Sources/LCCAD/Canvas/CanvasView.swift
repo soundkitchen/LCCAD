@@ -41,6 +41,18 @@ struct CanvasView: View {
                     in: context
                 )
 
+                // 3.5. Page layout overlay
+                let pageLayout = editor.document.settings.pageLayout
+                if pageLayout.showPageFrames || editor.currentTool == .page {
+                    PageLayoutOverlay.draw(
+                        layout: pageLayout,
+                        selectedPageId: editor.selectedPageId,
+                        transform: editor.transform,
+                        colorScheme: colorScheme,
+                        in: context
+                    )
+                }
+
                 // 4. Snap indicator
                 SnapOverlay.draw(
                     candidate: editor.activeSnapCandidate,
@@ -112,6 +124,13 @@ struct CanvasView: View {
                 let shiftHeld = NSEvent.modifierFlags.contains(.shift)
                 editor.handleClick(at: location, shiftHeld: shiftHeld)
             }
+            .onDeleteCommand {
+                if editor.currentTool == .page && editor.selectedPageId != nil {
+                    editor.deleteSelectedPage()
+                } else if editor.hasSelection {
+                    editor.deleteSelectedShapes()
+                }
+            }
             .onKeyPress(.escape) {
                 editor.cancelDrawing()
                 return .handled
@@ -148,7 +167,70 @@ struct CanvasView: View {
                 )
                 let shiftHeld = NSEvent.modifierFlags.contains(.shift)
 
-                if editor.currentTool == .select {
+                if editor.currentTool == .page {
+                    if editor.lastPanTranslation == nil {
+                        // First drag: select page and start tracking raw origin
+                        let worldPoint = editor.transform.screenToWorld(value.startLocation)
+                        if editor.selectPage(at: worldPoint) {
+                            editor.pageMoveUndoSnapshot = editor.document
+                            if let id = editor.selectedPageId,
+                               let page = editor.document.settings.pageLayout.pages.first(where: { $0.id == id }) {
+                                editor.pageDragRawOrigin = page.origin
+                            }
+                        }
+                    }
+                    if editor.selectedPageId != nil, editor.pageDragRawOrigin != nil {
+                        let worldDelta = CGPoint(
+                            x: delta.x / editor.transform.scale,
+                            y: delta.y / editor.transform.scale
+                        )
+                        // Update raw (unsnapped) origin
+                        editor.pageDragRawOrigin!.x += worldDelta.x
+                        editor.pageDragRawOrigin!.y += worldDelta.y
+                        let rawOrigin = editor.pageDragRawOrigin!
+
+                        if let id = editor.selectedPageId,
+                           let idx = editor.document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) {
+                            let layout = editor.document.settings.pageLayout
+                            let otherOrigins = layout.pages.filter { $0.id != id }.map(\.origin)
+                            let tolerance = editor.transform.screenToWorldDistance(8)
+
+                            // 1. Page-to-page snap (priority)
+                            let pageResult = PageSnapEngine.snap(
+                                draggedOrigin: rawOrigin,
+                                pageSize: layout.effectivePageSize,
+                                allOtherOrigins: otherOrigins,
+                                overlapMM: layout.overlapMM,
+                                tolerance: tolerance
+                            )
+                            var origin = pageResult.snappedOrigin
+
+                            // 2. Grid snap fallback for axes not page-snapped
+                            if editor.document.settings.snapToGrid {
+                                let gridRenderer = GridRenderer(
+                                    settings: editor.document.settings,
+                                    transform: editor.transform,
+                                    colorScheme: colorScheme
+                                )
+                                let (fineSpacing, _) = gridRenderer.adaptiveSpacings()
+                                if !pageResult.snappedX {
+                                    let gridX = (rawOrigin.x / fineSpacing).rounded() * fineSpacing
+                                    if abs(gridX - rawOrigin.x) < tolerance {
+                                        origin.x = gridX
+                                    }
+                                }
+                                if !pageResult.snappedY {
+                                    let gridY = (rawOrigin.y / fineSpacing).rounded() * fineSpacing
+                                    if abs(gridY - rawOrigin.y) < tolerance {
+                                        origin.y = gridY
+                                    }
+                                }
+                            }
+
+                            editor.document.settings.pageLayout.pages[idx].origin = origin
+                        }
+                    }
+                } else if editor.currentTool == .select {
                     if editor.draggingBezierPointIndex != nil {
                         // Continue bezier point drag
                         editor.dragBezierPoint(to: value.location, shiftHeld: shiftHeld)
@@ -213,7 +295,10 @@ struct CanvasView: View {
             }
             .onEnded { value in
                 editor.stopEdgeScroll()
-                if editor.currentTool == .select {
+                if editor.currentTool == .page {
+                    editor.commitPageMove()
+                    editor.pageDragRawOrigin = nil
+                } else if editor.currentTool == .select {
                     if editor.draggingBezierPointIndex != nil {
                         editor.endBezierPointDrag()
                     } else if editor.marqueeStart != nil {

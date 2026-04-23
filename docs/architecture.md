@@ -69,7 +69,7 @@ Sources/LCCAD/
 │   ├── Document/
 │   │   ├── LCCADDocument.swift  # ドキュメントモデル (Codable)
 │   │   ├── Layer.swift          # レイヤー
-│   │   └── ProjectSettings.swift
+│   │   └── ProjectSettings.swift # PaperSize, PageOrientation, PrintPage, PageLayoutSettings 含む
 │   ├── Shapes/
 │   │   ├── Shape.swift          # Shape プロトコル、AnyShape（8 cases + group）、LineStyle、StrokeStyle、CodableColor
 │   │   ├── GroupShape.swift     # グループ（children: [AnyShape] で再帰構造）
@@ -104,7 +104,8 @@ Sources/LCCAD/
 │   │   ├── StrokeSection.swift    # ColorPicker + 線幅入力 + 線種ピッカー
 │   │   ├── ArcSection.swift
 │   │   ├── StitchSection.swift
-│   │   └── TextSection.swift
+│   │   ├── TextSection.swift
+│   │   └── PageSection.swift     # ページレイアウト編集 (Page ツール時)
 │   ├── Shared/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField
 │   │   ├── DesignTokens.swift   # Pencil デザイン変数の Swift 転写
@@ -123,6 +124,8 @@ Sources/LCCAD/
 │   ├── SnapEngine.swift         # スナップ計算
 │   ├── SnapOverlay.swift        # スナップインジケータ描画
 │   ├── SelectionOverlay.swift   # 選択ハンドル描画（マルチセレクト、マーキー選択）
+│   ├── PageLayoutOverlay.swift # ページフレーム・オーバーラップゾーン描画
+│   ├── PageSnapEngine.swift    # ページ間スナップ計算
 │   ├── DrawingPreviewRenderer.swift # 描画中プレビュー
 │   ├── RulerRenderer.swift      # ルーラー描画
 │   ├── RulerView.swift          # ルーラー配置 (上辺・左辺)
@@ -141,11 +144,12 @@ Sources/LCCAD/
 │   ├── SVGExporter.swift
 │   ├── DXFExporter.swift
 │   ├── ExportCoordinator.swift
-│   └── PrintCoordinator.swift  # 実寸印刷 + タイル印刷 + キャリブレーション適用
+│   └── PrintCoordinator.swift  # 実寸印刷 + ページベース/自動タイル印刷 + キャリブレーション適用
 │
 └── Resources/
-    ├── Info.plist
+    ├── Info.plist               # CFBundleLocalizations: en, ja
     ├── Assets.xcassets/
+    ├── ja.lproj/                # 日本語ローカライズ（システムダイアログ日本語化）
     └── Localizable.xcstrings    # 日英ローカライズ
 ```
 
@@ -187,6 +191,10 @@ Sources/LCCAD/
 | **ズーム** | `zoomToFit()` | 実際のキャンバスサイズに基づく Fit |
 | **整列** | `alignSelectedShapes(_:)` | 左/右/上/下/水平中央/垂直中央揃え（Undo 対応） |
 | **分布** | `distributeSelectedShapes(_:)` | 水平/垂直等間隔分布（3個以上必要、Undo 対応） |
+| **ページ** | `addPage(at:)` | キャンバスクリック位置にページ追加（Undo 対応） |
+| **ページ** | `deleteSelectedPage()` | 選択ページ削除（Undo 対応） |
+| **ページ** | `moveSelectedPage(by:)` | ページドラッグ移動（PageSnapEngine 連動） |
+| **ページ** | `updatePageProperty(_:)` | 右パネルからのプロパティ変更（Undo 対応） |
 
 ### マルチセレクト
 
@@ -254,10 +262,9 @@ SettingsView
 - **単位変換**: 1mm = 72/25.4 ポイント（`pointsPerMM ≈ 2.8346`）
 - **`scalingFactor = 1.0`**: OS レベルのスケーリングを強制無効化
 - **線種対応**: `StrokeStyle.dashPattern` を `CGContext.setLineDash` で反映
-- **タイル印刷**: 用紙サイズを超える図面を複数ページに自動分割
-  - のりしろ 10mm のオーバーラップ
-  - L字コーナーマーク + 十字位置合わせマーク
-  - ページ番号ラベル（例: "Page 1/6 (col:1, row:2)"）
+- **デュアルモード印刷**:
+  - **ページベース** (`pageLayout.pages` あり): 各ページフレームの world origin を用紙の左上にマッピング。用紙サイズ・向きは `PageLayoutSettings` の設定を `NSPrintInfo` に反映。マージン 0（ページフレーム＝用紙）
+  - **自動タイリング** (`pageLayout.pages` なし): 従来どおり全図形のバウンディングボックスから自動分割。のりしろ 10mm オーバーラップ、L字コーナーマーク + 十字位置合わせマーク、ページ番号ラベル
 
 ### プリンターキャリブレーション
 

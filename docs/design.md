@@ -18,6 +18,8 @@
   - `Settings - Calibration - Dark` — ダークモードのキャリブレーション設定
   - `Pricking Iron Sheet - Light` — ライトモードの目打ち管理シート
   - `Pricking Iron Sheet - Dark` — ダークモードの目打ち管理シート
+  - `Page Properties - Light` — ライトモードのページレイアウト右パネル
+  - `Page Properties - Dark` — ダークモードのページレイアウト右パネル
 
 ## レイアウト構成
 

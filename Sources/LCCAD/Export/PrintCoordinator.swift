@@ -31,12 +31,28 @@ enum PrintCoordinator {
         printInfo.isVerticallyCentered = false
         printInfo.scalingFactor = 1.0  // Ensure no OS-level scaling
 
-        // Configure margins (10mm default for alignment marks + gluing overlap)
-        let margin = mmToPoints(10)
-        printInfo.topMargin = margin
-        printInfo.bottomMargin = margin
-        printInfo.leftMargin = margin
-        printInfo.rightMargin = margin
+        let pages = document.settings.pageLayout.pages
+        let layout = document.settings.pageLayout
+        if !layout.pages.isEmpty {
+            // Page-based: apply the layout's paper size and orientation to print settings.
+            let size = layout.effectivePageSize
+            printInfo.paperSize = NSSize(width: mmToPoints(size.width), height: mmToPoints(size.height))
+            printInfo.orientation = layout.orientation == .landscape ? .landscape : .portrait
+
+            // Margins to 0 so the full paper area is available and
+            // page.origin maps to paper origin.
+            printInfo.topMargin = 0
+            printInfo.bottomMargin = 0
+            printInfo.leftMargin = 0
+            printInfo.rightMargin = 0
+        } else {
+            // Auto-tile: use 10mm margins for alignment marks + gluing overlap
+            let margin = mmToPoints(10)
+            printInfo.topMargin = margin
+            printInfo.bottomMargin = margin
+            printInfo.leftMargin = margin
+            printInfo.rightMargin = margin
+        }
 
         let op = NSPrintOperation(view: view, printInfo: printInfo)
         op.showsPrintPanel = true
@@ -92,6 +108,8 @@ private class PrintableDocumentView: NSView {
     private var printableAreaPerPage: CGSize = .zero  // in points
     private let overlapMM: CGFloat = 10  // overlap between tiles for alignment
     private let alignMarkLengthMM: CGFloat = 5
+    private var usePageLayout: Bool = false
+    private var layoutPages: [PrintPage] = []
 
     init(document: DocumentData, calibrations: [PrinterCalibration]) {
         self.document = document
@@ -108,6 +126,31 @@ private class PrintableDocumentView: NSView {
     override var isFlipped: Bool { true }
 
     private func calculateLayout() {
+        let pages = document.settings.pageLayout.pages
+        if !pages.isEmpty {
+            calculatePageBasedLayout(pages)
+        } else {
+            calculateAutoTileLayout()
+        }
+    }
+
+    private func calculatePageBasedLayout(_ pages: [PrintPage]) {
+        usePageLayout = true
+        layoutPages = pages
+
+        let pageSize = document.settings.pageLayout.effectivePageSize
+        let paperSizePt = NSSize(width: mmToPoints(pageSize.width),
+                                  height: mmToPoints(pageSize.height))
+        printableAreaPerPage = paperSizePt
+
+        let totalWidth = paperSizePt.width
+        let totalHeight = paperSizePt.height * CGFloat(pages.count)
+        self.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
+    }
+
+    private func calculateAutoTileLayout() {
+        usePageLayout = false
+
         // Compute bounding box of all visible shapes (in mm)
         contentBounds = computeBoundingBox()
 
@@ -155,7 +198,8 @@ private class PrintableDocumentView: NSView {
     // MARK: - Pagination
 
     override func knowsPageRange(_ range: NSRangePointer) -> Bool {
-        range.pointee = NSRange(location: 1, length: tileRows * tileColumns)
+        let count = usePageLayout ? layoutPages.count : tileRows * tileColumns
+        range.pointee = NSRange(location: 1, length: max(1, count))
         return true
     }
 
@@ -176,6 +220,66 @@ private class PrintableDocumentView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
 
+        if usePageLayout {
+            drawPageBased(dirtyRect, context: context)
+        } else {
+            drawAutoTile(dirtyRect, context: context)
+        }
+    }
+
+    private func drawPageBased(_ dirtyRect: NSRect, context: CGContext) {
+        let pageHeight = printableAreaPerPage.height
+        let pageIndex = pageHeight > 0 ? Int(dirtyRect.origin.y / pageHeight) : 0
+        guard pageIndex < layoutPages.count else { return }
+
+        let page = layoutPages[pageIndex]
+
+        context.saveGState()
+        context.clip(to: dirtyRect)
+
+        // White background
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(dirtyRect)
+
+        // Get calibration
+        let calibration = currentPrinterCalibration()
+        let calScaleX = CGFloat(calibration?.scaleX ?? 1.0)
+        let calScaleY = CGFloat(calibration?.scaleY ?? 1.0)
+
+        // Page frame = paper. page.origin in world coords maps to (0,0)
+        // on the physical paper. Margins are set to 0 in printDocument so
+        // dirtyRect covers the full paper area.
+        context.translateBy(x: dirtyRect.origin.x, y: dirtyRect.origin.y)
+
+        let scaleX = pointsPerMM * calScaleX
+        let scaleY = pointsPerMM * calScaleY
+        context.scaleBy(x: scaleX, y: scaleY)
+
+        // Offset so page.origin maps to paper origin
+        context.translateBy(x: -page.origin.x, y: -page.origin.y)
+
+        // Clip to page frame in world coords
+        let pageFrame = document.settings.pageLayout.pageFrame(for: page)
+        context.clip(to: pageFrame)
+
+        drawShapes(in: context)
+
+        context.restoreGState()
+
+        // Page label
+        let label = "Page \(pageIndex + 1)/\(layoutPages.count)"
+        let font = NSFont.systemFont(ofSize: 8)
+        let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.gray]
+        let attrStr = NSAttributedString(string: label, attributes: attrs)
+        let textSize = attrStr.size()
+        attrStr.draw(in: NSRect(
+            x: dirtyRect.maxX - textSize.width - 10,
+            y: dirtyRect.maxY - textSize.height - 5,
+            width: textSize.width, height: textSize.height
+        ))
+    }
+
+    private func drawAutoTile(_ dirtyRect: NSRect, context: CGContext) {
         // Determine which page we are drawing
         let pageHeight = printableAreaPerPage.height
         let pageIndex: Int

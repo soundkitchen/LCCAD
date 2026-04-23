@@ -26,6 +26,8 @@ enum DrawingTool: String, CaseIterable, Sendable {
     case offset = "Offset"
     case trim = "Trim"
     case bevel = "Bevel"
+    // Layout tools
+    case page = "Page"
 
     var iconName: String {
         switch self {
@@ -39,6 +41,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
         case .offset: return "square.inset.filled"
         case .trim: return "scissors"
         case .bevel: return "arrow.turn.up.right"
+        case .page: return "doc.plaintext"
         }
     }
 
@@ -53,7 +56,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
         case .arc: return "A"
         case .bezier: return "P"
         case .text: return "T"
-        case .offset, .trim, .bevel: return nil
+        case .offset, .trim, .bevel, .page: return nil
         }
     }
 
@@ -68,6 +71,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
     /// The first 7 cases are drawing tools, the rest are editing tools
     static var drawingTools: [DrawingTool] { [.select, .line, .rectangle, .ellipse, .arc, .bezier, .text] }
     static var editingTools: [DrawingTool] { [.offset, .trim, .bevel] }
+    static var layoutTools: [DrawingTool] { [.page] }
 }
 
 enum DragPhase {
@@ -163,6 +167,11 @@ final class EditorViewModel {
 
     // Canvas size (updated by CanvasView via GeometryReader)
     var canvasSize: CGSize = CGSize(width: 800, height: 600)
+
+    // Page layout state
+    var selectedPageId: UUID?
+    var pageMoveUndoSnapshot: DocumentData?
+    var pageDragRawOrigin: CGPoint?
 
     // Stitch state
     var selectedIronId: UUID?
@@ -453,6 +462,9 @@ final class EditorViewModel {
         activeSnapCandidate = nil
         marqueeStart = nil
         marqueeRect = nil
+        selectedPageId = nil
+        pageMoveUndoSnapshot = nil
+        pageDragRawOrigin = nil
         currentTool = tool
         if tool != .select {
             selectedShapeIds = []
@@ -580,6 +592,12 @@ final class EditorViewModel {
             if let hitId = hitTest(at: worldPoint, tolerance: tolerance) {
                 selectedShapeIds = [hitId]
                 bevelCorner(radius: 2.0)
+            }
+
+        case .page:
+            activeSnapCandidate = nil
+            if !selectPage(at: worldPoint) {
+                addPage(at: worldPoint)
             }
 
         default:
@@ -1097,6 +1115,63 @@ final class EditorViewModel {
         let old = document
         activeLayer.stitchLines.remove(at: idx)
         registerUndo(actionName: "Remove Stitch", oldDocument: old)
+    }
+
+    // MARK: - Page Layout
+
+    func addPage(at worldPoint: CGPoint) {
+        let old = document
+        let page = PrintPage(origin: worldPoint)
+        document.settings.pageLayout.pages.append(page)
+        selectedPageId = page.id
+        registerUndo(actionName: "Add Page", oldDocument: old)
+    }
+
+    func deleteSelectedPage() {
+        guard let id = selectedPageId else { return }
+        let old = document
+        document.settings.pageLayout.pages.removeAll { $0.id == id }
+        selectedPageId = nil
+        registerUndo(actionName: "Delete Page", oldDocument: old)
+    }
+
+    func selectPage(at worldPoint: CGPoint) -> Bool {
+        let layout = document.settings.pageLayout
+        for page in layout.pages.reversed() {
+            if layout.pageFrame(for: page).contains(worldPoint) {
+                selectedPageId = page.id
+                return true
+            }
+        }
+        selectedPageId = nil
+        return false
+    }
+
+    func moveSelectedPage(by worldDelta: CGPoint) {
+        guard let id = selectedPageId,
+              let idx = document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) else { return }
+        document.settings.pageLayout.pages[idx].origin.x += worldDelta.x
+        document.settings.pageLayout.pages[idx].origin.y += worldDelta.y
+    }
+
+    func commitPageMove() {
+        if let snapshot = pageMoveUndoSnapshot, snapshot != document {
+            registerUndo(actionName: "Move Page", oldDocument: snapshot)
+        }
+        pageMoveUndoSnapshot = nil
+    }
+
+    func updatePageProperty(_ update: (inout PrintPage) -> Void) {
+        guard let id = selectedPageId,
+              let idx = document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) else { return }
+        let old = document
+        update(&document.settings.pageLayout.pages[idx])
+        registerUndo(actionName: "Edit Page Property", oldDocument: old)
+    }
+
+    var selectedPage: PrintPage? {
+        guard let id = selectedPageId else { return nil }
+        return document.settings.pageLayout.pages.first { $0.id == id }
     }
 
     // MARK: - Align & Distribute

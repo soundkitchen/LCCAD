@@ -9,7 +9,7 @@ struct RightPanelView: View {
             VStack(spacing: 0) {
                 // Header
                 HStack {
-                    Text("Properties")
+                    Text(editor.currentTool == .page ? "Page Layout" : "Properties")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DesignTokens.textPrimary(colorScheme))
                     Spacer()
@@ -21,7 +21,9 @@ struct RightPanelView: View {
                     Rectangle().fill(DesignTokens.border(colorScheme)).frame(height: 1)
                 }
 
-                if editor.isMultiSelection {
+                if editor.currentTool == .page {
+                    PageSection(editor: editor)
+                } else if editor.isMultiSelection {
                     // Multi-selection: show count and combined bounding box
                     VStack(alignment: .leading, spacing: 8) {
                         Text("\(editor.selectedShapeIds.count) items selected")

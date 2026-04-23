@@ -14,6 +14,14 @@ struct StatusBarView: View {
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(DesignTokens.textSecondary(colorScheme))
 
+            let pageCount = editor.document.settings.pageLayout.pages.count
+            if pageCount > 0 {
+                statusDivider
+                Text("\(pageCount) page\(pageCount == 1 ? "" : "s")")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.textSecondary(colorScheme))
+            }
+
             Spacer()
 
             Text(editor.document.settings.unit.abbreviation)
