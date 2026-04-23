@@ -302,12 +302,44 @@ final class EditorViewModel {
         guard dx != 0 || dy != 0 else { return }
         let old = document
         let delta = CGPoint(x: dx, y: dy)
+        var movedIds: Set<UUID> = []
         for id in selectedShapeIds {
             if let (li, si) = findShapeLocation(id: id) {
+                movedIds.formUnion(collectShapeIds(in: document.layers[li].shapes[si]))
                 document.layers[li].shapes[si].translate(by: delta)
             }
         }
+        translateStitchHoles(forShapeIds: movedIds, by: delta)
         registerUndo(actionName: "Move Shape", oldDocument: old)
+    }
+
+    // MARK: - Stitch Hole Follow-Through
+
+    /// Collect an id plus the ids of any descendants (for groups).
+    /// Stitch lines reference shapes by `sourceShapeId`; when a group is translated,
+    /// holes keyed to its children must move too.
+    private func collectShapeIds(in shape: AnyShape) -> Set<UUID> {
+        var ids: Set<UUID> = [shape.id]
+        if case .group(let group) = shape {
+            for child in group.children {
+                ids.formUnion(collectShapeIds(in: child))
+            }
+        }
+        return ids
+    }
+
+    /// Shift every stitch hole whose `sourceShapeId` is in `ids` by `delta`.
+    private func translateStitchHoles(forShapeIds ids: Set<UUID>, by delta: CGPoint) {
+        guard !ids.isEmpty, delta.x != 0 || delta.y != 0 else { return }
+        for li in document.layers.indices {
+            for si in document.layers[li].stitchLines.indices
+            where ids.contains(document.layers[li].stitchLines[si].sourceShapeId) {
+                for hi in document.layers[li].stitchLines[si].holes.indices {
+                    document.layers[li].stitchLines[si].holes[hi].position.x += delta.x
+                    document.layers[li].stitchLines[si].holes[hi].position.y += delta.y
+                }
+            }
+        }
     }
 
     // MARK: - Stroke Property Editing
@@ -740,11 +772,14 @@ final class EditorViewModel {
     }
 
     func moveSelectedShapes(by worldDelta: CGPoint) {
+        var movedIds: Set<UUID> = []
         for id in selectedShapeIds {
             if let (li, si) = findShapeLocation(id: id) {
+                movedIds.formUnion(collectShapeIds(in: document.layers[li].shapes[si]))
                 document.layers[li].shapes[si].translate(by: worldDelta)
             }
         }
+        translateStitchHoles(forShapeIds: movedIds, by: worldDelta)
     }
 
     func commitMove() {
@@ -755,9 +790,18 @@ final class EditorViewModel {
     func deleteSelectedShapes() {
         guard hasSelection else { return }
         let old = document
-        let idsToDelete = selectedShapeIds
+        // Expand to descendant ids so stitch lines bound to group children are also removed.
+        var idsToDelete: Set<UUID> = []
+        for id in selectedShapeIds {
+            if let shape = findShape(id: id) {
+                idsToDelete.formUnion(collectShapeIds(in: shape))
+            } else {
+                idsToDelete.insert(id)
+            }
+        }
         for (li, layer) in document.layers.enumerated() {
             document.layers[li].shapes = layer.shapes.filter { !idsToDelete.contains($0.id) }
+            document.layers[li].stitchLines = layer.stitchLines.filter { !idsToDelete.contains($0.sourceShapeId) }
         }
         selectedShapeIds = []
         registerUndo(actionName: "Delete Shape", oldDocument: old)
@@ -1213,7 +1257,9 @@ final class EditorViewModel {
                 delta.x = target - box.midX
             }
             if delta.x != 0 || delta.y != 0 {
+                let ids = collectShapeIds(in: document.layers[li].shapes[si])
                 document.layers[li].shapes[si].translate(by: delta)
+                translateStitchHoles(forShapeIds: ids, by: delta)
             }
         }
 
@@ -1251,7 +1297,10 @@ final class EditorViewModel {
             for (id, box) in sorted {
                 let dx = currentX - box.minX
                 if dx != 0, let (li, si) = findShapeLocation(id: id) {
-                    document.layers[li].shapes[si].translate(by: CGPoint(x: dx, y: 0))
+                    let ids = collectShapeIds(in: document.layers[li].shapes[si])
+                    let delta = CGPoint(x: dx, y: 0)
+                    document.layers[li].shapes[si].translate(by: delta)
+                    translateStitchHoles(forShapeIds: ids, by: delta)
                 }
                 currentX += box.width + gap
             }
@@ -1267,7 +1316,10 @@ final class EditorViewModel {
             for (id, box) in sorted {
                 let dy = currentY - box.minY
                 if dy != 0, let (li, si) = findShapeLocation(id: id) {
-                    document.layers[li].shapes[si].translate(by: CGPoint(x: 0, y: dy))
+                    let ids = collectShapeIds(in: document.layers[li].shapes[si])
+                    let delta = CGPoint(x: 0, y: dy)
+                    document.layers[li].shapes[si].translate(by: delta)
+                    translateStitchHoles(forShapeIds: ids, by: delta)
                 }
                 currentY += box.height + gap
             }

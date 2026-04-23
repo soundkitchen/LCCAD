@@ -212,6 +212,21 @@ Sources/LCCAD/
 
 複数選択時、Properties パネルは「N items selected」表示 + 共通 Stroke 編集。
 
+### ステッチラインの図形追従
+
+`StitchHole.position` は絶対 world 座標で保存されるため、元図形の移動と同期させる必要がある。`EditorViewModel` の移動・削除パスで `StitchLine.sourceShapeId` を介して追従する:
+
+| 操作 | 穴への反映 |
+|------|-----------|
+| ドラッグ移動 / エッジスクロール (`moveSelectedShapes`) | 同じ delta だけ `hole.position` をシフト |
+| X/Y 入力 (`setSelectedShapePosition`) | 同じ delta だけシフト |
+| 整列・分布 (`alignSelectedShapes` / `distributeSelectedShapes`) | 図形ごとの delta でシフト |
+| 図形削除 (`deleteSelectedShapes`) | `sourceShapeId` が一致するステッチラインを除去 |
+
+グループ移動・削除では `collectShapeIds(in:)` が子孫 id を再帰収集するため、ネスト内部の図形に紐づいた穴も追従する。Undo は `registerUndo` のドキュメントスナップショットに穴の差分も含まれるため追加処理不要。
+
+なお図形の「変形」（ベジェ制御点ドラッグ等、単純な平行移動でない操作）に対する穴の再生成は未実装（TODO.md タスク K）。現状は元の軌跡上に残る。
+
 ### キャンバス描画
 
 ```
