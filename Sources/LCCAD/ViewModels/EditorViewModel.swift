@@ -342,6 +342,35 @@ final class EditorViewModel {
         }
     }
 
+    /// Regenerate the holes of every stitch line whose `sourceShapeId` is in `ids`,
+    /// using the shape's current geometry. Called after a deformation operation
+    /// (bezier handle drag, bevel, trim) so that holes track the new path.
+    ///
+    /// - Source shape missing or non-walkable → drop the stitch line.
+    /// - Iron missing → leave the holes as-is (preserve user data; stale but recoverable
+    ///   by re-adding the iron and running auto-stitch again).
+    private func regenerateStitchLines(forShapeIds ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for li in document.layers.indices {
+            var si = 0
+            while si < document.layers[li].stitchLines.count {
+                let line = document.layers[li].stitchLines[si]
+                guard ids.contains(line.sourceShapeId) else { si += 1; continue }
+
+                if let shape = findShape(id: line.sourceShapeId),
+                   let walker = PathWalkerFactory.walker(for: shape) {
+                    if let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
+                        document.layers[li].stitchLines[si].holes =
+                            AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode)
+                    }
+                    si += 1
+                } else {
+                    document.layers[li].stitchLines.remove(at: si)
+                }
+            }
+        }
+    }
+
     // MARK: - Stroke Property Editing
 
     func updateStroke(_ update: (inout StrokeStyle) -> Void) {
@@ -470,6 +499,9 @@ final class EditorViewModel {
     func endBezierPointDrag() {
         if let snapshot = bezierEditUndoSnapshot {
             if snapshot != document {
+                if let id = selectedShapeIds.first {
+                    regenerateStitchLines(forShapeIds: [id])
+                }
                 registerUndo(actionName: "Edit Bezier Point", oldDocument: snapshot)
             }
         }
@@ -935,8 +967,11 @@ final class EditorViewModel {
         guard let result = TrimTool.trim(shape: shape, against: others, clickPoint: clickPoint) else { return }
 
         let old = document
+        let removedId = shape.id
         document.layers[li].shapes.remove(at: si)
         document.layers[li].shapes.insert(contentsOf: result.replacements, at: si)
+        // Source shape no longer exists → helper drops its stitch lines.
+        regenerateStitchLines(forShapeIds: [removedId])
         selectedShapeIds = []
         registerUndo(actionName: "Trim", oldDocument: old)
     }
@@ -961,9 +996,19 @@ final class EditorViewModel {
             guard si2 != si, case .line(let line2) = shape else { continue }
             if let result = BevelTool.bevel(line1: line1, line2: line2, radius: radius) {
                 let old = document
-                document.layers[li].shapes[si] = .line(result.line1)
-                document.layers[li].shapes[si2] = .line(result.line2)
+                // Preserve original ids so stitch lines keep tracking each shortened line.
+                let preservedLine1 = LineShape(id: line1.id,
+                                               start: result.line1.startPoint,
+                                               end: result.line1.endPoint,
+                                               stroke: result.line1.stroke)
+                let preservedLine2 = LineShape(id: line2.id,
+                                               start: result.line2.startPoint,
+                                               end: result.line2.endPoint,
+                                               stroke: result.line2.stroke)
+                document.layers[li].shapes[si] = .line(preservedLine1)
+                document.layers[li].shapes[si2] = .line(preservedLine2)
                 document.layers[li].shapes.append(.arc(result.arc))
+                regenerateStitchLines(forShapeIds: [line1.id, line2.id])
                 registerUndo(actionName: "Bevel Corner", oldDocument: old)
                 return
             }

@@ -19,7 +19,7 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
 | 8 | H. 線種サポート | 小 | 低 | ✅ 完了 |
 | 9 | I. ページレイアウトエディタ | 大 | 中 | ✅ 完了 |
 | 10 | J. オブジェクトのグルーピング | 中 | 低 | ✅ 完了 |
-| 11 | K. 図形変形時のステッチ穴再生成 | 中 | 中 | 未着手 |
+| 11 | K. 図形変形時のステッチ穴再生成 | 中 | 中 | ✅ 完了 |
 
 ### 依存関係
 
@@ -210,16 +210,22 @@ H と I は独立しており、E/F/G とも独立。H → I の順で実装す�
 
 - 背景
   - G で「平行移動」には穴が追従するが、変形（ベジェ制御点ドラッグ等）では穴が元の軌跡に残る。
-  - 現状の変形系オペレーションはベジェ制御点ドラッグのみ。将来リサイズ・回転 UI が追加されると対象が広がる。
-- やること
-  - 変形確定時に、対象図形に紐づくステッチラインの `holes` を `AutoStitchEngine` で再生成。
-  - `PrickingIron` は `StitchLine.ironId` から引く。引けない（削除済み）場合の挙動を決める（スキップ or ステッチライン自体を削除）。
-  - 将来的にリサイズ・回転 UI が追加された時に同じ仕組みで差し込めるよう、共通フック `regenerateStitches(for:)` を用意。
+- やったこと
+  - `EditorViewModel` に汎用ヘルパー `regenerateStitchLines(forShapeIds:)` を追加。
+    - 図形が消えた／walker 非対応 → ステッチラインを削除
+    - `PrickingIron` が見つからない → 既存の穴を維持（ユーザーデータを失わない）
+    - それ以外 → `AutoStitchEngine.generateHoles` で `holes` を再生成（`StitchLine.mode` を維持）
+  - フック 3 か所:
+    - `endBezierPointDrag()` — 制御点ドラッグ確定時
+    - `bevelCorner()` — Bevel 実行時。元ラインの id を保存するため `BevelResult.line1/line2` を `LineShape(id: ..., start:end:stroke:)` で再構築
+    - `trimSelectedShape()` — トリムで消えた元図形 id 由来のステッチラインをヘルパーで drop
 - 主な影響箇所
-  - `Sources/LCCAD/ViewModels/EditorViewModel.swift` — `endBezierPointDrag()` ほか将来の変形操作
+  - `Sources/LCCAD/ViewModels/EditorViewModel.swift`
 - 完了条件
-  - ベジェ制御点を動かすと、そのベジェに貼られた穴が新しい軌跡上に再生成される。
-  - Undo / Redo 対応。
+  - ベジェ制御点を動かすと、そのベジェに貼られた穴が新しい軌跡上に再生成される。✅
+  - Bevel で両ラインのステッチが短縮後の線上に再生成される。✅
+  - Trim で消えた図形のステッチラインが削除される。✅
+  - Undo / Redo 対応（document スナップショットに含まれる）。✅
 
 ## H. 線種サポート
 
