@@ -19,15 +19,26 @@ struct PrinterCalibration: Codable, Identifiable, Equatable, Sendable {
         self.updatedAt = Date()
     }
 
-    /// Create a calibration from measured values.
+    /// Valid measurement range for the 150mm calibration square (mm).
+    /// 100-200mm covers ±33% which is well beyond any realistic printer error;
+    /// values outside this range are almost certainly a unit mistake or typo.
+    static let validMeasurementRange: ClosedRange<Double> = 100.0...200.0
+
+    /// Create a calibration from measured values. Returns nil if a measurement
+    /// is non-finite, non-positive, or outside `validMeasurementRange`.
     /// The user prints a 150mm square and measures the result.
     /// scaleX = 150.0 / measuredX, scaleY = 150.0 / measuredY
-    static func fromMeasurement(printerName: String, measuredX: Double, measuredY: Double) -> PrinterCalibration {
-        PrinterCalibration(
+    static func fromMeasurement(printerName: String, measuredX: Double, measuredY: Double) -> PrinterCalibration? {
+        guard isValidMeasurement(measuredX), isValidMeasurement(measuredY) else { return nil }
+        return PrinterCalibration(
             printerName: printerName,
             scaleX: 150.0 / measuredX,
             scaleY: 150.0 / measuredY
         )
+    }
+
+    static func isValidMeasurement(_ value: Double) -> Bool {
+        value.isFinite && validMeasurementRange.contains(value)
     }
 }
 
