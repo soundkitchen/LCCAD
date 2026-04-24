@@ -212,7 +212,7 @@ enum DXFExporter {
     }
 
     private static func textEntity(x: CGFloat, y: CGFloat, height: CGFloat, content: String, layer: String) -> String {
-        "0\nTEXT\n8\n\(layer)\n10\n\(fmt(x))\n20\n\(fmt(y))\n40\n\(fmt(height))\n1\n\(content)\n"
+        "0\nTEXT\n8\n\(layer)\n10\n\(fmt(x))\n20\n\(fmt(y))\n40\n\(fmt(height))\n1\n\(sanitizeText(content))\n"
     }
 
     // MARK: - Helpers
@@ -225,7 +225,36 @@ enum DXFExporter {
         String(format: "%.4f", v)
     }
 
+    /// Sanitize a DXF layer / linetype name. DXF is a newline-delimited format,
+    /// so any control character embedded in user input could be interpreted as
+    /// an entity delimiter. Replace spaces, control chars, and brace characters
+    /// with `_`.
     private static func sanitize(_ name: String) -> String {
-        name.replacingOccurrences(of: " ", with: "_")
+        var result = ""
+        result.reserveCapacity(name.count)
+        for scalar in name.unicodeScalars {
+            if scalar.value < 0x20 || scalar == " " || scalar == "{" || scalar == "}" {
+                result.append("_")
+            } else {
+                result.unicodeScalars.append(scalar)
+            }
+        }
+        return result
+    }
+
+    /// Sanitize DXF TEXT content. DXF TEXT values must not contain raw
+    /// newlines or carriage returns (they would terminate the value early).
+    /// Other control characters are also stripped defensively.
+    private static func sanitizeText(_ content: String) -> String {
+        var result = ""
+        result.reserveCapacity(content.count)
+        for scalar in content.unicodeScalars {
+            if scalar.value < 0x20 {
+                result.append(" ")
+            } else {
+                result.unicodeScalars.append(scalar)
+            }
+        }
+        return result
     }
 }
