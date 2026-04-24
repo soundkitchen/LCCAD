@@ -27,6 +27,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.graphics-design</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -38,7 +40,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.lccad.document</string>
+				<string>co.whatever.LCCAD.document</string>
 			</array>
 		</dict>
 	</array>
@@ -46,7 +48,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.lccad.document</string>
+			<string>co.whatever.LCCAD.document</string>
 			<key>UTTypeDescription</key>
 			<string>LCCAD Document</string>
 			<key>UTTypeConformsTo</key>
