@@ -182,6 +182,7 @@ private struct CalibrationEditSheet: View {
     @State private var measuredY: String = "150.00"
     @State private var computedScaleX: Double = 1.0
     @State private var computedScaleY: Double = 1.0
+    @State private var measurementError: String?
 
     private var availablePrinters: [String] {
         NSPrinter.printerNames
@@ -251,13 +252,22 @@ private struct CalibrationEditSheet: View {
                         .foregroundStyle(.secondary)
                 }
 
-                let deviation = max(abs(computedScaleX - 1.0), abs(computedScaleY - 1.0)) * 100
-                if deviation > 5 {
+                if let error = measurementError {
                     GridRow {
                         Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                        Text("警告: 補正が 5% を超えています。測定値を確認してください。")
+                        Text(error)
                             .font(.caption)
-                            .foregroundColor(.orange)
+                            .foregroundColor(.red)
+                    }
+                } else {
+                    let deviation = max(abs(computedScaleX - 1.0), abs(computedScaleY - 1.0)) * 100
+                    if deviation > 5 {
+                        GridRow {
+                            Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                            Text("警告: 補正が 5% を超えています。測定値を確認してください。")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                     }
                 }
             }
@@ -287,7 +297,7 @@ private struct CalibrationEditSheet: View {
                     onSave(cal)
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(printerName.isEmpty)
+                .disabled(printerName.isEmpty || measurementError != nil)
             }
         }
         .padding()
@@ -306,11 +316,18 @@ private struct CalibrationEditSheet: View {
     }
 
     private func recalculate() {
-        if let mx = Double(measuredX), mx > 0 {
+        let mx = Double(measuredX)
+        let my = Double(measuredY)
+
+        if let mx, let my,
+           PrinterCalibration.isValidMeasurement(mx),
+           PrinterCalibration.isValidMeasurement(my) {
             computedScaleX = 150.0 / mx
-        }
-        if let my = Double(measuredY), my > 0 {
             computedScaleY = 150.0 / my
+            measurementError = nil
+        } else {
+            let range = PrinterCalibration.validMeasurementRange
+            measurementError = "実測値は \(Int(range.lowerBound))〜\(Int(range.upperBound)) mm の範囲で入力してください。"
         }
     }
 }
