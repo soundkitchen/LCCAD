@@ -281,20 +281,18 @@ private struct CalibrationEditSheet: View {
                 Spacer()
 
                 Button("保存") {
-                    var cal: PrinterCalibration
-                    if let existing = calibration {
-                        cal = existing
-                        cal.printerName = printerName
-                        cal.scaleX = computedScaleX
-                        cal.scaleY = computedScaleY
+                    guard let mx = Double(measuredX), let my = Double(measuredY),
+                          let newCal = PrinterCalibration.fromMeasurement(
+                              printerName: printerName, measuredX: mx, measuredY: my
+                          ) else { return }
+                    if var existing = calibration {
+                        existing.printerName = newCal.printerName
+                        existing.scaleX = newCal.scaleX
+                        existing.scaleY = newCal.scaleY
+                        onSave(existing)
                     } else {
-                        cal = PrinterCalibration(
-                            printerName: printerName,
-                            scaleX: computedScaleX,
-                            scaleY: computedScaleY
-                        )
+                        onSave(newCal)
                     }
-                    onSave(cal)
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(printerName.isEmpty || measurementError != nil)
@@ -307,11 +305,14 @@ private struct CalibrationEditSheet: View {
                 printerName = cal.printerName
                 let mx = 150.0 / cal.scaleX
                 let my = 150.0 / cal.scaleY
-                measuredX = String(format: "%.2f", mx)
-                measuredY = String(format: "%.2f", my)
+                measuredX = mx.isFinite ? String(format: "%.2f", mx) : "150.00"
+                measuredY = my.isFinite ? String(format: "%.2f", my) : "150.00"
                 computedScaleX = cal.scaleX
                 computedScaleY = cal.scaleY
             }
+            // Validate initial state so broken persisted data surfaces an error
+            // before the user touches any field.
+            recalculate()
         }
     }
 
