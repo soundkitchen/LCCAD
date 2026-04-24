@@ -9,8 +9,12 @@ enum ExportCoordinator {
         panel.nameFieldStringValue = "Untitled.svg"
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            let svg = SVGExporter.export(document: document)
-            try? svg.write(to: url, atomically: true, encoding: .utf8)
+            do {
+                let svg = SVGExporter.export(document: document)
+                try svg.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                NSAlert(error: error).runModal()
+            }
         }
     }
 
@@ -20,8 +24,12 @@ enum ExportCoordinator {
         panel.nameFieldStringValue = "Untitled.dxf"
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            let dxf = DXFExporter.export(document: document, options: options)
-            try? dxf.write(to: url, atomically: true, encoding: .utf8)
+            do {
+                let dxf = DXFExporter.export(document: document, options: options)
+                try dxf.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                NSAlert(error: error).runModal()
+            }
         }
     }
 }
