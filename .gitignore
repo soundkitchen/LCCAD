@@ -35,3 +35,6 @@ tmp/
 
 # Claude
 .claude/
+
+# Private reference notes (kept locally, not for public repo)
+docs/research.md
