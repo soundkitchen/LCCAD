@@ -1,6 +1,6 @@
 name: LCCAD
 options:
-  bundleIdPrefix: com.lccad
+  bundleIdPrefix: co.whatever
   deploymentTarget:
     macOS: "14.0"
   generateEmptyDirectories: true
@@ -21,14 +21,20 @@ targets:
       - path: Sources/LCCAD/Resources
         excludes:
           - Info.plist
+          - LCCAD.entitlements
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lccad.app
+        PRODUCT_BUNDLE_IDENTIFIER: co.whatever.LCCAD
         PRODUCT_NAME: LCCAD
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
         INFOPLIST_FILE: Sources/LCCAD/Resources/Info.plist
         ENABLE_PREVIEWS: true
+        DEVELOPMENT_TEAM: G5G54TCH8W
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: Sources/LCCAD/Resources/LCCAD.entitlements
     scheme:
       testTargets:
         - LCCADTests
