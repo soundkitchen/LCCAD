@@ -1251,6 +1251,16 @@ final class EditorViewModel {
         registerUndo(actionName: "Edit Page Property", oldDocument: old)
     }
 
+    /// Mutate page-layout-wide settings (paper size, orientation, margin, overlap, etc.)
+    /// routed through the ViewModel's undo helper so Redo works. Views must use this
+    /// instead of calling `undoManager.registerUndo` inline.
+    func updatePageLayout(actionName: String, _ update: (inout PageLayoutSettings) -> Void) {
+        let old = document
+        update(&document.settings.pageLayout)
+        guard old != document else { return }
+        registerUndo(actionName: actionName, oldDocument: old)
+    }
+
     var selectedPage: PrintPage? {
         guard let id = selectedPageId else { return nil }
         return document.settings.pageLayout.pages.first { $0.id == id }

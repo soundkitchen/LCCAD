@@ -68,12 +68,7 @@ struct PageSection: View {
                     suffix: "mm",
                     range: 0...50
                 ) { newVal in
-                    let old = editor.document
-                    editor.document.settings.pageLayout.margin = newVal
-                    if old != editor.document {
-                        editor.undoManager?.registerUndo(withTarget: editor) { $0.document = old }
-                        editor.undoManager?.setActionName("Edit Margin")
-                    }
+                    editor.updatePageLayout(actionName: "Edit Margin") { $0.margin = newVal }
                 }
             }
         }
@@ -190,12 +185,7 @@ struct PageSection: View {
                     suffix: "mm",
                     range: 0...50
                 ) { newVal in
-                    let old = editor.document
-                    editor.document.settings.pageLayout.overlapMM = newVal
-                    if old != editor.document {
-                        editor.undoManager?.registerUndo(withTarget: editor) { $0.document = old }
-                        editor.undoManager?.setActionName("Edit Overlap")
-                    }
+                    editor.updatePageLayout(actionName: "Edit Overlap") { $0.overlapMM = newVal }
                 }
             }
 
@@ -219,12 +209,7 @@ struct PageSection: View {
         Binding(
             get: { layout.paperSize },
             set: { newSize in
-                let old = editor.document
-                editor.document.settings.pageLayout.paperSize = newSize
-                if old != editor.document {
-                    editor.undoManager?.registerUndo(withTarget: editor) { $0.document = old }
-                    editor.undoManager?.setActionName("Change Paper Size")
-                }
+                editor.updatePageLayout(actionName: "Change Paper Size") { $0.paperSize = newSize }
             }
         )
     }
@@ -233,12 +218,7 @@ struct PageSection: View {
         Binding(
             get: { layout.orientation },
             set: { newOrientation in
-                let old = editor.document
-                editor.document.settings.pageLayout.orientation = newOrientation
-                if old != editor.document {
-                    editor.undoManager?.registerUndo(withTarget: editor) { $0.document = old }
-                    editor.undoManager?.setActionName("Change Orientation")
-                }
+                editor.updatePageLayout(actionName: "Change Orientation") { $0.orientation = newOrientation }
             }
         )
     }
