@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "co.whatever.LCCAD", category: "calibration")
 
 // MARK: - Printer Calibration Model
 
@@ -87,7 +90,7 @@ final class PrinterCalibrationStore: ObservableObject {
             let data = try encoder.encode(calibrations)
             try data.write(to: url, options: .atomic)
         } catch {
-            print("Failed to save printer calibrations: \(error)")
+            logger.error("Failed to save printer calibrations: \(error.localizedDescription, privacy: .public)")
         }
     }
 
