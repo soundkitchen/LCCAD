@@ -270,14 +270,12 @@ final class EditorViewModel {
 
     private func registerUndo(actionName: String, oldDocument: DocumentData) {
         guard let undoManager else { return }
-        let newDocument = document
         undoManager.registerUndo(withTarget: self) { target in
             let redoDoc = target.document
             target.document = oldDocument
             target.registerUndo(actionName: actionName, oldDocument: redoDoc)
         }
         undoManager.setActionName(actionName)
-        _ = newDocument // suppress unused warning
     }
 
     private func addShapeWithUndo(_ shape: AnyShape, actionName: String) {
@@ -812,11 +810,6 @@ final class EditorViewModel {
             }
         }
         translateStitchHoles(forShapeIds: movedIds, by: worldDelta)
-    }
-
-    func commitMove() {
-        // Called on drag end for move operations — register undo for the whole move
-        // For now, we track this simply via document snapshot
     }
 
     func deleteSelectedShapes() {
