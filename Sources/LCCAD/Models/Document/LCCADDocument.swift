@@ -40,7 +40,7 @@ struct DocumentData: Codable, Equatable, Sendable {
 // MARK: - UTType for .lccad files
 
 extension UTType {
-    static let lccad = UTType(exportedAs: "co.whatever.LCCAD.document", conformingTo: .json)
+    static let lccad = UTType(exportedAs: "org.izukawa.LCCAD.document", conformingTo: .json)
 }
 
 // MARK: - Observable Document Container

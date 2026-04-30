@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "co.whatever.LCCAD", category: "calibration")
+private let logger = Logger(subsystem: "org.izukawa.LCCAD", category: "calibration")
 
 // MARK: - Printer Calibration Model
 

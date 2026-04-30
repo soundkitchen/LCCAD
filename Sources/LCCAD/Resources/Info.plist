@@ -40,7 +40,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>co.whatever.LCCAD.document</string>
+				<string>org.izukawa.LCCAD.document</string>
 			</array>
 		</dict>
 	</array>
@@ -48,7 +48,7 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>co.whatever.LCCAD.document</string>
+			<string>org.izukawa.LCCAD.document</string>
 			<key>UTTypeDescription</key>
 			<string>LCCAD Document</string>
 			<key>UTTypeConformsTo</key>

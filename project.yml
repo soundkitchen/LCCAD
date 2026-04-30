@@ -1,6 +1,6 @@
 name: LCCAD
 options:
-  bundleIdPrefix: co.whatever
+  bundleIdPrefix: org.izukawa
   deploymentTarget:
     macOS: "14.0"
   generateEmptyDirectories: true
@@ -24,7 +24,7 @@ targets:
           - LCCAD.entitlements
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: co.whatever.LCCAD
+        PRODUCT_BUNDLE_IDENTIFIER: org.izukawa.LCCAD
         PRODUCT_NAME: LCCAD
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
