@@ -75,15 +75,32 @@ struct BezierShape: Shape, Codable, Equatable, Sendable {
         }
     }
 
-    private func distanceToCubicBezier(point: CGPoint, p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint, steps: Int = 20) -> CGFloat {
+    private func distanceToCubicBezier(point: CGPoint, p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint, steps: Int = 24) -> CGFloat {
+        // Sample the curve and measure distance to the polyline between samples,
+        // not to the discrete sample points. Point-to-point sampling underestimates
+        // proximity for clicks that fall between samples — the gap between samples
+        // on screen can easily exceed the click tolerance.
         var minDist = CGFloat.infinity
-        for i in 0...steps {
+        var prev = cubicBezierPoint(t: 0, p0: p0, p1: p1, p2: p2, p3: p3)
+        for i in 1...steps {
             let t = CGFloat(i) / CGFloat(steps)
-            let bezierPoint = cubicBezierPoint(t: t, p0: p0, p1: p1, p2: p2, p3: p3)
-            let dist = point.distance(to: bezierPoint)
+            let cur = cubicBezierPoint(t: t, p0: p0, p1: p1, p2: p2, p3: p3)
+            let dist = distanceFromPointToSegment(point: point, start: prev, end: cur)
             minDist = min(minDist, dist)
+            prev = cur
         }
         return minDist
+    }
+
+    private func distanceFromPointToSegment(point: CGPoint, start: CGPoint, end: CGPoint) -> CGFloat {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let lengthSq = dx * dx + dy * dy
+        if lengthSq == 0 { return point.distance(to: start) }
+        var t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq
+        t = max(0, min(1, t))
+        let projection = CGPoint(x: start.x + t * dx, y: start.y + t * dy)
+        return point.distance(to: projection)
     }
 
     private func cubicBezierPoint(t: CGFloat, p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint) -> CGPoint {

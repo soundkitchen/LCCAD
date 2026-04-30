@@ -213,6 +213,15 @@ Sources/LCCAD/
 
 複数選択時、Properties パネルは「N items selected」表示 + 共通 Stroke 編集。
 
+#### 選択ヒットテストの設計メモ
+
+- **`handleClick` のスナップ**: 描画ツールでは `snappedWorldPoint` を介してクリック座標がグリッド・端点・中点・中心・交点に吸着するが、**選択ツールではスナップを通さず生の `screenToWorld` を使う**。グリッド外を通る図形（曲線など）の表面をクリックしたときに、座標がグリッドに引き寄せられて図形を外す事故を防ぐため。
+- **ドラッグ初動の優先順位**（`CanvasView.makePanGesture`）:
+  1. `EditorViewModel.startBezierPointDrag` を試行（単一 bezier 選択時のみ true）。ハンドル/アンカーは曲線輪郭から離れていることが多く、輪郭ヒットテストでは拾えないため最優先で判定する
+  2. 図形輪郭の `hitTestPublic` → 選択済み図形なら一括移動、未選択ならまず選択して移動
+  3. 全部外れたらマーキー選択開始
+- **Bezier の輪郭ヒットテスト** (`BezierShape.distanceToCubicBezier`): 各セグメントを 24 分割でサンプリングし、**隣接サンプル間を結ぶ線分への点距離** を計算する（点-点距離ではない）。点-点だとサンプル間に落ちたクリックが原理的に拾えないため、polyline 距離で近似する。
+
 ### Mirror（反転 / 反転コピー）
 
 `Shape` プロトコルに `mirror(axis: MirrorAxis)` 要求を追加し、`MirrorAxis` enum で軸を表現:
