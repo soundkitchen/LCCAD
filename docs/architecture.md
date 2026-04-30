@@ -242,12 +242,14 @@ enum MirrorAxis {
 
 `EditorViewModel.mirrorSelectedShapes(_:copy:)` がメニューから呼ばれ、選択 bbox から軸を導出する:
 
-| 操作 | 軸 |
-|------|----|
-| Mirror Horizontally（左右反転、in-place） | `.vertical(x: bbox.midX)` |
-| Mirror Vertically（上下反転、in-place） | `.horizontal(y: bbox.midY)` |
-| Mirror Right (Copy) | `.vertical(x: bbox.maxX)` — 元と複製が右端で接する |
-| Mirror Down (Copy) | `.horizontal(y: bbox.maxY)` — 元と複製が下端で接する |
+| 操作 | 軸 | 使用する bbox |
+|------|----|--------------|
+| Mirror Horizontally（左右反転、in-place） | `.vertical(x: bbox.midX)` | `selectionBoundingBox`（geometric） |
+| Mirror Vertically（上下反転、in-place） | `.horizontal(y: bbox.midY)` | `selectionBoundingBox`（geometric） |
+| Mirror Right (Copy) | `.vertical(x: bbox.maxX)` — 元と複製が右端で接する | `selectionVisualBoundingBox`（visual） |
+| Mirror Down (Copy) | `.horizontal(y: bbox.maxY)` — 元と複製が下端で接する | `selectionVisualBoundingBox`（visual） |
+
+Copy モードが `visualBoundingBox` を使うのは、`boundingBox` がレンダリングされる ink より大きい図形があるため。`ArcShape` は内接する完全な円の bbox を返し、`BezierShape` は全制御ハンドルを含む。これらの図形を Copy すると、軸が視覚的な端より外側に置かれて隙間ができる。`Shape` プロトコルの `visualBoundingBox` は基本図形では `boundingBox` を返し、`Arc` は始点・終点と弧内の極点（0/π/2/π/3π/2）だけで、`Bezier` は curve を 32 ステップサンプリングした実 extent で構築する。In-place 反転は中心軸を使うため対称性が保たれ visual/geometric の差は表れないので geometric bbox のままで良い。
 
 Copy モードでは `cloneWithFreshIds` で全階層 UUID を再発行（Group の子も含む）、`duplicateStitchLines` で `sourceShapeId` を新 id に張り替えたステッチラインを複製、その後 `regenerateStitchLines` で穴を再生成する。
 

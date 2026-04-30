@@ -25,10 +25,12 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
   - `EditorViewModel.mirrorSelectedShapes(_:copy:)` を追加。in-place は選択 bbox 中心、copy は選択 bbox 端の軸で反転。
   - `cloneWithFreshIds` で全階層 UUID を再発行、`duplicateStitchLines` でステッチラインも引き継ぐ。
   - メニュー: Arrange > Mirror Horizontally (⇧⌘|) / Mirror Vertically (⇧⌘_) / Mirror Right Copy (⌥⌘M) / Mirror Down Copy (⌃⌘M)。
+  - 後追い修正: `Shape.visualBoundingBox` を導入し Copy モードの軸計算を tight 化。`ArcShape.boundingBox` が完全な円、`BezierShape.boundingBox` が制御ハンドル込みのため Down Copy で隙間が出ていた問題を解消（特に S 字ベジェで顕著）。`selectionVisualBoundingBox` は Copy モードのみで使用、in-place は中心軸なので geometric bbox のまま。
 - 完了条件
   - 4 メニュー項目から正しく動作する。✅
   - Group 含めて全シェイプ種で形状が幾何的に保たれる（21 サンプル点で検証）。✅
   - ステッチ穴が反転後の軌跡上に再生成される。✅
+  - Copy モードで複製が視覚的にも flush（Arc / Bezier 含む）。✅
   - Undo / Redo 対応。✅
 
 ---
