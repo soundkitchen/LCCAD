@@ -251,11 +251,11 @@ struct CanvasView: View {
                             if let hitId = hitId, editor.selectedShapeIds.contains(hitId) {
                                 // Drag on a selected shape: start move
                                 editor.moveUndoSnapshot = editor.document
-                                let worldDelta = CGPoint(
-                                    x: delta.x / editor.transform.scale,
-                                    y: delta.y / editor.transform.scale
+                                applySelectMoveSnap(
+                                    startLocation: value.startLocation,
+                                    currentLocation: value.location,
+                                    isFirstFrame: true
                                 )
-                                editor.moveSelectedShapes(by: worldDelta)
                             } else if let hitId = hitId {
                                 // Drag on an unselected shape: select it first, then start move
                                 if shiftHeld {
@@ -264,11 +264,11 @@ struct CanvasView: View {
                                     editor.selectedShapeIds = [hitId]
                                 }
                                 editor.moveUndoSnapshot = editor.document
-                                let worldDelta = CGPoint(
-                                    x: delta.x / editor.transform.scale,
-                                    y: delta.y / editor.transform.scale
+                                applySelectMoveSnap(
+                                    startLocation: value.startLocation,
+                                    currentLocation: value.location,
+                                    isFirstFrame: true
                                 )
-                                editor.moveSelectedShapes(by: worldDelta)
                             } else {
                                 // Drag on empty area: start marquee selection
                                 if !shiftHeld {
@@ -280,11 +280,11 @@ struct CanvasView: View {
                         }
                     } else if editor.hasSelection && editor.marqueeStart == nil {
                         // Continue normal shape move
-                        let worldDelta = CGPoint(
-                            x: delta.x / editor.transform.scale,
-                            y: delta.y / editor.transform.scale
+                        applySelectMoveSnap(
+                            startLocation: value.startLocation,
+                            currentLocation: value.location,
+                            isFirstFrame: false
                         )
-                        editor.moveSelectedShapes(by: worldDelta)
                     }
 
                     if editor.hasSelection && editor.marqueeStart == nil {
@@ -310,6 +310,9 @@ struct CanvasView: View {
                             editor.commitMoveWithUndo(oldDocument: snapshot)
                             editor.moveUndoSnapshot = nil
                         }
+                        editor.moveDragStartCursorWorld = nil
+                        editor.moveAccumulatedDelta = .zero
+                        editor.activeSnapCandidate = nil
                     }
                 } else {
                     let shiftHeld = NSEvent.modifierFlags.contains(.shift)
@@ -317,5 +320,82 @@ struct CanvasView: View {
                 }
                 editor.lastPanTranslation = nil
             }
+    }
+
+    /// Apply a select-tool drag-move with snap. Snaps the **selection's reference points**
+    /// (bbox corners + center) to grid/snap targets, not the cursor — this way the shape
+    /// itself lands on snap targets, regardless of where on the shape the user grabbed.
+    /// The moving shapes are excluded from snap candidates so they don't snap to themselves.
+    /// Applied incrementally so it composes with the existing `moveSelectedShapes(by:)` API.
+    private func applySelectMoveSnap(startLocation: CGPoint, currentLocation: CGPoint, isFirstFrame: Bool) {
+        if isFirstFrame {
+            editor.moveDragStartCursorWorld = editor.transform.screenToWorld(startLocation)
+            editor.moveAccumulatedDelta = .zero
+            editor.moveDragSelectionBBox = unionBBox(of: editor.selectedShapeIds)
+        }
+        guard let startCursor = editor.moveDragStartCursorWorld,
+              let bbox = editor.moveDragSelectionBBox else { return }
+
+        let currentCursorRaw = editor.transform.screenToWorld(currentLocation)
+        let rawDelta = CGPoint(
+            x: currentCursorRaw.x - startCursor.x,
+            y: currentCursorRaw.y - startCursor.y
+        )
+
+        // Reference points on the selection: 4 bbox corners + center. Snap each candidate
+        // and pick the one whose snap correction is smallest (i.e., closest to a real
+        // snap target). If no reference triggers a snap, fall back to the raw delta.
+        let referencePoints: [CGPoint] = [
+            CGPoint(x: bbox.minX, y: bbox.minY),
+            CGPoint(x: bbox.maxX, y: bbox.minY),
+            CGPoint(x: bbox.minX, y: bbox.maxY),
+            CGPoint(x: bbox.maxX, y: bbox.maxY),
+            CGPoint(x: bbox.midX, y: bbox.midY),
+        ]
+
+        let excluded = editor.selectedShapeIds
+        var bestDelta: CGPoint = rawDelta
+        var bestCandidate: SnapCandidate?
+        var bestCorrection: CGFloat = .infinity
+
+        for origRef in referencePoints {
+            let targetRef = CGPoint(x: origRef.x + rawDelta.x, y: origRef.y + rawDelta.y)
+            let result = editor.snapWorldPoint(targetRef, excludedShapeIds: excluded)
+            if let candidate = result.candidate {
+                let dx = result.snappedPoint.x - targetRef.x
+                let dy = result.snappedPoint.y - targetRef.y
+                let correction = (dx * dx + dy * dy).squareRoot()
+                if correction < bestCorrection {
+                    bestCorrection = correction
+                    bestCandidate = candidate
+                    bestDelta = CGPoint(
+                        x: result.snappedPoint.x - origRef.x,
+                        y: result.snappedPoint.y - origRef.y
+                    )
+                }
+            }
+        }
+
+        editor.activeSnapCandidate = bestCandidate
+
+        let frameDelta = CGPoint(
+            x: bestDelta.x - editor.moveAccumulatedDelta.x,
+            y: bestDelta.y - editor.moveAccumulatedDelta.y
+        )
+        if frameDelta.x != 0 || frameDelta.y != 0 {
+            editor.moveSelectedShapes(by: frameDelta)
+        }
+        editor.moveAccumulatedDelta = bestDelta
+    }
+
+    /// Union of bounding boxes for the given shape ids. Returns `nil` if none found.
+    private func unionBBox(of shapeIds: Set<UUID>) -> CGRect? {
+        var union: CGRect?
+        for id in shapeIds {
+            guard let shape = editor.findShape(id: id) else { continue }
+            let bb = shape.boundingBox
+            union = union.map { $0.union(bb) } ?? bb
+        }
+        return union
     }
 }
