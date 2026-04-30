@@ -9,7 +9,6 @@ final class EditorViewModelUndoTests: XCTestCase {
     func testUpdatePageLayoutSupportsUndoAndRedo() {
         let editor = EditorViewModel(document: .empty())
         let undo = UndoManager()
-        undo.groupsByEvent = false
         editor.undoManager = undo
 
         let original = editor.document.settings.pageLayout.paperSize
@@ -33,7 +32,6 @@ final class EditorViewModelUndoTests: XCTestCase {
     func testUpdatePageLayoutMarginSurvivesUndoRedoRoundTrip() {
         let editor = EditorViewModel(document: .empty())
         let undo = UndoManager()
-        undo.groupsByEvent = false
         editor.undoManager = undo
 
         let originalMargin = editor.document.settings.pageLayout.margin

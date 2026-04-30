@@ -33,6 +33,11 @@ struct LineShape: Shape, Codable, Equatable, Sendable {
         endPoint = endPoint + delta
     }
 
+    mutating func mirror(axis: MirrorAxis) {
+        startPoint = startPoint.mirrored(across: axis)
+        endPoint = endPoint.mirrored(across: axis)
+    }
+
     private func distanceFromPointToLineSegment(point: CGPoint, start: CGPoint, end: CGPoint) -> CGFloat {
         let dx = end.x - start.x
         let dy = end.y - start.y

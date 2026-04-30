@@ -45,6 +45,19 @@ struct ArcShape: Shape, Codable, Equatable, Sendable {
         center = center + delta
     }
 
+    mutating func mirror(axis: MirrorAxis) {
+        center = center.mirrored(across: axis)
+        switch axis {
+        case .vertical:
+            startAngle = .pi - startAngle
+            endAngle = .pi - endAngle
+        case .horizontal:
+            startAngle = -startAngle
+            endAngle = -endAngle
+        }
+        clockwise.toggle()
+    }
+
     // MARK: - Parameterization
 
     var angleSpan: CGFloat {

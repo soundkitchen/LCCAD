@@ -51,3 +51,6 @@ targets:
         BUNDLE_LOADER: $(TEST_HOST)
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/LCCAD.app/Contents/MacOS/LCCAD
         GENERATE_INFOPLIST_FILE: true
+        DEVELOPMENT_TEAM: G5G54TCH8W
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"

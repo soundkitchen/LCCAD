@@ -56,6 +56,13 @@ extension CGPoint {
     static func * (lhs: CGPoint, rhs: CGFloat) -> CGPoint {
         CGPoint(x: lhs.x * rhs, y: lhs.y * rhs)
     }
+
+    func mirrored(across axis: MirrorAxis) -> CGPoint {
+        switch axis {
+        case .vertical(let x):   return CGPoint(x: 2 * x - self.x, y: self.y)
+        case .horizontal(let y): return CGPoint(x: self.x, y: 2 * y - self.y)
+        }
+    }
 }
 
 // MARK: - CGRect extensions

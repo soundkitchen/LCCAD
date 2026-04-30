@@ -145,6 +145,36 @@ struct AppCommands: Commands {
                 editor?.distributeSelectedShapes(.vertical)
             }
             .disabled(!hasThreeOrMore)
+
+            Divider()
+
+            let hasAnySelection = editor?.hasSelection ?? false
+
+            Button("Mirror Horizontally") {
+                editor?.mirrorSelectedShapes(.vertical, copy: false)
+            }
+            .keyboardShortcut("|", modifiers: [.command, .shift])
+            .disabled(!hasAnySelection)
+
+            Button("Mirror Vertically") {
+                editor?.mirrorSelectedShapes(.horizontal, copy: false)
+            }
+            .keyboardShortcut("_", modifiers: [.command, .shift])
+            .disabled(!hasAnySelection)
+
+            Divider()
+
+            Button("Mirror Right (Copy)") {
+                editor?.mirrorSelectedShapes(.vertical, copy: true)
+            }
+            .keyboardShortcut("m", modifiers: [.command, .option])
+            .disabled(!hasAnySelection)
+
+            Button("Mirror Down (Copy)") {
+                editor?.mirrorSelectedShapes(.horizontal, copy: true)
+            }
+            .keyboardShortcut("m", modifiers: [.command, .control])
+            .disabled(!hasAnySelection)
         }
 
         // Draw menu — tool switching (shortcuts are single-key, handled via onKeyPress in CanvasView)

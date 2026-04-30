@@ -39,4 +39,11 @@ struct RectangleShape: Shape, Codable, Equatable, Sendable {
     mutating func translate(by delta: CGPoint) {
         origin = origin + delta
     }
+
+    mutating func mirror(axis: MirrorAxis) {
+        let p1 = origin.mirrored(across: axis)
+        let p2 = CGPoint(x: origin.x + size.width, y: origin.y + size.height).mirrored(across: axis)
+        origin = CGPoint(x: min(p1.x, p2.x), y: min(p1.y, p2.y))
+        size = CGSize(width: abs(p2.x - p1.x), height: abs(p2.y - p1.y))
+    }
 }

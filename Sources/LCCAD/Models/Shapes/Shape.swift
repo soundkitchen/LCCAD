@@ -96,6 +96,13 @@ struct CodableColor: Codable, Equatable, Sendable {
     static let stitch = CodableColor(r: 0.831, g: 0.647, b: 0.455) // #D4A574
 }
 
+// MARK: - Mirror Axis
+
+enum MirrorAxis: Sendable {
+    case horizontal(y: CGFloat)  // 横軸（y 一定）→ 上下反転
+    case vertical(x: CGFloat)    // 縦軸（x 一定）→ 左右反転
+}
+
 // MARK: - Shape Protocol
 
 protocol Shape: Identifiable, Codable, Sendable {
@@ -111,6 +118,9 @@ protocol Shape: Identifiable, Codable, Sendable {
 
     /// Move the shape by a delta
     mutating func translate(by delta: CGPoint)
+
+    /// Reflect the shape across the given world-space axis
+    mutating func mirror(axis: MirrorAxis)
 }
 
 // MARK: - AnyShape (type-erased wrapper for heterogeneous collections)
@@ -228,6 +238,19 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .bezier(var s): s.translate(by: delta); self = .bezier(s)
         case .text(var s): s.translate(by: delta); self = .text(s)
         case .group(var s): s.translate(by: delta); self = .group(s)
+        }
+    }
+
+    mutating func mirror(axis: MirrorAxis) {
+        switch self {
+        case .line(var s): s.mirror(axis: axis); self = .line(s)
+        case .rectangle(var s): s.mirror(axis: axis); self = .rectangle(s)
+        case .ellipse(var s): s.mirror(axis: axis); self = .ellipse(s)
+        case .arc(var s): s.mirror(axis: axis); self = .arc(s)
+        case .dot(var s): s.mirror(axis: axis); self = .dot(s)
+        case .bezier(var s): s.mirror(axis: axis); self = .bezier(s)
+        case .text(var s): s.mirror(axis: axis); self = .text(s)
+        case .group(var s): s.mirror(axis: axis); self = .group(s)
         }
     }
 }
