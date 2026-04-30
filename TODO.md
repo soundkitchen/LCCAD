@@ -1,7 +1,41 @@
-# LCCAD Phase 2 TODO
+# LCCAD TODO
 
-Phase 1（MVP 基盤）完了を受け、「実用的に使える CAD」にするための機能群を整理する。
 UI を変更する項目は、実装前に `design/lccad.pen` を更新して確認してからコードへ反映する。
+
+## Phase 3（実用 CAD 化の継続強化）
+
+レザークラフトの実作業フロー（左右対称パーツ、寸法管理、テンプレート再利用など）にフィットさせるための機能群。
+
+| 順序 | タスク | 工数 | リスク | 状態 |
+|------|--------|------|--------|------|
+| 1 | L. 反転 / 反転コピー（Mirror） | 中 | 低 | ✅ 完了 |
+| 2 | M. テンプレート機能 | 大 | 中 | 未着手 |
+| 3 | N. 寸法線 / Array（配列複製） | 中 | 中 | 未着手 |
+
+### L. 反転 / 反転コピー（Mirror）
+
+- 背景
+  - レザークラフトでは左右対称な型紙パーツが頻出（カードホルダー、カバン両側など）。
+  - 「左半分を作って右半分を反転コピー」という基本フローが手作業だった。
+- やったこと
+  - `MirrorAxis` enum と `Shape.mirror(axis:)` プロトコル要求を追加。各シェイプ（Line/Rect/Ellipse/Arc/Bezier/Text/Dot/Group）に実装。
+    - Arc: 角度反転 + clockwise トグル
+    - Bezier: 各制御点を in-place 反射（点列順を保つため swap は不要）
+    - Group: 子に再帰
+  - `EditorViewModel.mirrorSelectedShapes(_:copy:)` を追加。in-place は選択 bbox 中心、copy は選択 bbox 端の軸で反転。
+  - `cloneWithFreshIds` で全階層 UUID を再発行、`duplicateStitchLines` でステッチラインも引き継ぐ。
+  - メニュー: Arrange > Mirror Horizontally (⇧⌘|) / Mirror Vertically (⇧⌘_) / Mirror Right Copy (⌥⌘M) / Mirror Down Copy (⌃⌘M)。
+- 完了条件
+  - 4 メニュー項目から正しく動作する。✅
+  - Group 含めて全シェイプ種で形状が幾何的に保たれる（21 サンプル点で検証）。✅
+  - ステッチ穴が反転後の軌跡上に再生成される。✅
+  - Undo / Redo 対応。✅
+
+---
+
+# Phase 2 TODO（完了）
+
+Phase 1（MVP 基盤）完了を受け、「実用的に使える CAD」にするための機能群を整理した。
 
 ## 実装順序
 

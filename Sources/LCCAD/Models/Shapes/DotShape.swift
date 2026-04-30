@@ -26,4 +26,8 @@ struct DotShape: Shape, Codable, Equatable, Sendable {
     mutating func translate(by delta: CGPoint) {
         position = position + delta
     }
+
+    mutating func mirror(axis: MirrorAxis) {
+        position = position.mirrored(across: axis)
+    }
 }

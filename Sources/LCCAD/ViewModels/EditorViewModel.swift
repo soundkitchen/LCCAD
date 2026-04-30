@@ -1377,6 +1377,129 @@ final class EditorViewModel {
         registerUndo(actionName: "Distribute", oldDocument: old)
     }
 
+    // MARK: - Mirror
+
+    enum MirrorAxisKind {
+        case horizontal  // y 一定の横軸（上下反転）
+        case vertical    // x 一定の縦軸（左右反転）
+    }
+
+    /// Reflect the current selection across an axis derived from the selection bounding box.
+    /// In-place mirror reflects across the bbox center; copy mode reflects across the bbox edge,
+    /// producing a duplicate that sits flush against the original.
+    func mirrorSelectedShapes(_ kind: MirrorAxisKind, copy: Bool) {
+        guard hasSelection, let bbox = selectionBoundingBox else { return }
+        let axis: MirrorAxis
+        switch (kind, copy) {
+        case (.vertical, false):   axis = .vertical(x: bbox.midX)
+        case (.horizontal, false): axis = .horizontal(y: bbox.midY)
+        case (.vertical, true):    axis = .vertical(x: bbox.maxX)
+        case (.horizontal, true):  axis = .horizontal(y: bbox.maxY)
+        }
+
+        let old = document
+        let actionName = copy ? "Mirror Copy" : "Mirror"
+
+        if copy {
+            var newSelection: Set<UUID> = []
+            for id in Array(selectedShapeIds) {
+                guard let (li, si) = findShapeLocation(id: id) else { continue }
+                let original = document.layers[li].shapes[si]
+                let (cloned, idMap) = cloneWithFreshIds(original)
+                var mirroredClone = cloned
+                mirroredClone.mirror(axis: axis)
+                document.layers[li].shapes.insert(mirroredClone, at: si + 1)
+                duplicateStitchLines(inLayer: li, idMap: idMap)
+                newSelection.formUnion(idMap.values)
+            }
+            selectedShapeIds = newSelection
+            regenerateStitchLines(forShapeIds: newSelection)
+        } else {
+            var affectedIds: Set<UUID> = []
+            for id in selectedShapeIds {
+                guard let (li, si) = findShapeLocation(id: id) else { continue }
+                affectedIds.formUnion(collectShapeIds(in: document.layers[li].shapes[si]))
+                document.layers[li].shapes[si].mirror(axis: axis)
+            }
+            regenerateStitchLines(forShapeIds: affectedIds)
+        }
+
+        guard old != document else { return }
+        registerUndo(actionName: actionName, oldDocument: old)
+    }
+
+    /// Deep-copy a shape with fresh UUIDs at every level (groups recurse).
+    /// Returns the clone and a map of original-id → new-id covering this shape and all descendants.
+    private func cloneWithFreshIds(_ shape: AnyShape) -> (clone: AnyShape, idMap: [UUID: UUID]) {
+        var idMap: [UUID: UUID] = [:]
+        let clone = recursiveClone(shape, idMap: &idMap)
+        return (clone, idMap)
+    }
+
+    private func recursiveClone(_ shape: AnyShape, idMap: inout [UUID: UUID]) -> AnyShape {
+        let newId = UUID()
+        idMap[shape.id] = newId
+        switch shape {
+        case .line(let s):
+            var c = LineShape(id: newId, start: s.startPoint, end: s.endPoint, stroke: s.stroke)
+            c.isLocked = s.isLocked
+            return .line(c)
+        case .rectangle(let s):
+            var c = RectangleShape(id: newId, origin: s.origin, size: s.size, cornerRadius: s.cornerRadius, stroke: s.stroke)
+            c.isLocked = s.isLocked
+            return .rectangle(c)
+        case .ellipse(let s):
+            var c = EllipseShape(id: newId, center: s.center, radiusX: s.radiusX, radiusY: s.radiusY, stroke: s.stroke)
+            c.rotation = s.rotation
+            c.isLocked = s.isLocked
+            return .ellipse(c)
+        case .arc(let s):
+            var c = ArcShape(id: newId, center: s.center, radius: s.radius,
+                             startAngle: s.startAngle, endAngle: s.endAngle,
+                             clockwise: s.clockwise, stroke: s.stroke)
+            c.isLocked = s.isLocked
+            return .arc(c)
+        case .dot(let s):
+            var c = DotShape(id: newId, position: s.position, radius: s.radius, stroke: s.stroke)
+            c.isLocked = s.isLocked
+            return .dot(c)
+        case .bezier(let s):
+            var c = BezierShape(id: newId, points: s.points, isClosed: s.isClosed, stroke: s.stroke)
+            c.isLocked = s.isLocked
+            return .bezier(c)
+        case .text(let s):
+            var c = TextShape(id: newId, position: s.position, content: s.content,
+                              fontSize: s.fontSize, fontName: s.fontName,
+                              isBold: s.isBold, isItalic: s.isItalic,
+                              textAlignment: s.textAlignment, stroke: s.stroke)
+            c.isLocked = s.isLocked
+            return .text(c)
+        case .group(let s):
+            let clonedChildren = s.children.map { recursiveClone($0, idMap: &idMap) }
+            var c = GroupShape(id: newId, children: clonedChildren)
+            c.isLocked = s.isLocked
+            return .group(c)
+        }
+    }
+
+    /// Duplicate stitch lines whose source shape was cloned. Holes are left empty—
+    /// the caller is expected to invoke `regenerateStitchLines` after the new shapes
+    /// have been inserted so PathWalker can resolve the new geometry.
+    private func duplicateStitchLines(inLayer li: Int, idMap: [UUID: UUID]) {
+        let originals = document.layers[li].stitchLines.filter { idMap.keys.contains($0.sourceShapeId) }
+        for line in originals {
+            guard let newSourceId = idMap[line.sourceShapeId] else { continue }
+            let newLine = StitchLine(
+                id: UUID(),
+                sourceShapeId: newSourceId,
+                ironId: line.ironId,
+                mode: line.mode,
+                holes: []
+            )
+            document.layers[li].stitchLines.append(newLine)
+        }
+    }
+
     // MARK: - Export
 
     func exportSVG() {
@@ -1387,3 +1510,4 @@ final class EditorViewModel {
         ExportCoordinator.exportDXF(document: document)
     }
 }
+

@@ -191,6 +191,7 @@ Sources/LCCAD/
 | **ズーム** | `zoomToFit()` | 実際のキャンバスサイズに基づく Fit |
 | **整列** | `alignSelectedShapes(_:)` | 左/右/上/下/水平中央/垂直中央揃え（Undo 対応） |
 | **分布** | `distributeSelectedShapes(_:)` | 水平/垂直等間隔分布（3個以上必要、Undo 対応） |
+| **反転** | `mirrorSelectedShapes(_:copy:)` | 縦軸/横軸で反転。in-place（中心軸）または copy（端軸で複製＋反転）（Undo 対応） |
 | **ページ** | `addPage(at:)` | キャンバスクリック位置にページ追加（Undo 対応） |
 | **ページ** | `deleteSelectedPage()` | 選択ページ削除（Undo 対応） |
 | **ページ** | `moveSelectedPage(by:)` | ページドラッグ移動（PageSnapEngine 連動） |
@@ -211,6 +212,34 @@ Sources/LCCAD/
 | **Delete** | 全選択図形を一括削除 |
 
 複数選択時、Properties パネルは「N items selected」表示 + 共通 Stroke 編集。
+
+### Mirror（反転 / 反転コピー）
+
+`Shape` プロトコルに `mirror(axis: MirrorAxis)` 要求を追加し、`MirrorAxis` enum で軸を表現:
+
+```swift
+enum MirrorAxis {
+    case horizontal(y: CGFloat)  // 横軸（y 一定）→ 上下反転
+    case vertical(x: CGFloat)    // 縦軸（x 一定）→ 左右反転
+}
+```
+
+各シェイプは座標を反射するだけだが、以下は専用処理が必要:
+
+- **Arc**: 中心反射 + 角度反転（縦軸なら `π - θ`、横軸なら `-θ`）+ `clockwise` トグル
+- **Bezier**: 各制御点をその場で反射。点列順を保つため `controlIn` / `controlOut` の swap は不要（segment topology は不変なので幾何的反射で形状が保持される）
+- **Group**: 子に再帰
+
+`EditorViewModel.mirrorSelectedShapes(_:copy:)` がメニューから呼ばれ、選択 bbox から軸を導出する:
+
+| 操作 | 軸 |
+|------|----|
+| Mirror Horizontally（左右反転、in-place） | `.vertical(x: bbox.midX)` |
+| Mirror Vertically（上下反転、in-place） | `.horizontal(y: bbox.midY)` |
+| Mirror Right (Copy) | `.vertical(x: bbox.maxX)` — 元と複製が右端で接する |
+| Mirror Down (Copy) | `.horizontal(y: bbox.maxY)` — 元と複製が下端で接する |
+
+Copy モードでは `cloneWithFreshIds` で全階層 UUID を再発行（Group の子も含む）、`duplicateStitchLines` で `sourceShapeId` を新 id に張り替えたステッチラインを複製、その後 `regenerateStitchLines` で穴を再生成する。
 
 ### ステッチラインの図形追従
 

@@ -62,6 +62,19 @@ struct BezierShape: Shape, Codable, Equatable, Sendable {
         }
     }
 
+    mutating func mirror(axis: MirrorAxis) {
+        // Reflect every control point in place. Keeping the point order intact
+        // produces the correct geometric mirror — swapping in/out would distort
+        // the curve because the segment topology stays the same.
+        points = points.map { bp in
+            BezierPoint(
+                point: bp.point.mirrored(across: axis),
+                controlIn: bp.controlIn.mirrored(across: axis),
+                controlOut: bp.controlOut.mirrored(across: axis)
+            )
+        }
+    }
+
     private func distanceToCubicBezier(point: CGPoint, p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint, steps: Int = 20) -> CGFloat {
         var minDist = CGFloat.infinity
         for i in 0...steps {

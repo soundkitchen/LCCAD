@@ -33,4 +33,9 @@ struct EllipseShape: Shape, Codable, Equatable, Sendable {
     mutating func translate(by delta: CGPoint) {
         center = center + delta
     }
+
+    mutating func mirror(axis: MirrorAxis) {
+        center = center.mirrored(across: axis)
+        rotation = -rotation
+    }
 }

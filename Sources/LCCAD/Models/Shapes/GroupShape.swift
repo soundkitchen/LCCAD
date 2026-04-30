@@ -34,4 +34,10 @@ struct GroupShape: Shape, Codable, Equatable, Sendable {
             children[i].translate(by: delta)
         }
     }
+
+    mutating func mirror(axis: MirrorAxis) {
+        for i in children.indices {
+            children[i].mirror(axis: axis)
+        }
+    }
 }
