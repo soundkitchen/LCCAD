@@ -159,6 +159,13 @@ final class EditorViewModel {
     // Move undo support
     var moveUndoSnapshot: DocumentData?
 
+    // Select-tool drag move state — cursor world point at drag start (raw, unsnapped),
+    // selection bounding box at drag start (used to anchor snap on shape reference points
+    // rather than the cursor), and the cumulative delta already applied this drag.
+    var moveDragStartCursorWorld: CGPoint?
+    var moveDragSelectionBBox: CGRect?
+    var moveAccumulatedDelta: CGPoint = .zero
+
     // Drawing preview
     var drawingPreview: DrawingPreview?
 
@@ -520,6 +527,9 @@ final class EditorViewModel {
         draggingBezierTarget = nil
         bezierEditUndoSnapshot = nil
         moveUndoSnapshot = nil
+        moveDragStartCursorWorld = nil
+        moveDragSelectionBBox = nil
+        moveAccumulatedDelta = .zero
         drawingPreview = nil
         activeSnapCandidate = nil
         marqueeStart = nil
@@ -557,13 +567,22 @@ final class EditorViewModel {
 
     // MARK: - Snapping
 
-    private func snappedWorldPoint(from screenPoint: CGPoint) -> CGPoint {
+    func snappedWorldPoint(from screenPoint: CGPoint) -> CGPoint {
         let worldPoint = transform.screenToWorld(screenPoint)
         let snapTolerance = transform.screenToWorldDistance(8)
         let engine = SnapEngine(tolerance: snapTolerance, settings: document.settings, layers: document.layers, transform: transform)
         let result = engine.snap(worldPoint)
         activeSnapCandidate = result.candidate
         return result.snappedPoint
+    }
+
+    /// Snap a world-space point directly. Used by drag-move where the reference is
+    /// a point on the shape (not the cursor). Caller can exclude shapes (e.g. the
+    /// ones currently being moved) from candidate generation.
+    func snapWorldPoint(_ worldPoint: CGPoint, excludedShapeIds: Set<UUID> = []) -> SnapResult {
+        let snapTolerance = transform.screenToWorldDistance(8)
+        let engine = SnapEngine(tolerance: snapTolerance, settings: document.settings, layers: document.layers, transform: transform, excludedShapeIds: excludedShapeIds)
+        return engine.snap(worldPoint)
     }
 
     func handleClick(at screenPoint: CGPoint, shiftHeld: Bool = false) {
@@ -850,6 +869,9 @@ final class EditorViewModel {
         activeSnapCandidate = nil
         marqueeStart = nil
         marqueeRect = nil
+        moveDragStartCursorWorld = nil
+        moveDragSelectionBBox = nil
+        moveAccumulatedDelta = .zero
     }
 
     /// Commit the current bezier path (called by Enter/Escape/double-click)

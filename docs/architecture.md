@@ -220,6 +220,7 @@ Sources/LCCAD/
   1. `EditorViewModel.startBezierPointDrag` を試行（単一 bezier 選択時のみ true）。ハンドル/アンカーは曲線輪郭から離れていることが多く、輪郭ヒットテストでは拾えないため最優先で判定する
   2. 図形輪郭の `hitTestPublic` → 選択済み図形なら一括移動、未選択ならまず選択して移動
   3. 全部外れたらマーキー選択開始
+- **ドラッグ移動のスナップ** (`CanvasView.applySelectMoveSnap`): カーソルではなく **選択範囲の外接矩形の4角＋中心の5点** をスナップリファレンスにする。各点について「ドラッグ後の到達位置」を `EditorViewModel.snapWorldPoint(_:excludedShapeIds:)` に通し、候補が出たもののうち補正量が最小の点を採用、その点で確定したデルタを `moveSelectedShapes(by:)` に適用する。これにより「角を持っていけば角がグリッドに乗る／中心寄りに動かせば中心が乗る」CAD 慣例の挙動になる。カーソル基準だと図形のクリック位置がグリッド外のときに図形側が中途半端な位置に落ちるため避ける。移動中の図形自身は `SnapEngine` の `excludedShapeIds` で候補から除外し、自己スナップを防ぐ。フレーム間の差分適用は `moveAccumulatedDelta` で増分管理する。
 - **Bezier の輪郭ヒットテスト** (`BezierShape.distanceToCubicBezier`): 各セグメントを 24 分割でサンプリングし、**隣接サンプル間を結ぶ線分への点距離** を計算する（点-点距離ではない）。点-点だとサンプル間に落ちたクリックが原理的に拾えないため、polyline 距離で近似する。
 
 ### Mirror（反転 / 反転コピー）

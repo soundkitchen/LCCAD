@@ -26,21 +26,24 @@ struct SnapEngine {
     let settings: ProjectSettings
     let layers: [Layer]
     let transform: CanvasTransform
+    let excludedShapeIds: Set<UUID>
 
-    init(tolerance: CGFloat, settings: ProjectSettings, layers: [Layer], transform: CanvasTransform) {
+    init(tolerance: CGFloat, settings: ProjectSettings, layers: [Layer], transform: CanvasTransform, excludedShapeIds: Set<UUID> = []) {
         self.tolerance = tolerance
         self.settings = settings
         self.layers = layers
         self.transform = transform
+        self.excludedShapeIds = excludedShapeIds
     }
 
     /// Find the best snap point near the given world point.
     func snap(_ point: CGPoint) -> SnapResult {
         var candidates: [SnapCandidate] = []
 
-        // Collect snap points from all visible shapes
+        // Collect snap points from all visible shapes (excluding ones the caller is moving)
         for layer in layers where layer.isVisible {
             for shape in layer.shapes {
+                if excludedShapeIds.contains(shape.id) { continue }
                 candidates.append(contentsOf: snapPoints(for: shape))
             }
         }
@@ -164,10 +167,11 @@ struct SnapEngine {
     // MARK: - Intersection Points
 
     private func intersectionPoints() -> [SnapCandidate] {
-        var allLines: [(CGPoint, CGPoint)] = []
+        var allLines: [(start: CGPoint, end: CGPoint)] = []
         for layer in layers where layer.isVisible {
             for shape in layer.shapes {
                 if case .line(let line) = shape {
+                    if excludedShapeIds.contains(line.id) { continue }
                     allLines.append((line.startPoint, line.endPoint))
                 }
             }
@@ -177,8 +181,8 @@ struct SnapEngine {
         for i in 0..<allLines.count {
             for j in (i + 1)..<allLines.count {
                 if let pt = Intersection.lineLineIntersection(
-                    a1: allLines[i].0, a2: allLines[i].1,
-                    b1: allLines[j].0, b2: allLines[j].1
+                    a1: allLines[i].start, a2: allLines[i].end,
+                    b1: allLines[j].start, b2: allLines[j].end
                 ) {
                     results.append(SnapCandidate(point: pt, kind: .intersection))
                 }
