@@ -113,6 +113,12 @@ protocol Shape: Identifiable, Codable, Sendable {
     /// Bounding box in world coordinates (mm)
     var boundingBox: CGRect { get }
 
+    /// Tight box around the visually rendered ink in world coordinates (mm).
+    /// Differs from `boundingBox` for shapes whose `boundingBox` overshoots
+    /// the visible curve (Bezier handles, Arc full-circle bounds). Used to
+    /// place mirror copies flush against the visual edge.
+    var visualBoundingBox: CGRect { get }
+
     /// Hit test: is the given point (world coords) close enough to select this shape?
     func hitTest(point: CGPoint, tolerance: CGFloat) -> Bool
 
@@ -121,6 +127,10 @@ protocol Shape: Identifiable, Codable, Sendable {
 
     /// Reflect the shape across the given world-space axis
     mutating func mirror(axis: MirrorAxis)
+}
+
+extension Shape {
+    var visualBoundingBox: CGRect { boundingBox }
 }
 
 // MARK: - AnyShape (type-erased wrapper for heterogeneous collections)
@@ -212,6 +222,19 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .bezier(let s): return s.boundingBox
         case .text(let s): return s.boundingBox
         case .group(let s): return s.boundingBox
+        }
+    }
+
+    var visualBoundingBox: CGRect {
+        switch self {
+        case .line(let s): return s.visualBoundingBox
+        case .rectangle(let s): return s.visualBoundingBox
+        case .ellipse(let s): return s.visualBoundingBox
+        case .arc(let s): return s.visualBoundingBox
+        case .dot(let s): return s.visualBoundingBox
+        case .bezier(let s): return s.visualBoundingBox
+        case .text(let s): return s.visualBoundingBox
+        case .group(let s): return s.visualBoundingBox
         }
     }
 

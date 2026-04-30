@@ -140,6 +140,19 @@ final class EditorViewModel {
         return combined
     }
 
+    /// Combined visual bounding box of all selected shapes — tight to rendered ink.
+    /// Used by Mirror Copy so the duplicate sits flush against the visible edge,
+    /// not against handle or full-circle padding.
+    var selectionVisualBoundingBox: CGRect? {
+        let shapes = selectedShapes
+        guard let first = shapes.first else { return nil }
+        var combined = first.visualBoundingBox
+        for shape in shapes.dropFirst() {
+            combined = combined.union(shape.visualBoundingBox)
+        }
+        return combined
+    }
+
     // Drag state
     var lastPanTranslation: CGSize?
     var dragStartWorldPoint: CGPoint?
@@ -1415,12 +1428,17 @@ final class EditorViewModel {
     /// producing a duplicate that sits flush against the original.
     func mirrorSelectedShapes(_ kind: MirrorAxisKind, copy: Bool) {
         guard hasSelection, let bbox = selectionBoundingBox else { return }
+        // For copy mode use the visual bbox so the duplicate sits flush against
+        // the rendered edge (Bezier handles / Arc full-circle padding would
+        // otherwise leave a gap). In-place stays on the geometric bbox so the
+        // mirror axis matches the visible selection rectangle the user sees.
+        let copyBBox = selectionVisualBoundingBox ?? bbox
         let axis: MirrorAxis
         switch (kind, copy) {
         case (.vertical, false):   axis = .vertical(x: bbox.midX)
         case (.horizontal, false): axis = .horizontal(y: bbox.midY)
-        case (.vertical, true):    axis = .vertical(x: bbox.maxX)
-        case (.horizontal, true):  axis = .horizontal(y: bbox.maxY)
+        case (.vertical, true):    axis = .vertical(x: copyBBox.maxX)
+        case (.horizontal, true):  axis = .horizontal(y: copyBBox.maxY)
         }
 
         let old = document

@@ -36,6 +36,36 @@ struct BezierShape: Shape, Codable, Equatable, Sendable {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
+    /// Tight bbox around the rendered curve. Samples each segment to avoid the
+    /// overshoot that handle-inclusive `boundingBox` introduces — used to place
+    /// mirror copies flush against the visible edge.
+    var visualBoundingBox: CGRect {
+        guard points.count >= 2 else {
+            if let p = points.first?.point {
+                return CGRect(x: p.x, y: p.y, width: 0, height: 0)
+            }
+            return .zero
+        }
+        var minX = CGFloat.infinity, minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity, maxY = -CGFloat.infinity
+        let segmentCount = isClosed ? points.count : points.count - 1
+        let steps = 32
+        for i in 0..<segmentCount {
+            let j = (i + 1) % points.count
+            let p0 = points[i].point
+            let p1 = points[i].controlOut
+            let p2 = points[j].controlIn
+            let p3 = points[j].point
+            for k in 0...steps {
+                let t = CGFloat(k) / CGFloat(steps)
+                let p = cubicBezierPoint(t: t, p0: p0, p1: p1, p2: p2, p3: p3)
+                minX = min(minX, p.x); minY = min(minY, p.y)
+                maxX = max(maxX, p.x); maxY = max(maxY, p.y)
+            }
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
     func hitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
         guard points.count >= 2 else { return false }
 

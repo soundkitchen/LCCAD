@@ -134,6 +134,117 @@ final class EditorViewModelMirrorTests: XCTestCase {
         XCTAssertNotEqual(originalDot.id, copiedDot.id, "child UUIDs must be regenerated")
     }
 
+    // MARK: - Mirror Down (Copy) flush placement
+
+    /// Mirror Down (Copy) on a Rectangle: the copy's top edge must coincide with
+    /// the original's bottom edge (no gap, no overlap).
+    func testMirrorCopyDownRectangleIsFlush() {
+        let rect = RectangleShape(origin: CGPoint(x: 10, y: 10), size: CGSize(width: 50, height: 30))
+        let editor = makeEditor(shapes: [.rectangle(rect)])
+        editor.selectedShapeIds = [rect.id]
+
+        editor.mirrorSelectedShapes(.horizontal, copy: true)
+
+        XCTAssertEqual(editor.document.layers[0].shapes.count, 2)
+        guard case .rectangle(let copied) = editor.document.layers[0].shapes[1] else {
+            return XCTFail("expected mirrored rectangle at index 1")
+        }
+        // Original bottom edge is at y = 10 + 30 = 40. Copy must start at y = 40.
+        XCTAssertEqual(copied.origin.y, 40, accuracy: 1e-9, "copy top edge must equal original bottom edge")
+        XCTAssertEqual(copied.origin.x, 10, accuracy: 1e-9)
+        XCTAssertEqual(copied.size.width, 50, accuracy: 1e-9)
+        XCTAssertEqual(copied.size.height, 30, accuracy: 1e-9)
+    }
+
+    /// Mirror Down (Copy) on an Ellipse: the copy's top must equal the original's bottom.
+    func testMirrorCopyDownEllipseIsFlush() {
+        let ellipse = EllipseShape(center: CGPoint(x: 50, y: 50), radiusX: 20, radiusY: 10)
+        let editor = makeEditor(shapes: [.ellipse(ellipse)])
+        editor.selectedShapeIds = [ellipse.id]
+
+        editor.mirrorSelectedShapes(.horizontal, copy: true)
+
+        guard case .ellipse(let copied) = editor.document.layers[0].shapes[1] else {
+            return XCTFail("expected mirrored ellipse at index 1")
+        }
+        // Original bottom = 50 + 10 = 60. Copy center must be at y = 60 + 10 = 70.
+        XCTAssertEqual(copied.center.y, 70, accuracy: 1e-9)
+        XCTAssertEqual(copied.center.x, 50, accuracy: 1e-9)
+    }
+
+    /// Mirror Down (Copy) on an Arc that spans only the upper half of its circle.
+    /// The arc's *visual* bottom is at y = center.y (not center.y + radius).
+    /// The copy's visual top must equal the original's visual bottom.
+    func testMirrorCopyDownArcUsesVisualExtent() {
+        // Upper half-circle: center=(50,50), radius=20, angle from π to 2π (counter-clockwise).
+        // sin(π) = 0, sin(2π) = 0, so the arc traces y from 50 down to 50-20=30 and back.
+        // Visual bbox: y ∈ [30, 50], not [30, 70] (which is the full circle bbox).
+        let arc = ArcShape(
+            center: CGPoint(x: 50, y: 50), radius: 20,
+            startAngle: .pi, endAngle: 2 * .pi, clockwise: false
+        )
+        let editor = makeEditor(shapes: [.arc(arc)])
+        editor.selectedShapeIds = [arc.id]
+
+        editor.mirrorSelectedShapes(.horizontal, copy: true)
+
+        guard case .arc(let copied) = editor.document.layers[0].shapes[1] else {
+            return XCTFail("expected mirrored arc at index 1")
+        }
+        // Original visual bottom = 50. Copy must be reflected across y = 50,
+        // putting its center at y = 50 (so its visual top, which mirrors to the arc's
+        // visual bottom, sits at y = 50 — flush with the original).
+        XCTAssertEqual(copied.center.y, 50, accuracy: 1e-9, "arc copy must use visual extent (y=50), not full-circle bbox.maxY")
+        XCTAssertEqual(copied.center.x, 50, accuracy: 1e-9)
+    }
+
+    /// Mirror Down (Copy) on a Bezier whose control handles extend below the visible curve.
+    /// The copy must sit flush against the visible curve, not against the handle bbox.
+    func testMirrorCopyDownBezierUsesVisualExtent() {
+        // Two anchors at y = 0 with both controlOut/controlIn handles at y = 50.
+        // The actual curve stays in y ∈ [0, ~37.5] (cubic at t=0.5 with both controls at 50
+        // gives y = 3*0.25*0.5*50 + 3*0.5*0.25*50 = 18.75 + 18.75 = 37.5).
+        // boundingBox (with handles) gives maxY = 50; visualBoundingBox should give maxY = 37.5.
+        let p0 = BezierPoint(point: CGPoint(x: 0, y: 0), controlIn: CGPoint(x: 0, y: 0), controlOut: CGPoint(x: 30, y: 50))
+        let p1 = BezierPoint(point: CGPoint(x: 100, y: 0), controlIn: CGPoint(x: 70, y: 50), controlOut: CGPoint(x: 100, y: 0))
+        let bezier = BezierShape(points: [p0, p1], isClosed: false)
+        let editor = makeEditor(shapes: [.bezier(bezier)])
+        editor.selectedShapeIds = [bezier.id]
+
+        editor.mirrorSelectedShapes(.horizontal, copy: true)
+
+        guard case .bezier(let copied) = editor.document.layers[0].shapes[1] else {
+            return XCTFail("expected mirrored bezier at index 1")
+        }
+        // Original curve's visual bottom is 37.5 (at t=0.5). Copy's anchors at y=0 must
+        // mirror to y = 75 (= 2 * 37.5). controlOut/In at y=50 must mirror to y = 25.
+        XCTAssertEqual(copied.points[0].point.y, 75, accuracy: 1e-6, "anchor must mirror across visual extent (y=37.5)")
+        XCTAssertEqual(copied.points[0].controlOut.y, 25, accuracy: 1e-6)
+        XCTAssertEqual(copied.points[1].point.y, 75, accuracy: 1e-6)
+        XCTAssertEqual(copied.points[1].controlIn.y, 25, accuracy: 1e-6)
+    }
+
+    /// Mirror Right (Copy) on the same Bezier — the right edge of the visual curve
+    /// happens to coincide with the bbox maxX (anchor at x=100), so copy is flush
+    /// regardless of whether we use boundingBox or visualBoundingBox. This is the
+    /// "right works fine" case the user reported.
+    func testMirrorCopyRightBezierIsFlush() {
+        let p0 = BezierPoint(point: CGPoint(x: 0, y: 0), controlIn: CGPoint(x: 0, y: 0), controlOut: CGPoint(x: 30, y: 50))
+        let p1 = BezierPoint(point: CGPoint(x: 100, y: 0), controlIn: CGPoint(x: 70, y: 50), controlOut: CGPoint(x: 100, y: 0))
+        let bezier = BezierShape(points: [p0, p1], isClosed: false)
+        let editor = makeEditor(shapes: [.bezier(bezier)])
+        editor.selectedShapeIds = [bezier.id]
+
+        editor.mirrorSelectedShapes(.vertical, copy: true)
+
+        guard case .bezier(let copied) = editor.document.layers[0].shapes[1] else {
+            return XCTFail("expected mirrored bezier at index 1")
+        }
+        // Visual right edge = 100. Anchor at x=0 mirrors to x=200, anchor at x=100 stays.
+        XCTAssertEqual(copied.points[0].point.x, 200, accuracy: 1e-6)
+        XCTAssertEqual(copied.points[1].point.x, 100, accuracy: 1e-6)
+    }
+
     // MARK: - Stitch line follow-through
 
     func testInPlaceMirrorRegeneratesStitchLines() {
