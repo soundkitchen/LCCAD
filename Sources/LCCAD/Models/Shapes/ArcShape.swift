@@ -25,6 +25,28 @@ struct ArcShape: Shape, Codable, Equatable, Sendable {
         CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
     }
 
+    /// Tight bbox around the actual visible arc — endpoints plus any of the four
+    /// cardinal-direction extrema (0, π/2, π, 3π/2) that lie within the arc's span.
+    /// Used for placing mirror copies flush against the visible edge.
+    var visualBoundingBox: CGRect {
+        var pts: [CGPoint] = [startPoint, endPoint]
+        for cardinal in [CGFloat(0), .pi / 2, .pi, 3 * .pi / 2] {
+            if isAngleInArc(cardinal) {
+                pts.append(CGPoint(
+                    x: center.x + radius * cos(cardinal),
+                    y: center.y + radius * sin(cardinal)
+                ))
+            }
+        }
+        var minX = pts[0].x, minY = pts[0].y
+        var maxX = pts[0].x, maxY = pts[0].y
+        for p in pts.dropFirst() {
+            minX = min(minX, p.x); minY = min(minY, p.y)
+            maxX = max(maxX, p.x); maxY = max(maxY, p.y)
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
     var startPoint: CGPoint {
         CGPoint(x: center.x + radius * cos(startAngle), y: center.y + radius * sin(startAngle))
     }

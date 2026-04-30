@@ -25,6 +25,11 @@ struct GroupShape: Shape, Codable, Equatable, Sendable {
         return children.dropFirst().reduce(first.boundingBox) { $0.union($1.boundingBox) }
     }
 
+    var visualBoundingBox: CGRect {
+        guard let first = children.first else { return .zero }
+        return children.dropFirst().reduce(first.visualBoundingBox) { $0.union($1.visualBoundingBox) }
+    }
+
     func hitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
         children.contains { $0.hitTest(point: point, tolerance: tolerance) }
     }
