@@ -567,7 +567,11 @@ final class EditorViewModel {
     }
 
     func handleClick(at screenPoint: CGPoint, shiftHeld: Bool = false) {
-        let worldPoint = snappedWorldPoint(from: screenPoint)
+        // Select tool must use the raw cursor position so clicks adjacent to grid lines or
+        // existing snap targets don't get pulled away from the shape under the cursor.
+        let worldPoint: CGPoint = (currentTool == .select)
+            ? transform.screenToWorld(screenPoint)
+            : snappedWorldPoint(from: screenPoint)
         let tolerance = transform.screenToWorldDistance(5)
 
         switch currentTool {

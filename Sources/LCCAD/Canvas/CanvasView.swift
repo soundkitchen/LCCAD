@@ -238,43 +238,45 @@ struct CanvasView: View {
                         // Continue marquee selection
                         editor.updateMarquee(to: value.location, shiftHeld: shiftHeld)
                     } else if editor.lastPanTranslation == nil {
-                        // First drag event: determine what to do
-                        let worldPoint = editor.transform.screenToWorld(value.startLocation)
-                        let tolerance = editor.transform.screenToWorldDistance(5)
-                        let hitId = editor.hitTestPublic(at: worldPoint, tolerance: tolerance)
+                        // First drag event: determine what to do.
+                        // Try bezier handle/anchor drag first — handles can sit far from the curve outline,
+                        // so the general shape hit test below would miss them.
+                        if editor.startBezierPointDrag(startScreenPoint: value.startLocation) {
+                            editor.dragBezierPoint(to: value.location, shiftHeld: shiftHeld)
+                        } else {
+                            let worldPoint = editor.transform.screenToWorld(value.startLocation)
+                            let tolerance = editor.transform.screenToWorldDistance(5)
+                            let hitId = editor.hitTestPublic(at: worldPoint, tolerance: tolerance)
 
-                        if let hitId = hitId, editor.selectedShapeIds.contains(hitId) {
-                            // Drag on a selected shape: try bezier point drag first, then move
-                            if editor.startBezierPointDrag(startScreenPoint: value.startLocation) {
-                                editor.dragBezierPoint(to: value.location, shiftHeld: shiftHeld)
-                            } else {
+                            if let hitId = hitId, editor.selectedShapeIds.contains(hitId) {
+                                // Drag on a selected shape: start move
                                 editor.moveUndoSnapshot = editor.document
                                 let worldDelta = CGPoint(
                                     x: delta.x / editor.transform.scale,
                                     y: delta.y / editor.transform.scale
                                 )
                                 editor.moveSelectedShapes(by: worldDelta)
-                            }
-                        } else if let hitId = hitId {
-                            // Drag on an unselected shape: select it first, then start move
-                            if shiftHeld {
-                                editor.selectedShapeIds.insert(hitId)
+                            } else if let hitId = hitId {
+                                // Drag on an unselected shape: select it first, then start move
+                                if shiftHeld {
+                                    editor.selectedShapeIds.insert(hitId)
+                                } else {
+                                    editor.selectedShapeIds = [hitId]
+                                }
+                                editor.moveUndoSnapshot = editor.document
+                                let worldDelta = CGPoint(
+                                    x: delta.x / editor.transform.scale,
+                                    y: delta.y / editor.transform.scale
+                                )
+                                editor.moveSelectedShapes(by: worldDelta)
                             } else {
-                                editor.selectedShapeIds = [hitId]
+                                // Drag on empty area: start marquee selection
+                                if !shiftHeld {
+                                    editor.selectedShapeIds = []
+                                }
+                                editor.beginMarquee(at: value.startLocation)
+                                editor.updateMarquee(to: value.location, shiftHeld: shiftHeld)
                             }
-                            editor.moveUndoSnapshot = editor.document
-                            let worldDelta = CGPoint(
-                                x: delta.x / editor.transform.scale,
-                                y: delta.y / editor.transform.scale
-                            )
-                            editor.moveSelectedShapes(by: worldDelta)
-                        } else {
-                            // Drag on empty area: start marquee selection
-                            if !shiftHeld {
-                                editor.selectedShapeIds = []
-                            }
-                            editor.beginMarquee(at: value.startLocation)
-                            editor.updateMarquee(to: value.location, shiftHeld: shiftHeld)
                         }
                     } else if editor.hasSelection && editor.marqueeStart == nil {
                         // Continue normal shape move
