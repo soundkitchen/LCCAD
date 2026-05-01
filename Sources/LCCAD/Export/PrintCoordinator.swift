@@ -386,13 +386,24 @@ private class PrintableDocumentView: NSView {
             context.strokePath()
 
         case .rectangle(let rect):
+            let unrotated = CGRect(origin: rect.origin, size: rect.size)
+            if rect.rotation != 0 {
+                context.saveGState()
+                let c = rect.unrotatedCenter
+                context.translateBy(x: c.x, y: c.y)
+                context.rotate(by: rect.rotation)
+                context.translateBy(x: -c.x, y: -c.y)
+            }
             if rect.cornerRadius > 0 {
-                let path = CGPath(roundedRect: rect.boundingBox, cornerWidth: rect.cornerRadius, cornerHeight: rect.cornerRadius, transform: nil)
+                let path = CGPath(roundedRect: unrotated, cornerWidth: rect.cornerRadius, cornerHeight: rect.cornerRadius, transform: nil)
                 context.addPath(path)
             } else {
-                context.addRect(rect.boundingBox)
+                context.addRect(unrotated)
             }
             context.strokePath()
+            if rect.rotation != 0 {
+                context.restoreGState()
+            }
 
         case .ellipse(let ellipse):
             context.addEllipse(in: ellipse.boundingBox)
@@ -444,6 +455,13 @@ private class PrintableDocumentView: NSView {
             // Draw text using NSAttributedString (handles flipped coordinates)
             // Since isFlipped = true, NSAttributedString.draw works correctly
             let textSize = attrStr.size()
+            if text.rotation != 0 {
+                context.saveGState()
+                let c = text.unrotatedCenter
+                context.translateBy(x: c.x, y: c.y)
+                context.rotate(by: text.rotation)
+                context.translateBy(x: -c.x, y: -c.y)
+            }
             let textRect = NSRect(
                 x: text.position.x,
                 y: text.position.y,
@@ -451,6 +469,9 @@ private class PrintableDocumentView: NSView {
                 height: textSize.height
             )
             attrStr.draw(in: textRect)
+            if text.rotation != 0 {
+                context.restoreGState()
+            }
 
         case .group(let group):
             for child in group.children {

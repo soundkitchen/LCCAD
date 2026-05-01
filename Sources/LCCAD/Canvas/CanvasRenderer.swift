@@ -46,9 +46,17 @@ struct CanvasRenderer {
     }
 
     private func drawRectangle(_ rect: RectangleShape, color: Color, strokeStyle: SwiftUI.StrokeStyle, in context: GraphicsContext) {
-        let screenRect = transform.worldToScreen(rect.boundingBox)
+        let unrotatedWorld = CGRect(origin: rect.origin, size: rect.size)
+        let screenRect = transform.worldToScreen(unrotatedWorld)
         let cr = transform.worldToScreenDistance(rect.cornerRadius)
-        let path = Path(roundedRect: screenRect, cornerRadius: cr)
+        var path = Path(roundedRect: screenRect, cornerRadius: cr)
+        if rect.rotation != 0 {
+            let centerScreen = transform.worldToScreen(rect.unrotatedCenter)
+            let t = CGAffineTransform(translationX: centerScreen.x, y: centerScreen.y)
+                .rotated(by: rect.rotation)
+                .translatedBy(x: -centerScreen.x, y: -centerScreen.y)
+            path = path.applying(t)
+        }
         context.stroke(path, with: .color(color), style: strokeStyle)
     }
 
@@ -163,6 +171,13 @@ struct CanvasRenderer {
     }
 
     private func drawText(_ text: TextShape, color: Color, in context: GraphicsContext) {
+        var ctx = context
+        if text.rotation != 0 {
+            let centerScreen = transform.worldToScreen(text.unrotatedCenter)
+            ctx.translateBy(x: centerScreen.x, y: centerScreen.y)
+            ctx.rotate(by: .radians(text.rotation))
+            ctx.translateBy(x: -centerScreen.x, y: -centerScreen.y)
+        }
         let screenPos = transform.worldToScreen(text.position)
         let screenFontSize = transform.worldToScreenDistance(text.fontSize)
         let clampedSize = max(6, min(screenFontSize, 200))
@@ -195,7 +210,7 @@ struct CanvasRenderer {
                 x: screenPos.x + xOffset,
                 y: screenPos.y + CGFloat(i) * lineHeight
             )
-            context.draw(
+            ctx.draw(
                 Text(line)
                     .font(font)
                     .foregroundColor(color),

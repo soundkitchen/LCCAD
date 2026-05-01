@@ -45,4 +45,10 @@ struct GroupShape: Shape, Codable, Equatable, Sendable {
             children[i].mirror(axis: axis)
         }
     }
+
+    mutating func rotate(around center: CGPoint, angle: CGFloat) {
+        for i in children.indices {
+            children[i].rotate(around: center, angle: angle)
+        }
+    }
 }

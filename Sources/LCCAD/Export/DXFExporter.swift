@@ -120,19 +120,13 @@ enum DXFExporter {
             )
 
         case .rectangle(let rect):
-            let o = rect.origin
-            let w = rect.size.width
-            let h = rect.size.height
-            let corners = [
-                (o.x, o.y), (o.x + w, o.y),
-                (o.x + w, o.y + h), (o.x, o.y + h),
-            ]
+            let corners = rect.rotatedCorners  // [TL, TR, BR, BL] after rotation
             var s = ""
             for i in 0..<4 {
                 let j = (i + 1) % 4
                 s += lineEntity(
-                    x1: corners[i].0, y1: yVal(corners[i].1, options),
-                    x2: corners[j].0, y2: yVal(corners[j].1, options),
+                    x1: corners[i].x, y1: yVal(corners[i].y, options),
+                    x2: corners[j].x, y2: yVal(corners[j].y, options),
                     layer: layer, linetype: lt
                 )
             }
@@ -184,9 +178,18 @@ enum DXFExporter {
             return s
 
         case .text(let text):
+            // DXF TEXT rotation is degrees CCW around the insertion point. Our
+            // rotation pivots around the unrotated bbox center, so the
+            // insertion point needs to be rotated to match.
+            let rotatedPos = text.rotation == 0
+                ? text.position
+                : text.position.rotated(around: text.unrotatedCenter, angle: text.rotation)
+            let rotDeg = text.rotation * 180 / .pi
             return textEntity(
-                x: text.position.x, y: yVal(text.position.y, options),
-                height: text.fontSize, content: text.content, layer: layer
+                x: rotatedPos.x, y: yVal(rotatedPos.y, options),
+                height: text.fontSize, content: text.content,
+                rotationDeg: options.flipY ? -rotDeg : rotDeg,
+                layer: layer
             )
 
         case .group(let group):
@@ -211,8 +214,12 @@ enum DXFExporter {
         "0\nPOINT\n8\n\(layer)\n10\n\(fmt(x))\n20\n\(fmt(y))\n"
     }
 
-    private static func textEntity(x: CGFloat, y: CGFloat, height: CGFloat, content: String, layer: String) -> String {
-        "0\nTEXT\n8\n\(layer)\n10\n\(fmt(x))\n20\n\(fmt(y))\n40\n\(fmt(height))\n1\n\(sanitizeText(content))\n"
+    private static func textEntity(x: CGFloat, y: CGFloat, height: CGFloat, content: String, rotationDeg: CGFloat = 0, layer: String) -> String {
+        var s = "0\nTEXT\n8\n\(layer)\n10\n\(fmt(x))\n20\n\(fmt(y))\n40\n\(fmt(height))\n1\n\(sanitizeText(content))\n"
+        if rotationDeg != 0 {
+            s += "50\n\(fmt(rotationDeg))\n"
+        }
+        return s
     }
 
     // MARK: - Helpers

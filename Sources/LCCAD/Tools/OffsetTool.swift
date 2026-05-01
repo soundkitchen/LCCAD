@@ -29,6 +29,7 @@ enum OffsetTool {
             origin: CGPoint(x: rect.origin.x + inset, y: rect.origin.y + inset),
             size: CGSize(width: max(0, rect.size.width - inset * 2), height: max(0, rect.size.height - inset * 2)),
             cornerRadius: max(0, rect.cornerRadius - inset),
+            rotation: rect.rotation,
             stroke: rect.stroke
         )
     }

@@ -80,6 +80,12 @@ struct ArcShape: Shape, Codable, Equatable, Sendable {
         clockwise.toggle()
     }
 
+    mutating func rotate(around pivot: CGPoint, angle: CGFloat) {
+        center = center.rotated(around: pivot, angle: angle)
+        startAngle += angle
+        endAngle += angle
+    }
+
     // MARK: - Parameterization
 
     var angleSpan: CGFloat {

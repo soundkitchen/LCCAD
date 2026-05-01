@@ -50,7 +50,11 @@ struct RightPanelView: View {
                           let selectedId = editor.selectedShapeIds.first,
                           let shape = editor.findShape(id: selectedId) {
                     PositionSection(editor: editor, boundingBox: shape.boundingBox, unit: editor.document.settings.unit)
-                    SizeSection(boundingBox: shape.boundingBox, unit: editor.document.settings.unit)
+                    SizeSection(
+                        boundingBox: shape.boundingBox,
+                        unit: editor.document.settings.unit,
+                        rotation: rotationDegrees(for: shape)
+                    )
 
                     if case .group(let group) = shape {
                         Text("Group (\(group.children.count) items)")
@@ -83,5 +87,16 @@ struct RightPanelView: View {
             }
         }
         .background(DesignTokens.bgPanel(colorScheme))
+    }
+
+    private func rotationDegrees(for shape: AnyShape) -> CGFloat {
+        let radians: CGFloat
+        switch shape {
+        case .rectangle(let r): radians = r.rotation
+        case .text(let t): radians = t.rotation
+        case .ellipse(let e): radians = e.rotation
+        default: return 0
+        }
+        return radians * 180 / .pi
     }
 }

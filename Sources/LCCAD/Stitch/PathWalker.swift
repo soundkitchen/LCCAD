@@ -247,17 +247,12 @@ enum PathWalkerFactory {
             return segments.count == 1 ? segments[0] : CompositePathWalker(segments: segments)
 
         case .rectangle(let rect):
-            let o = rect.origin
-            let s = rect.size
-            let tl = o
-            let tr = CGPoint(x: o.x + s.width, y: o.y)
-            let br = CGPoint(x: o.x + s.width, y: o.y + s.height)
-            let bl = CGPoint(x: o.x, y: o.y + s.height)
+            let corners = rect.rotatedCorners  // [TL, TR, BR, BL] after rotation
             let segments: [PathWalkable] = [
-                LinePathWalker(start: tl, end: tr),
-                LinePathWalker(start: tr, end: br),
-                LinePathWalker(start: br, end: bl),
-                LinePathWalker(start: bl, end: tl),
+                LinePathWalker(start: corners[0], end: corners[1]),
+                LinePathWalker(start: corners[1], end: corners[2]),
+                LinePathWalker(start: corners[2], end: corners[3]),
+                LinePathWalker(start: corners[3], end: corners[0]),
             ]
             return CompositePathWalker(segments: segments)
 

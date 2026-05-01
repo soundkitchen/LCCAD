@@ -38,4 +38,9 @@ struct EllipseShape: Shape, Codable, Equatable, Sendable {
         center = center.mirrored(across: axis)
         rotation = -rotation
     }
+
+    mutating func rotate(around pivot: CGPoint, angle: CGFloat) {
+        center = center.rotated(around: pivot, angle: angle)
+        rotation += angle
+    }
 }

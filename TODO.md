@@ -10,9 +10,45 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
 |------|--------|------|--------|------|
 | 1 | L. 反転 / 反転コピー（Mirror） | 中 | 低 | ✅ 完了 |
 | 2 | N-a-1. Array（Linear / Grid） | 中 | 低 | ✅ 完了 |
-| 3 | N-a-2. Array（Polar / 円形） | 中-大 | 中 | 未着手 |
+| 3 | N-a-2. Array（Polar / 円形） | 中-大 | 中 | ✅ 完了 |
 | 4 | N-b. 寸法線（Dimension Lines） | 中-大 | 中 | 未着手 |
 | 5 | M. テンプレート機能 | 大 | 中 | 未着手 |
+
+### N-a-2. Array（Polar / 円形配列複製）
+
+- 背景
+  - レザークラフトでは「鋲・スタッズの円形配置」「装飾穴のリング状並べ」「カードホルダーのドット円配置」など円形に等間隔複製したい場面が頻出。
+  - 現状はコピー&ペースト + 手動回転の繰り返しで非効率だった。
+- やったこと
+  - **Shape プロトコル拡張**: `rotate(around:angle:)` を新設。`CGPoint.rotated(around:angle:)` ヘルパーも追加（`GeometryUtils.swift`）。Line/Arc/Bezier/Dot/Ellipse/Group/Rect/Text 全てに実装。
+  - **Rect/Text に `rotation` プロパティ新設**: `EllipseShape.rotation` と同じパターンに従い、`boundingBox` は回転後の AABB を返し、`hitTest` は逆回転で判定。`mirror(axis:)` は既存パターンに合わせて rotation を negate。Codable に decodeIfPresent で旧ファイル互換（default 0）。
+  - **描画/エクスポート系の rotation 適用**:
+    - `CanvasRenderer`: Rect は Path に `applying(CGAffineTransform)`、Text は GraphicsContext を中心点で translate→rotate→translate
+    - `SVGExporter`: `<rect>`/`<text>` に `transform="rotate(deg cx cy)"` 属性
+    - `DXFExporter`: TEXT エンティティの 50 グループコード（rotation degrees）。Rect は回転後の 4 頂点を LINE で出力
+    - `PrintCoordinator`: CGContext を save/rotate/restore で印刷時も回転
+    - `SnapEngine`: `rectangleSnapPoints` を回転後の corners から計算
+    - `PathWalker`: stitch 生成も回転後 corners を辿る
+    - `OffsetTool`: rectangle offset で `rotation` を継承
+  - **`ArrayParameters` 拡張**: `Mode.polar` 追加。polarCount/polarRadius/polarStartAngle/polarSweepAngle/polarRotateItems フィールド。
+  - **`computeArrayPlacements`**: 戻り値を `[CGPoint]` から `[ArrayPlacement]`（offset + rotation のペア）に変更。Linear/Grid は rotation=0、Polar は bbox 中心を pivot に各ステップ角度ぶん回転＋オフセット。
+  - **`arraySelectedShapes` フロー**: `clone.rotate(around: pivot, angle:) → translate(by: offset) → duplicateStitchLines → regenerateStitchLines → registerUndo`（Mirror/Linear 同型）。
+  - **`ArraySheet.swift`**: Picker に Polar 追加。POLAR フォーム（Count / Radius / Start Angle / Sweep / Rotate Items トグル）。**選択中のモードのフォームのみ表示**する方針に変更（switch でレンダリング、sheet 高さもモード別に動的設定）。
+  - **入力フィールドのライブ反映**: `IntInputField` / `FloatInputField` に `onChange(of: editText)` を追加し、フォーカス保持中でもキー入力ごとに `params` を更新。Apply 直前にフォーカス確定を待つ必要がなくなった。
+  - **右パネル `SizeSection`**: Rect/Text/Ellipse の場合に rotation（°）を表示。`RightPanelView.rotationDegrees(for:)` ヘルパーで radian → degrees 変換。
+  - **Pencil デザイン**: Array Sheet (Light/Dark) を更新。Mode Picker を 3 択化、Light=Linear active / Dark=Polar active で「アクティブモードのみ表示」スタイルを反映。
+  - メニュー: 既存 Arrange > Array... (⌥⌘A) を流用（メニュー追加なし）。
+- 完了条件
+  - Polar mode で Count / Radius / Start Angle / Sweep が反映される。✅
+  - Sweep < 360（半円・四分円など）でも端点を含めた等配が成立。✅
+  - Rotate Items の ON/OFF で各複製の向きが切り替わる。✅
+  - ステッチが貼られた図形を Polar Array → 各複製にも穴が再生成される。✅
+  - Light / Dark 両対応。✅
+  - Undo / Redo で完全に戻る。✅
+  - 旧 .lccad ファイル（rotation フィールド無し）が rotation = 0 で正しく開ける。✅
+  - SVG / DXF エクスポートで Rect / Text の回転が反映される。✅
+
+---
 
 ### N-a-1. Array（Linear / Grid 配列複製）
 
