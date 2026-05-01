@@ -46,6 +46,9 @@ struct MainEditorView: View {
         .sheet(isPresented: $editor.showPrickingIronSheet) {
             PrickingIronSheet(editor: editor)
         }
+        .sheet(isPresented: $editor.showArraySheet) {
+            ArraySheet(editor: editor)
+        }
     }
 
     // MARK: - Canvas with Ruler

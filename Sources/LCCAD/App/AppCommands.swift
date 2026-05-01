@@ -175,6 +175,14 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("m", modifiers: [.command, .control])
             .disabled(!hasAnySelection)
+
+            Divider()
+
+            Button("Array...") {
+                editor?.showArraySheet = true
+            }
+            .keyboardShortcut("a", modifiers: [.command, .option])
+            .disabled(!hasAnySelection)
         }
 
         // Draw menu — tool switching (shortcuts are single-key, handled via onKeyPress in CanvasView)
