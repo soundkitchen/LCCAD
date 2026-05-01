@@ -30,4 +30,8 @@ struct DotShape: Shape, Codable, Equatable, Sendable {
     mutating func mirror(axis: MirrorAxis) {
         position = position.mirrored(across: axis)
     }
+
+    mutating func rotate(around center: CGPoint, angle: CGFloat) {
+        position = position.rotated(around: center, angle: angle)
+    }
 }

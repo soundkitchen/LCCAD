@@ -38,6 +38,11 @@ struct LineShape: Shape, Codable, Equatable, Sendable {
         endPoint = endPoint.mirrored(across: axis)
     }
 
+    mutating func rotate(around center: CGPoint, angle: CGFloat) {
+        startPoint = startPoint.rotated(around: center, angle: angle)
+        endPoint = endPoint.rotated(around: center, angle: angle)
+    }
+
     private func distanceFromPointToLineSegment(point: CGPoint, start: CGPoint, end: CGPoint) -> CGFloat {
         let dx = end.x - start.x
         let dy = end.y - start.y

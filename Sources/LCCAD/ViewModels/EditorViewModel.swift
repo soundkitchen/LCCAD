@@ -1478,7 +1478,7 @@ final class EditorViewModel {
     // MARK: - Array
 
     struct ArrayParameters: Equatable {
-        enum Mode { case linear, grid }
+        enum Mode { case linear, grid, polar }
         var mode: Mode
         // Linear: total count including the original (>= 2)
         var count: Int
@@ -1489,6 +1489,13 @@ final class EditorViewModel {
         var cols: Int
         var rowSpacing: CGFloat
         var colSpacing: CGFloat
+        // Polar: total count including the original (>= 2), radius (mm),
+        // start angle and sweep angle in degrees, optional item rotation
+        var polarCount: Int
+        var polarRadius: CGFloat
+        var polarStartAngle: CGFloat
+        var polarSweepAngle: CGFloat
+        var polarRotateItems: Bool
 
         static let `default` = ArrayParameters(
             mode: .linear,
@@ -1498,8 +1505,21 @@ final class EditorViewModel {
             rows: 3,
             cols: 3,
             rowSpacing: 5,
-            colSpacing: 5
+            colSpacing: 5,
+            polarCount: 6,
+            polarRadius: 30,
+            polarStartAngle: 0,
+            polarSweepAngle: 360,
+            polarRotateItems: true
         )
+    }
+
+    /// One placement in an array operation: where to translate the clone, and
+    /// how much extra to rotate it about its own new center. Linear/Grid use
+    /// rotation = 0; Polar uses both.
+    private struct ArrayPlacement {
+        var offset: CGPoint
+        var rotation: CGFloat  // radians
     }
 
     /// Replicate the current selection in a linear or rectangular grid pattern.
@@ -1508,10 +1528,11 @@ final class EditorViewModel {
     /// each clone via the same path Mirror uses.
     func arraySelectedShapes(_ params: ArrayParameters) {
         guard hasSelection, let bbox = selectionBoundingBox else { return }
-        let offsets = computeArrayOffsets(params: params, bbox: bbox)
-        guard !offsets.isEmpty else { return }
+        let placements = computeArrayPlacements(params: params, bbox: bbox)
+        guard !placements.isEmpty else { return }
 
         let old = document
+        let pivot = CGPoint(x: bbox.midX, y: bbox.midY)
 
         // Snapshot the originals so we don't iterate over clones we just inserted.
         var originals: [(li: Int, shape: AnyShape)] = []
@@ -1522,11 +1543,17 @@ final class EditorViewModel {
         }
 
         var newSelection: Set<UUID> = []
-        for offset in offsets {
+        for placement in placements {
             for (li, shape) in originals {
                 let (cloned, idMap) = cloneWithFreshIds(shape)
                 var moved = cloned
-                moved.translate(by: offset)
+                if placement.rotation != 0 {
+                    // Rotate around the selection bbox center first, then translate.
+                    // Translating first would move the rotation pivot away from
+                    // the bbox center and produce wrong placements.
+                    moved.rotate(around: pivot, angle: placement.rotation)
+                }
+                moved.translate(by: placement.offset)
                 document.layers[li].shapes.append(moved)
                 duplicateStitchLines(inLayer: li, idMap: idMap)
                 newSelection.formUnion(idMap.values)
@@ -1541,24 +1568,63 @@ final class EditorViewModel {
         registerUndo(actionName: "Array", oldDocument: old)
     }
 
-    private func computeArrayOffsets(params: ArrayParameters, bbox: CGRect) -> [CGPoint] {
+    private func computeArrayPlacements(params: ArrayParameters, bbox: CGRect) -> [ArrayPlacement] {
         switch params.mode {
         case .linear:
             guard params.count > 1 else { return [] }
             return (1..<params.count).map { i in
-                CGPoint(x: CGFloat(i) * params.offsetX,
-                        y: CGFloat(i) * params.offsetY)
+                ArrayPlacement(
+                    offset: CGPoint(x: CGFloat(i) * params.offsetX,
+                                    y: CGFloat(i) * params.offsetY),
+                    rotation: 0
+                )
             }
         case .grid:
             guard params.rows >= 1, params.cols >= 1 else { return [] }
             let dx = bbox.width + params.colSpacing
             let dy = bbox.height + params.rowSpacing
-            var result: [CGPoint] = []
+            var result: [ArrayPlacement] = []
             for r in 0..<params.rows {
                 for c in 0..<params.cols {
                     if r == 0 && c == 0 { continue }
-                    result.append(CGPoint(x: CGFloat(c) * dx, y: CGFloat(r) * dy))
+                    result.append(ArrayPlacement(
+                        offset: CGPoint(x: CGFloat(c) * dx, y: CGFloat(r) * dy),
+                        rotation: 0
+                    ))
                 }
+            }
+            return result
+        case .polar:
+            guard params.polarCount > 1 else { return [] }
+            // The original sits at angle 0 around the bbox center; clones are
+            // produced by rotating the original by stepRad about that center.
+            // Sweep == 360 distributes count copies around the full circle;
+            // smaller sweeps distribute the copies including endpoints (so
+            // count = N puts copies at 0/sweep/N-1, 2*sweep/N-1, … sweep).
+            let isFullCircle = abs(params.polarSweepAngle - 360) < 0.001
+            let stepDeg = isFullCircle
+                ? params.polarSweepAngle / CGFloat(params.polarCount)
+                : params.polarSweepAngle / CGFloat(max(params.polarCount - 1, 1))
+            // The original "starts" at polarStartAngle along the radius. To put
+            // it on the radius circle we offset it by the start vector first,
+            // then rotate copies.
+            let startRad = params.polarStartAngle * .pi / 180
+            let baseOffset = CGPoint(
+                x: params.polarRadius * cos(startRad),
+                y: params.polarRadius * sin(startRad)
+            )
+            var result: [ArrayPlacement] = []
+            for i in 1..<params.polarCount {
+                let stepRad = (stepDeg * CGFloat(i)) * .pi / 180
+                // Rotate the base offset by stepRad around the origin to find
+                // where this clone's center should be relative to the original.
+                let rotatedTip = baseOffset.rotated(around: .zero, angle: stepRad)
+                let cloneOffset = CGPoint(x: rotatedTip.x - baseOffset.x,
+                                          y: rotatedTip.y - baseOffset.y)
+                result.append(ArrayPlacement(
+                    offset: cloneOffset,
+                    rotation: params.polarRotateItems ? stepRad : 0
+                ))
             }
             return result
         }
@@ -1581,7 +1647,7 @@ final class EditorViewModel {
             c.isLocked = s.isLocked
             return .line(c)
         case .rectangle(let s):
-            var c = RectangleShape(id: newId, origin: s.origin, size: s.size, cornerRadius: s.cornerRadius, stroke: s.stroke)
+            var c = RectangleShape(id: newId, origin: s.origin, size: s.size, cornerRadius: s.cornerRadius, rotation: s.rotation, stroke: s.stroke)
             c.isLocked = s.isLocked
             return .rectangle(c)
         case .ellipse(let s):
@@ -1607,7 +1673,7 @@ final class EditorViewModel {
             var c = TextShape(id: newId, position: s.position, content: s.content,
                               fontSize: s.fontSize, fontName: s.fontName,
                               isBold: s.isBold, isItalic: s.isItalic,
-                              textAlignment: s.textAlignment, stroke: s.stroke)
+                              textAlignment: s.textAlignment, rotation: s.rotation, stroke: s.stroke)
             c.isLocked = s.isLocked
             return .text(c)
         case .group(let s):

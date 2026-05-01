@@ -192,7 +192,7 @@ Sources/LCCAD/
 | **整列** | `alignSelectedShapes(_:)` | 左/右/上/下/水平中央/垂直中央揃え（Undo 対応） |
 | **分布** | `distributeSelectedShapes(_:)` | 水平/垂直等間隔分布（3個以上必要、Undo 対応） |
 | **反転** | `mirrorSelectedShapes(_:copy:)` | 縦軸/横軸で反転。in-place（中心軸）または copy（端軸で複製＋反転）（Undo 対応） |
-| **配列** | `arraySelectedShapes(_:)` | Linear / Grid で複製を一括生成（Mirror Copy 同型のステッチ追従、Undo 対応） |
+| **配列** | `arraySelectedShapes(_:)` | Linear / Grid / Polar で複製を一括生成。Polar は bbox 中心を pivot に rotate→translate（Mirror Copy 同型のステッチ追従、Undo 対応） |
 | **ページ** | `addPage(at:)` | キャンバスクリック位置にページ追加（Undo 対応） |
 | **ページ** | `deleteSelectedPage()` | 選択ページ削除（Undo 対応） |
 | **ページ** | `moveSelectedPage(by:)` | ページドラッグ移動（PageSnapEngine 連動） |
@@ -254,33 +254,74 @@ Copy モードが `visualBoundingBox` を使うのは、`boundingBox` がレン�
 
 Copy モードでは `cloneWithFreshIds` で全階層 UUID を再発行（Group の子も含む）、`duplicateStitchLines` で `sourceShapeId` を新 id に張り替えたステッチラインを複製、その後 `regenerateStitchLines` で穴を再生成する。
 
-### Array（Linear / Grid 配列複製）
+### Array（Linear / Grid / Polar 配列複製）
 
-Mirror と同じ「複製 + 変形」パイプラインを `translate(by:)` で繰り返し、選択を等間隔に配列複製する。Shape プロトコルへの新メソッド追加は不要（`translate(by:)` は全 Shape で実装済み）。
+Mirror と同じ「複製 + 変形」パイプラインを `translate(by:)`（および Polar では `rotate(around:angle:)`）で繰り返し、選択を等間隔に配列複製する。Linear / Grid は `translate` のみ、Polar は bbox 中心を pivot に `rotate` → `translate` の二段階で配置する。
 
 ```swift
 struct ArrayParameters {
-    enum Mode { case linear, grid }
+    enum Mode { case linear, grid, polar }
     var mode: Mode
-    var count: Int                 // Linear: 元含めた総数 (≥ 2)
-    var offsetX, offsetY: CGFloat  // Linear: 1 ステップあたりのベクトル (mm)
-    var rows, cols: Int            // Grid: 行 × 列 (≥ 1)
-    var rowSpacing, colSpacing: CGFloat  // Grid: 中心間距離 = bbox サイズ + spacing (mm)
+    // Linear / Grid
+    var count: Int                              // 元含めた総数 (≥ 2)
+    var offsetX, offsetY: CGFloat               // 1 ステップあたりのベクトル (mm)
+    var rows, cols: Int                         // 行 × 列 (≥ 1)
+    var rowSpacing, colSpacing: CGFloat         // 中心間距離 = bbox サイズ + spacing
+    // Polar
+    var polarCount: Int                         // 元含めた総数 (≥ 2)
+    var polarRadius: CGFloat                    // pivot から元シェイプまでの距離 (mm)
+    var polarStartAngle, polarSweepAngle: CGFloat  // 度
+    var polarRotateItems: Bool                  // 各複製を中心向きに回転するか
 }
 ```
 
-`EditorViewModel.arraySelectedShapes(_:)` がメニュー Arrange > Array... (⌥⌘A) から呼ばれ、`computeArrayOffsets(params:bbox:)` でオフセット集合を作って各クローンに `translate(by:)` を適用する:
+`EditorViewModel.arraySelectedShapes(_:)` がメニュー Arrange > Array... (⌥⌘A) から呼ばれ、`computeArrayPlacements(params:bbox:)` で `(offset, rotation)` のペア集合を作って各クローンに適用する:
 
-| モード | オフセット集合 |
-|--------|---------------|
-| Linear | `(1..<count).map { i in CGPoint(i * offsetX, i * offsetY) }` |
-| Grid | `(r,c) ∈ {0..<rows} × {0..<cols} \ {(0,0)}` の `(c * (bbox.w + colSpacing), r * (bbox.h + rowSpacing))` |
+| モード | placement の生成 |
+|--------|-----------------|
+| Linear | `(1..<count)` で `offset = i * (offsetX, offsetY)`, `rotation = 0` |
+| Grid | `(r,c) ∈ {0..<rows} × {0..<cols} \ {(0,0)}` で `offset = (c * (bbox.w + colSpacing), r * (bbox.h + rowSpacing))`, `rotation = 0` |
+| Polar | `step = sweep / count`（full circle） or `sweep / (count-1)`（部分）。各 `i` で `offset = baseOffset.rotated(by: i*step) - baseOffset`, `rotation = i*step`（rotateItems=ON のみ）。`baseOffset = polarRadius * (cos, sin)(startAngle)` |
 
-Mirror Copy と異なり、Array は **元の選択を維持し** クローンを `selectedShapeIds.formUnion(newSelection)` で追加する（リピート操作の連鎖を意図）。複製パスは Mirror Copy と同一: `cloneWithFreshIds` → `translate` → `duplicateStitchLines` → `regenerateStitchLines` → `registerUndo`。
+Polar の `rotation` は bbox 中心を pivot に各クローン全体を rigid-rotate するために使う。Polar Array は事前に `rotate(around: pivot)` で姿勢を整え、その後 `translate(by: offset)` で位置を確定する（順序を逆にすると pivot がずれて位置が崩れる）。
 
-UI は `Sources/LCCAD/Views/ArraySheet.swift`（PrickingIronSheet 同型のモーダルシート）。Mode Picker（segmented）で Linear / Grid を切り替え、非アクティブセクションは `.opacity(0.4)` + `.disabled(true)` で半透明＋無効化される。
+Mirror Copy と異なり、Array は **元の選択を維持し** クローンを `selectedShapeIds.formUnion(newSelection)` で追加する（リピート操作の連鎖を意図）。複製パスは Mirror Copy と同一: `cloneWithFreshIds` → `rotate?` → `translate` → `duplicateStitchLines` → `regenerateStitchLines` → `registerUndo`。
 
-なお Polar（円形配列）は Shape プロトコルへの `rotate(around:angle:)` 追加と Rectangle / Text の回転モデル拡張を伴うため、Mirror 級の独立タスク（N-a-2）として後続に切り出している。
+UI は `Sources/LCCAD/Views/ArraySheet.swift`（PrickingIronSheet 同型のモーダルシート）。Mode Picker（segmented）で Linear / Grid / Polar を切り替え、`switch params.mode` で **アクティブなフォームのみ描画**する（旧来の opacity 0.4 で全表示する方式から、選択中だけ表示する方式に変更）。Sheet 高さもモード別に動的設定（Linear=340 / Grid=380 / Polar=410）。入力フィールドは `onChange(of: editText)` でフォーカス保持中もライブ反映され、Apply 直前にフォーカス確定を待つ必要がない。
+
+#### Shape プロトコルの `rotate(around:angle:)`
+
+Polar Array のために `Shape` プロトコルに追加した必須メソッド:
+
+```swift
+mutating func rotate(around center: CGPoint, angle: CGFloat)  // angle は radian, CCW 正
+```
+
+`CGPoint.rotated(around:angle:)` ヘルパー（`GeometryUtils.swift`）を全シェイプで利用する。`LineShape` / `BezierShape` / `DotShape` は座標を直接回転、`ArcShape` は `center` を回転 + `startAngle/endAngle += angle`、`EllipseShape` は `center` を回転 + `rotation += angle`、`GroupShape` は子に再帰。
+
+#### Rectangle / Text の `rotation` プロパティ
+
+Polar Array で `polarRotateItems = true` のときに各複製を回転させるため、`RectangleShape` と `TextShape` に `EllipseShape.rotation` 同型の `rotation: CGFloat` プロパティを追加した。
+
+- `boundingBox` は **回転後の AABB**（unrotated 4 角を `unrotatedCenter` 周りで回転して min/max）を返す。axis-aligned の origin/size は元の論理矩形として保持される。
+- `hitTest` は test point を `-rotation` で逆回転してから unrotated rect で判定。
+- `mirror(axis:)` は `rotation = -rotation`（既存 Ellipse 同型）。
+- 旧 `.lccad` ファイル互換: `decodeIfPresent` で rotation を読み、無ければ default 0。
+
+描画・エクスポート系で rotation を反映:
+
+| 経路 | 適用方法 |
+|------|---------|
+| `CanvasRenderer.drawRectangle` | unrotated rect の Path を構築し `applying(CGAffineTransform)` で回転 |
+| `CanvasRenderer.drawText` | `GraphicsContext` を `translate → rotate(.radians) → translate` で回転後にテキスト描画 |
+| `SVGExporter` | `<rect>` / `<text>` に `transform="rotate(deg cx cy)"` 属性を付与 |
+| `DXFExporter` | TEXT は 50 グループコード（rotation degrees）に出力。Rect は `rotatedCorners` を 4 本の LINE で出力 |
+| `PrintCoordinator` | CGContext を save/translate/rotate/restore で囲んで描画 |
+| `SnapEngine` | `rectangleSnapPoints` を `rect.rotatedCorners` から計算（snap 端点も回転に追従） |
+| `PathWalker` | rectangle の stitch 生成も `rotatedCorners` を辿る |
+| `OffsetTool` | rectangle offset で `rotation` を継承 |
+
+`SnapEngine` と `PathWalker` の更新は重要で、これを忘れると回転矩形のスナップ端点が回転前の位置に取り残されたり、ステッチが回転しないラインに沿って生成されて穴の位置がずれる。
 
 ### ステッチラインの図形追従
 

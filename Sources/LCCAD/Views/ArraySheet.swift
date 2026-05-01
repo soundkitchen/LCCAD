@@ -13,7 +13,7 @@ struct ArraySheet: View {
             content
             actionBar
         }
-        .frame(width: 440, height: 480)
+        .frame(width: 440, height: sheetHeight)
         .background(DesignTokens.bgPanel(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
@@ -46,15 +46,17 @@ struct ArraySheet: View {
         VStack(alignment: .leading, spacing: 14) {
             modePicker
 
-            sectionHeader("LINEAR", active: params.mode == .linear)
-            linearForm
-                .opacity(params.mode == .linear ? 1.0 : 0.4)
-                .disabled(params.mode != .linear)
-
-            sectionHeader("GRID", active: params.mode == .grid)
-            gridForm
-                .opacity(params.mode == .grid ? 1.0 : 0.4)
-                .disabled(params.mode != .grid)
+            switch params.mode {
+            case .linear:
+                sectionHeader("LINEAR", active: true)
+                linearForm
+            case .grid:
+                sectionHeader("GRID", active: true)
+                gridForm
+            case .polar:
+                sectionHeader("POLAR", active: true)
+                polarForm
+            }
 
             Spacer(minLength: 0)
         }
@@ -62,10 +64,21 @@ struct ArraySheet: View {
         .frame(maxHeight: .infinity)
     }
 
+    /// Sized to fit the tallest form (Polar) so the sheet doesn't jump
+    /// dimensions when the user switches modes mid-edit.
+    private var sheetHeight: CGFloat {
+        switch params.mode {
+        case .linear: return 340
+        case .grid:   return 380
+        case .polar:  return 410
+        }
+    }
+
     private var modePicker: some View {
         Picker("", selection: $params.mode) {
             Text("Linear").tag(EditorViewModel.ArrayParameters.Mode.linear)
             Text("Grid").tag(EditorViewModel.ArrayParameters.Mode.grid)
+            Text("Polar").tag(EditorViewModel.ArrayParameters.Mode.polar)
         }
         .pickerStyle(.segmented)
         .labelsHidden()
@@ -106,6 +119,29 @@ struct ArraySheet: View {
             }
             row(label: "Col Spacing") {
                 floatField(value: params.colSpacing, suffix: "mm") { params.colSpacing = $0 }
+            }
+        }
+    }
+
+    private var polarForm: some View {
+        VStack(spacing: 8) {
+            row(label: "Count") {
+                intField(value: params.polarCount, range: 2...100) { params.polarCount = $0 }
+            }
+            row(label: "Radius") {
+                floatField(value: params.polarRadius, suffix: "mm") { params.polarRadius = $0 }
+            }
+            row(label: "Start Angle") {
+                floatField(value: params.polarStartAngle, suffix: "°") { params.polarStartAngle = $0 }
+            }
+            row(label: "Sweep") {
+                floatField(value: params.polarSweepAngle, suffix: "°") { params.polarSweepAngle = $0 }
+            }
+            row(label: "Rotate Items") {
+                Toggle("", isOn: $params.polarRotateItems)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
             }
         }
     }
@@ -197,6 +233,16 @@ private struct IntInputField: View {
                         commit()
                     }
                 }
+                .onChange(of: editText) { _, newText in
+                    // Live-commit: as long as the text parses to a number we
+                    // push it to the binding immediately so Apply doesn't read
+                    // stale values when the field still has focus.
+                    guard isEditing else { return }
+                    if let parsed = Int(newText) {
+                        let clamped = min(max(parsed, range.lowerBound), range.upperBound)
+                        if clamped != value { onCommit(clamped) }
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 8)
@@ -247,6 +293,13 @@ private struct FloatInputField: View {
                         isEditing = true
                     } else {
                         commit()
+                    }
+                }
+                .onChange(of: editText) { _, newText in
+                    guard isEditing else { return }
+                    if let parsed = Double(newText) {
+                        let next = CGFloat(parsed)
+                        if next != value { onCommit(next) }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

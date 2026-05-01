@@ -127,6 +127,9 @@ protocol Shape: Identifiable, Codable, Sendable {
 
     /// Reflect the shape across the given world-space axis
     mutating func mirror(axis: MirrorAxis)
+
+    /// Rotate the shape around the given world-space point by `angle` radians (CCW positive).
+    mutating func rotate(around center: CGPoint, angle: CGFloat)
 }
 
 extension Shape {
@@ -274,6 +277,19 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .bezier(var s): s.mirror(axis: axis); self = .bezier(s)
         case .text(var s): s.mirror(axis: axis); self = .text(s)
         case .group(var s): s.mirror(axis: axis); self = .group(s)
+        }
+    }
+
+    mutating func rotate(around center: CGPoint, angle: CGFloat) {
+        switch self {
+        case .line(var s): s.rotate(around: center, angle: angle); self = .line(s)
+        case .rectangle(var s): s.rotate(around: center, angle: angle); self = .rectangle(s)
+        case .ellipse(var s): s.rotate(around: center, angle: angle); self = .ellipse(s)
+        case .arc(var s): s.rotate(around: center, angle: angle); self = .arc(s)
+        case .dot(var s): s.rotate(around: center, angle: angle); self = .dot(s)
+        case .bezier(var s): s.rotate(around: center, angle: angle); self = .bezier(s)
+        case .text(var s): s.rotate(around: center, angle: angle); self = .text(s)
+        case .group(var s): s.rotate(around: center, angle: angle); self = .group(s)
         }
     }
 }

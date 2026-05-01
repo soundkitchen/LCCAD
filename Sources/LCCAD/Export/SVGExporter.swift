@@ -56,6 +56,11 @@ enum SVGExporter {
             if rect.cornerRadius > 0 {
                 s += " rx=\"\(fmt(rect.cornerRadius))\""
             }
+            if rect.rotation != 0 {
+                let deg = rect.rotation * 180 / .pi
+                let c = rect.unrotatedCenter
+                s += " transform=\"rotate(\(fmt(deg)) \(fmt(c.x)) \(fmt(c.y)))\""
+            }
             s += " \(strokeAttr)/>"
             return s
 
@@ -93,7 +98,14 @@ enum SVGExporter {
             return "<path d=\"\(d)\" \(strokeAttr)/>"
 
         case .text(let text):
-            return "<text x=\"\(fmt(text.position.x))\" y=\"\(fmt(text.position.y))\" font-size=\"\(fmt(text.fontSize))\" fill=\"\(colorHex(text.stroke.color))\">\(escapeXML(text.content))</text>"
+            var s = "<text x=\"\(fmt(text.position.x))\" y=\"\(fmt(text.position.y))\" font-size=\"\(fmt(text.fontSize))\" fill=\"\(colorHex(text.stroke.color))\""
+            if text.rotation != 0 {
+                let deg = text.rotation * 180 / .pi
+                let c = text.unrotatedCenter
+                s += " transform=\"rotate(\(fmt(deg)) \(fmt(c.x)) \(fmt(c.y)))\""
+            }
+            s += ">\(escapeXML(text.content))</text>"
+            return s
 
         case .group(let group):
             var s = "<g>"

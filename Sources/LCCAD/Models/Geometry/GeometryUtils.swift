@@ -63,6 +63,19 @@ extension CGPoint {
         case .horizontal(let y): return CGPoint(x: self.x, y: 2 * y - self.y)
         }
     }
+
+    /// Rotate this point around `center` by `angle` radians (CCW positive in
+    /// math convention). The flipped Y of macOS canvas is irrelevant here —
+    /// we just apply a standard 2D rotation in the same coordinate system the
+    /// rest of the geometry uses.
+    func rotated(around center: CGPoint, angle: CGFloat) -> CGPoint {
+        let dx = x - center.x
+        let dy = y - center.y
+        let c = cos(angle)
+        let s = sin(angle)
+        return CGPoint(x: center.x + dx * c - dy * s,
+                       y: center.y + dx * s + dy * c)
+    }
 }
 
 // MARK: - CGRect extensions

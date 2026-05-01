@@ -121,20 +121,24 @@ struct SnapEngine {
     }
 
     private func rectangleSnapPoints(_ rect: RectangleShape) -> [SnapCandidate] {
-        let bb = rect.boundingBox
+        let corners = rect.rotatedCorners  // [TL, TR, BR, BL] after rotation
+        let center = rect.unrotatedCenter
+        let midpoints = [
+            corners[0].midpoint(to: corners[1]),  // top edge
+            corners[1].midpoint(to: corners[2]),  // right edge
+            corners[2].midpoint(to: corners[3]),  // bottom edge
+            corners[3].midpoint(to: corners[0]),  // left edge
+        ]
         return [
-            // Corners
-            SnapCandidate(point: CGPoint(x: bb.minX, y: bb.minY), kind: .endpoint),
-            SnapCandidate(point: CGPoint(x: bb.maxX, y: bb.minY), kind: .endpoint),
-            SnapCandidate(point: CGPoint(x: bb.minX, y: bb.maxY), kind: .endpoint),
-            SnapCandidate(point: CGPoint(x: bb.maxX, y: bb.maxY), kind: .endpoint),
-            // Edge midpoints
-            SnapCandidate(point: CGPoint(x: bb.midX, y: bb.minY), kind: .midpoint),
-            SnapCandidate(point: CGPoint(x: bb.midX, y: bb.maxY), kind: .midpoint),
-            SnapCandidate(point: CGPoint(x: bb.minX, y: bb.midY), kind: .midpoint),
-            SnapCandidate(point: CGPoint(x: bb.maxX, y: bb.midY), kind: .midpoint),
-            // Center
-            SnapCandidate(point: bb.center, kind: .center),
+            SnapCandidate(point: corners[0], kind: .endpoint),
+            SnapCandidate(point: corners[1], kind: .endpoint),
+            SnapCandidate(point: corners[2], kind: .endpoint),
+            SnapCandidate(point: corners[3], kind: .endpoint),
+            SnapCandidate(point: midpoints[0], kind: .midpoint),
+            SnapCandidate(point: midpoints[1], kind: .midpoint),
+            SnapCandidate(point: midpoints[2], kind: .midpoint),
+            SnapCandidate(point: midpoints[3], kind: .midpoint),
+            SnapCandidate(point: center, kind: .center),
         ]
     }
 
