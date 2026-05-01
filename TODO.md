@@ -9,8 +9,33 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
 | 順序 | タスク | 工数 | リスク | 状態 |
 |------|--------|------|--------|------|
 | 1 | L. 反転 / 反転コピー（Mirror） | 中 | 低 | ✅ 完了 |
-| 2 | M. テンプレート機能 | 大 | 中 | 未着手 |
-| 3 | N. 寸法線 / Array（配列複製） | 中 | 中 | 未着手 |
+| 2 | N-a-1. Array（Linear / Grid） | 中 | 低 | ✅ 完了 |
+| 3 | N-a-2. Array（Polar / 円形） | 中-大 | 中 | 未着手 |
+| 4 | N-b. 寸法線（Dimension Lines） | 中-大 | 中 | 未着手 |
+| 5 | M. テンプレート機能 | 大 | 中 | 未着手 |
+
+### N-a-1. Array（Linear / Grid 配列複製）
+
+- 背景
+  - レザークラフトでは「等間隔のドット配列」「装飾穴のグリッド配置」「複数の同パーツを並べる」が頻出。
+  - これまではコピー&ペースト + 手動移動の繰り返しで非効率だった。
+- やったこと
+  - `EditorViewModel.ArrayParameters` 構造体（mode: linear/grid, count, offsetX/Y, rows, cols, rowSpacing, colSpacing）。
+  - `arraySelectedShapes(_:)` を追加。Mirror Copy 同型: `cloneWithFreshIds` → `translate(by:)` → `duplicateStitchLines` → `regenerateStitchLines` → `registerUndo`。Shape プロトコルへの新メソッド追加なし（既存の `translate(by:)` をそのまま再利用）。
+  - `computeArrayOffsets(params:bbox:)` で Linear / Grid のオフセット集合を生成。
+    - Linear: `count` 個（元含む）を `offsetX/Y` 方向に並べる。
+    - Grid: `rows × cols` 個。ピッチは「選択 bbox 幅・高さ + spacing」で中心間距離。
+  - 元図形は維持し、選択は「元 + 全複製」を保持（リピート操作しやすい）。
+  - `Sources/LCCAD/Views/ArraySheet.swift`（新規）: モード Picker + Linear / Grid フォーム + Cancel / Apply。PrickingIronSheet 同型のレイアウト・カラートークン。非アクティブセクションは opacity 0.4 で disable。
+  - メニュー: Arrange > Array... (⌥⌘A)。
+  - Pencil: `Array Sheet - Light/Dark` アートボードを `design/lccad.pen` に追加。
+- 完了条件
+  - 単一 / 複数選択でモード Linear / Grid どちらも動作する。✅
+  - ステッチが貼られた図形を Array → 各複製にも穴が再生成される。✅
+  - Undo / Redo で完全に戻る（document スナップショットに含まれる）。✅
+  - Light / Dark 両対応。✅
+
+---
 
 ### L. 反転 / 反転コピー（Mirror）
 

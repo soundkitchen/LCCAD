@@ -197,6 +197,9 @@ final class EditorViewModel {
     var selectedIronId: UUID?
     var showPrickingIronSheet: Bool = false
 
+    // Array sheet state
+    var showArraySheet: Bool = false
+
     var activePrickingIron: PrickingIron? {
         if let id = selectedIronId {
             return document.prickingIrons.first { $0.id == id }
@@ -1470,6 +1473,95 @@ final class EditorViewModel {
 
         guard old != document else { return }
         registerUndo(actionName: actionName, oldDocument: old)
+    }
+
+    // MARK: - Array
+
+    struct ArrayParameters: Equatable {
+        enum Mode { case linear, grid }
+        var mode: Mode
+        // Linear: total count including the original (>= 2)
+        var count: Int
+        var offsetX: CGFloat
+        var offsetY: CGFloat
+        // Grid: rows × cols including the original (>= 1)
+        var rows: Int
+        var cols: Int
+        var rowSpacing: CGFloat
+        var colSpacing: CGFloat
+
+        static let `default` = ArrayParameters(
+            mode: .linear,
+            count: 5,
+            offsetX: 10,
+            offsetY: 0,
+            rows: 3,
+            cols: 3,
+            rowSpacing: 5,
+            colSpacing: 5
+        )
+    }
+
+    /// Replicate the current selection in a linear or rectangular grid pattern.
+    /// The original shapes stay in place; clones are inserted into the same layer at each
+    /// non-zero offset. Stitch lines on the originals are duplicated and regenerated for
+    /// each clone via the same path Mirror uses.
+    func arraySelectedShapes(_ params: ArrayParameters) {
+        guard hasSelection, let bbox = selectionBoundingBox else { return }
+        let offsets = computeArrayOffsets(params: params, bbox: bbox)
+        guard !offsets.isEmpty else { return }
+
+        let old = document
+
+        // Snapshot the originals so we don't iterate over clones we just inserted.
+        var originals: [(li: Int, shape: AnyShape)] = []
+        for id in selectedShapeIds {
+            if let (li, si) = findShapeLocation(id: id) {
+                originals.append((li, document.layers[li].shapes[si]))
+            }
+        }
+
+        var newSelection: Set<UUID> = []
+        for offset in offsets {
+            for (li, shape) in originals {
+                let (cloned, idMap) = cloneWithFreshIds(shape)
+                var moved = cloned
+                moved.translate(by: offset)
+                document.layers[li].shapes.append(moved)
+                duplicateStitchLines(inLayer: li, idMap: idMap)
+                newSelection.formUnion(idMap.values)
+            }
+        }
+
+        // Keep the originals selected and add the clones — convenient for repeat operations.
+        selectedShapeIds.formUnion(newSelection)
+        regenerateStitchLines(forShapeIds: newSelection)
+
+        guard old != document else { return }
+        registerUndo(actionName: "Array", oldDocument: old)
+    }
+
+    private func computeArrayOffsets(params: ArrayParameters, bbox: CGRect) -> [CGPoint] {
+        switch params.mode {
+        case .linear:
+            guard params.count > 1 else { return [] }
+            return (1..<params.count).map { i in
+                CGPoint(x: CGFloat(i) * params.offsetX,
+                        y: CGFloat(i) * params.offsetY)
+            }
+        case .grid:
+            guard params.rows >= 1, params.cols >= 1 else { return [] }
+            let dx = bbox.width + params.colSpacing
+            let dy = bbox.height + params.rowSpacing
+            var result: [CGPoint] = []
+            for r in 0..<params.rows {
+                for c in 0..<params.cols {
+                    if r == 0 && c == 0 { continue }
+                    result.append(CGPoint(x: CGFloat(c) * dx, y: CGFloat(r) * dy))
+                }
+            }
+            return result
+        }
     }
 
     /// Deep-copy a shape with fresh UUIDs at every level (groups recurse).

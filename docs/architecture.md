@@ -192,6 +192,7 @@ Sources/LCCAD/
 | **整列** | `alignSelectedShapes(_:)` | 左/右/上/下/水平中央/垂直中央揃え（Undo 対応） |
 | **分布** | `distributeSelectedShapes(_:)` | 水平/垂直等間隔分布（3個以上必要、Undo 対応） |
 | **反転** | `mirrorSelectedShapes(_:copy:)` | 縦軸/横軸で反転。in-place（中心軸）または copy（端軸で複製＋反転）（Undo 対応） |
+| **配列** | `arraySelectedShapes(_:)` | Linear / Grid で複製を一括生成（Mirror Copy 同型のステッチ追従、Undo 対応） |
 | **ページ** | `addPage(at:)` | キャンバスクリック位置にページ追加（Undo 対応） |
 | **ページ** | `deleteSelectedPage()` | 選択ページ削除（Undo 対応） |
 | **ページ** | `moveSelectedPage(by:)` | ページドラッグ移動（PageSnapEngine 連動） |
@@ -252,6 +253,34 @@ enum MirrorAxis {
 Copy モードが `visualBoundingBox` を使うのは、`boundingBox` がレンダリングされる ink より大きい図形があるため。`ArcShape` は内接する完全な円の bbox を返し、`BezierShape` は全制御ハンドルを含む。これらの図形を Copy すると、軸が視覚的な端より外側に置かれて隙間ができる。`Shape` プロトコルの `visualBoundingBox` は基本図形では `boundingBox` を返し、`Arc` は始点・終点と弧内の極点（0/π/2/π/3π/2）だけで、`Bezier` は curve を 32 ステップサンプリングした実 extent で構築する。In-place 反転は中心軸を使うため対称性が保たれ visual/geometric の差は表れないので geometric bbox のままで良い。
 
 Copy モードでは `cloneWithFreshIds` で全階層 UUID を再発行（Group の子も含む）、`duplicateStitchLines` で `sourceShapeId` を新 id に張り替えたステッチラインを複製、その後 `regenerateStitchLines` で穴を再生成する。
+
+### Array（Linear / Grid 配列複製）
+
+Mirror と同じ「複製 + 変形」パイプラインを `translate(by:)` で繰り返し、選択を等間隔に配列複製する。Shape プロトコルへの新メソッド追加は不要（`translate(by:)` は全 Shape で実装済み）。
+
+```swift
+struct ArrayParameters {
+    enum Mode { case linear, grid }
+    var mode: Mode
+    var count: Int                 // Linear: 元含めた総数 (≥ 2)
+    var offsetX, offsetY: CGFloat  // Linear: 1 ステップあたりのベクトル (mm)
+    var rows, cols: Int            // Grid: 行 × 列 (≥ 1)
+    var rowSpacing, colSpacing: CGFloat  // Grid: 中心間距離 = bbox サイズ + spacing (mm)
+}
+```
+
+`EditorViewModel.arraySelectedShapes(_:)` がメニュー Arrange > Array... (⌥⌘A) から呼ばれ、`computeArrayOffsets(params:bbox:)` でオフセット集合を作って各クローンに `translate(by:)` を適用する:
+
+| モード | オフセット集合 |
+|--------|---------------|
+| Linear | `(1..<count).map { i in CGPoint(i * offsetX, i * offsetY) }` |
+| Grid | `(r,c) ∈ {0..<rows} × {0..<cols} \ {(0,0)}` の `(c * (bbox.w + colSpacing), r * (bbox.h + rowSpacing))` |
+
+Mirror Copy と異なり、Array は **元の選択を維持し** クローンを `selectedShapeIds.formUnion(newSelection)` で追加する（リピート操作の連鎖を意図）。複製パスは Mirror Copy と同一: `cloneWithFreshIds` → `translate` → `duplicateStitchLines` → `regenerateStitchLines` → `registerUndo`。
+
+UI は `Sources/LCCAD/Views/ArraySheet.swift`（PrickingIronSheet 同型のモーダルシート）。Mode Picker（segmented）で Linear / Grid を切り替え、非アクティブセクションは `.opacity(0.4)` + `.disabled(true)` で半透明＋無効化される。
+
+なお Polar（円形配列）は Shape プロトコルへの `rotate(around:angle:)` 追加と Rectangle / Text の回転モデル拡張を伴うため、Mirror 級の独立タスク（N-a-2）として後続に切り出している。
 
 ### ステッチラインの図形追従
 
