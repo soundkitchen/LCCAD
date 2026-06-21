@@ -47,6 +47,19 @@ struct FileCommands: Commands {
                 openDocument()
             }
             .keyboardShortcut("o")
+
+            Divider()
+
+            Menu("Export") {
+                Button("SVG...") {
+                    ExportCoordinator.exportSVG(document: fileDocument.data)
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+
+                Button("DXF...") {
+                    ExportCoordinator.exportDXF(document: fileDocument.data)
+                }
+            }
         }
 
         CommandGroup(replacing: .printItem) {

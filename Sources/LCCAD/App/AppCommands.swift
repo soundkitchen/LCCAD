@@ -13,20 +13,9 @@ struct AppCommands: Commands {
             .keyboardShortcut("n")
         }
 
-        // Export commands
-        CommandGroup(after: .saveItem) {
-            Divider()
-            Menu("Export") {
-                Button("SVG...") {
-                    ExportCoordinator.exportSVG(document: fileDocument.data)
-                }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
-
-                Button("DXF...") {
-                    ExportCoordinator.exportDXF(document: fileDocument.data)
-                }
-            }
-        }
+        // Export commands live in FileCommands' .saveItem replacement group
+        // (see Issue #11: mixing replacing/after on the same placement drops the
+        // after-group, so Export must share the replacing group).
 
         // View menu — append to system View menu
         CommandGroup(after: .toolbar) {
