@@ -22,6 +22,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
     case arc = "Arc"
     case bezier = "Bezier"
     case text = "Text"
+    case dimensionLine = "Dimension"
     // Editing tools
     case offset = "Offset"
     case trim = "Trim"
@@ -38,6 +39,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
         case .arc: return "circle.and.line.horizontal"
         case .bezier: return "point.topleft.down.to.point.bottomright.curvepath"
         case .text: return "character"
+        case .dimensionLine: return "ruler"
         case .offset: return "square.inset.filled"
         case .trim: return "scissors"
         case .bevel: return "arrow.turn.up.right"
@@ -56,6 +58,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
         case .arc: return "A"
         case .bezier: return "P"
         case .text: return "T"
+        case .dimensionLine: return "D"
         case .offset, .trim, .bevel, .page: return nil
         }
     }
@@ -68,8 +71,8 @@ enum DrawingTool: String, CaseIterable, Sendable {
         return rawValue
     }
 
-    /// The first 7 cases are drawing tools, the rest are editing tools
-    static var drawingTools: [DrawingTool] { [.select, .line, .rectangle, .ellipse, .arc, .bezier, .text] }
+    /// The first 8 cases are drawing tools, the rest are editing tools
+    static var drawingTools: [DrawingTool] { [.select, .line, .rectangle, .ellipse, .arc, .bezier, .text, .dimensionLine] }
     static var editingTools: [DrawingTool] { [.offset, .trim, .bevel] }
     static var layoutTools: [DrawingTool] { [.page] }
 }
@@ -95,6 +98,7 @@ enum DrawingPreview: Sendable {
     case bezierPreview(points: [BezierPoint], currentPoint: CGPoint)
     case startPoint(CGPoint)
     case twoPoints(CGPoint, CGPoint)
+    case dimensionPreview(DimensionLineShape)
 }
 
 @Observable
@@ -159,6 +163,9 @@ final class EditorViewModel {
 
     // Arc tool: 3-click state (start → end → bulge)
     var arcSecondPoint: CGPoint?
+    var dimensionSecondPoint: CGPoint?
+    /// Dimension kind used when drawing new dimension lines.
+    var currentDimensionKind: DimensionKind = .aligned
 
     // Bezier tool: accumulated points
     var bezierPoints: [BezierPoint] = []
@@ -420,6 +427,17 @@ final class EditorViewModel {
         registerUndo(actionName: "Edit Text", oldDocument: old)
     }
 
+    /// Edit the currently selected dimension line with undo registration.
+    func updateDimensionProperty(_ update: (inout DimensionLineShape) -> Void) {
+        guard let id = selectedShapeIds.first,
+              let (li, si) = findShapeLocation(id: id),
+              case .dimensionLine(var dim) = document.layers[li].shapes[si] else { return }
+        let old = document
+        update(&dim)
+        document.layers[li].shapes[si] = .dimensionLine(dim)
+        registerUndo(actionName: "Edit Dimension", oldDocument: old)
+    }
+
     // MARK: - Bezier Point Editing
 
     func bezierPointHitTest(worldPoint: CGPoint, shape: BezierShape, tolerance: CGFloat) -> (pointIndex: Int, target: BezierDragTarget)? {
@@ -537,6 +555,7 @@ final class EditorViewModel {
     func selectTool(_ tool: DrawingTool) {
         dragStartWorldPoint = nil
         arcSecondPoint = nil
+        dimensionSecondPoint = nil
         bezierPoints = []
         isDraggingBezierHandle = false
         draggingBezierPointIndex = nil
@@ -674,6 +693,26 @@ final class EditorViewModel {
             selectedShapeIds = [textShape.id]
             activeSnapCandidate = nil
 
+        case .dimensionLine:
+            if let start = dragStartWorldPoint, let second = dimensionSecondPoint {
+                // 3rd click: the placement point sets the dimension-line offset
+                let dim = DimensionLineShape(start: start, end: second, third: worldPoint, kind: currentDimensionKind)
+                addShapeWithUndo(.dimensionLine(dim), actionName: "Draw Dimension")
+                selectedShapeIds = [dim.id]
+                dragStartWorldPoint = nil
+                dimensionSecondPoint = nil
+                drawingPreview = nil
+                activeSnapCandidate = nil
+            } else if let start = dragStartWorldPoint {
+                // 2nd click: set the second measured point
+                dimensionSecondPoint = worldPoint
+                drawingPreview = .twoPoints(start, worldPoint)
+            } else {
+                // 1st click: set the first measured point
+                dragStartWorldPoint = worldPoint
+                drawingPreview = .startPoint(worldPoint)
+            }
+
         case .offset:
             // Click on a shape to offset it
             if let hitId = hitTest(at: worldPoint, tolerance: tolerance) {
@@ -728,6 +767,15 @@ final class EditorViewModel {
         case .bezier:
             if !bezierPoints.isEmpty {
                 drawingPreview = .bezierPreview(points: bezierPoints, currentPoint: worldPoint)
+            }
+        case .dimensionLine:
+            if let start = dragStartWorldPoint, let second = dimensionSecondPoint {
+                // 3rd point hover: show the dimension preview following the cursor
+                let dim = DimensionLineShape(start: start, end: second, third: worldPoint, kind: currentDimensionKind)
+                drawingPreview = .dimensionPreview(dim)
+            } else if let start = dragStartWorldPoint {
+                // 2nd point hover: show line from start to cursor
+                drawingPreview = .lineFromClick(start: start, end: worldPoint)
             }
         default:
             break
@@ -1676,6 +1724,11 @@ final class EditorViewModel {
                               textAlignment: s.textAlignment, rotation: s.rotation, stroke: s.stroke)
             c.isLocked = s.isLocked
             return .text(c)
+        case .dimensionLine(let s):
+            var c = DimensionLineShape(id: newId, start: s.start, end: s.end, offset: s.offset,
+                                       kind: s.kind, labelOverride: s.labelOverride, stroke: s.stroke)
+            c.isLocked = s.isLocked
+            return .dimensionLine(c)
         case .group(let s):
             let clonedChildren = s.children.map { recursiveClone($0, idMap: &idMap) }
             var c = GroupShape(id: newId, children: clonedChildren)

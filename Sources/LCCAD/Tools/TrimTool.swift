@@ -22,7 +22,7 @@ enum TrimTool {
             return trimRectangle(rect, against: others, clickPoint: clickPoint)
         case .ellipse(let ellipse):
             return trimEllipse(ellipse, against: others, clickPoint: clickPoint)
-        case .dot, .text, .group:
+        case .dot, .text, .dimensionLine, .group:
             return nil
         }
     }
@@ -380,7 +380,7 @@ enum TrimTool {
         case .group(let g):
             return g.children.flatMap { toSegments($0) }
 
-        case .dot, .text:
+        case .dot, .text, .dimensionLine:
             return []
         }
     }

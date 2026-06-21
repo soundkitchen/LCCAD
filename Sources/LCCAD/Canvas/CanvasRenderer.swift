@@ -2,6 +2,8 @@ import SwiftUI
 
 struct CanvasRenderer {
     let transform: CanvasTransform
+    var colorScheme: ColorScheme = .light
+    var unit: LengthUnit = .millimeters
 
     func draw(shape: AnyShape, in context: GraphicsContext) {
         let sc = shape.stroke.color
@@ -28,6 +30,8 @@ struct CanvasRenderer {
             drawBezier(bezier, color: color, strokeStyle: strokeStyle, in: context)
         case .text(let text):
             drawText(text, color: color, in: context)
+        case .dimensionLine(let dim):
+            drawDimension(dim, in: context)
         case .group(let group):
             for child in group.children {
                 draw(shape: child, in: context)
@@ -218,5 +222,79 @@ struct CanvasRenderer {
                 anchor: .topLeading
             )
         }
+    }
+
+    // MARK: - Dimension Line Rendering
+
+    private func drawDimension(_ dim: DimensionLineShape, in context: GraphicsContext) {
+        let color = DesignTokens.dimensionColor(colorScheme)
+        let style = SwiftUI.StrokeStyle(lineWidth: 1.0)
+
+        let (a, b) = dim.dimEndpoints
+        let sA = transform.worldToScreen(a)
+        let sB = transform.worldToScreen(b)
+        let sStart = transform.worldToScreen(dim.start)
+        let sEnd = transform.worldToScreen(dim.end)
+
+        // Extension lines: from each measured point to the dimension line, with a
+        // small gap near the object and a slight overshoot past the line.
+        let gap: CGFloat = 2
+        let overshoot: CGFloat = 2
+        for (from, to) in [(sStart, sA), (sEnd, sB)] {
+            let d = unitVector(from: from, to: to)
+            guard d != .zero else { continue }
+            let p0 = CGPoint(x: from.x + d.x * gap, y: from.y + d.y * gap)
+            let p1 = CGPoint(x: to.x + d.x * overshoot, y: to.y + d.y * overshoot)
+            let path = Path { p in p.move(to: p0); p.addLine(to: p1) }
+            context.stroke(path, with: .color(color), style: style)
+        }
+
+        // Dimension line
+        let dimPath = Path { p in p.move(to: sA); p.addLine(to: sB) }
+        context.stroke(dimPath, with: .color(color), style: style)
+
+        // Arrowheads (world size, clamped so they stay visible on screen).
+        let arrowLen = max(5, min(transform.worldToScreenDistance(DimensionLineShape.arrowLength), 14))
+        let dir = unitVector(from: sA, to: sB)
+        if dir != .zero {
+            drawArrowhead(tip: sA, bodyDir: dir, length: arrowLen, color: color, in: context)
+            drawArrowhead(tip: sB, bodyDir: CGPoint(x: -dir.x, y: -dir.y), length: arrowLen, color: color, in: context)
+        }
+
+        // Label: centered on the dimension line, nudged to the outward side.
+        let label = dim.displayLabel(unit: unit)
+        let fontSize = max(9, min(transform.worldToScreenDistance(DimensionLineShape.textHeight), 40))
+        let midDim = transform.worldToScreen(dim.labelAnchor)
+        let midMeasured = transform.worldToScreen(dim.start.midpoint(to: dim.end))
+        var outward = unitVector(from: midMeasured, to: midDim)
+        if outward == .zero { outward = CGPoint(x: 0, y: -1) }
+        let labelPos = CGPoint(x: midDim.x + outward.x * (fontSize * 0.8),
+                               y: midDim.y + outward.y * (fontSize * 0.8))
+        context.draw(
+            Text(label)
+                .font(.system(size: fontSize, weight: .regular, design: .monospaced))
+                .foregroundColor(color),
+            at: labelPos,
+            anchor: .center
+        )
+    }
+
+    private func drawArrowhead(tip: CGPoint, bodyDir: CGPoint, length: CGFloat, color: Color, in context: GraphicsContext) {
+        let halfW = length * 0.35
+        let base = CGPoint(x: tip.x + bodyDir.x * length, y: tip.y + bodyDir.y * length)
+        let perp = CGPoint(x: -bodyDir.y, y: bodyDir.x)
+        let p1 = CGPoint(x: base.x + perp.x * halfW, y: base.y + perp.y * halfW)
+        let p2 = CGPoint(x: base.x - perp.x * halfW, y: base.y - perp.y * halfW)
+        let path = Path { p in
+            p.move(to: tip); p.addLine(to: p1); p.addLine(to: p2); p.closeSubpath()
+        }
+        context.fill(path, with: .color(color))
+    }
+
+    private func unitVector(from: CGPoint, to: CGPoint) -> CGPoint {
+        let dx = to.x - from.x, dy = to.y - from.y
+        let len = (dx * dx + dy * dy).squareRoot()
+        guard len > 1e-9 else { return .zero }
+        return CGPoint(x: dx / len, y: dy / len)
     }
 }

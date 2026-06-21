@@ -194,6 +194,7 @@ struct AppCommands: Commands {
             Button("Arc Tool (A)") { editor?.selectTool(.arc) }
             Button("Bezier Tool (P)") { editor?.selectTool(.bezier) }
             Button("Text Tool (T)") { editor?.selectTool(.text) }
+            Button("Dimension Tool (D)") { editor?.selectTool(.dimensionLine) }
         }
 
         // Stitch menu

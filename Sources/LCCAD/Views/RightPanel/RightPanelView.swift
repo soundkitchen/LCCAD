@@ -65,6 +65,8 @@ struct RightPanelView: View {
                         StrokeSection(editor: editor, stroke: shape.stroke)
                     } else if case .text = shape {
                         TextSection(editor: editor)
+                    } else if case .dimensionLine = shape {
+                        DimensionLineSection(editor: editor)
                     } else {
                         StrokeSection(editor: editor, stroke: shape.stroke)
                     }
@@ -73,7 +75,11 @@ struct RightPanelView: View {
                         ArcSection()
                     }
 
-                    StitchSection(editor: editor)
+                    if case .dimensionLine = shape {
+                        // Dimension is self-contained; no stitch section.
+                    } else {
+                        StitchSection(editor: editor)
+                    }
                 } else {
                     VStack {
                         Spacer().frame(height: 40)
