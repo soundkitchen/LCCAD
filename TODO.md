@@ -11,7 +11,7 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
 | 1 | L. 反転 / 反転コピー（Mirror） | 中 | 低 | ✅ 完了 |
 | 2 | N-a-1. Array（Linear / Grid） | 中 | 低 | ✅ 完了 |
 | 3 | N-a-2. Array（Polar / 円形） | 中-大 | 中 | ✅ 完了 |
-| 4 | N-b. 寸法線（Dimension Lines） | 中-大 | 中 | 🔄 実装済み（レビュー待ち） |
+| 4 | N-b. 寸法線（Dimension Lines） | 中-大 | 中 | ✅ 完了 |
 | 5 | M. テンプレート機能 | 大 | 中 | 未着手 |
 
 ### N-b. 寸法線（Dimension Lines）
@@ -32,7 +32,7 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
   - **スナップ**: `SnapEngine` が start/end を端点候補に。
   - **エクスポート**: SVG（`<g>` 線＋`<polygon>`矢印＋`<text>`）、DXF（LINE×延長/寸法＋矢印 LINE＋TEXT、unit 連動）、Print（`PrintCoordinator` で線＋塗り矢印＋ラベル）。全て単位連動のラベル。
   - **デザイン**: `dimension-color` 変数（Light #5C7C99 / Dark #7E9CB8）新設。Toolbar ボタン・右パネル Dimension セクション・キャンバス寸法サンプルを Light/Dark 両方に追加。
-- 完了条件（コードビルド成功・ユーザー動作確認待ち）
+- 完了条件（PR #9 マージ済み・テスト93件パス。動作確認はユーザー側）
   - 3ステップで Aligned/Horizontal/Vertical を作図できる。
   - 自動ラベルが mm/inch 連動。右パネルで手動上書き可。
   - 移動・反転・Undo/Redo に追従。
