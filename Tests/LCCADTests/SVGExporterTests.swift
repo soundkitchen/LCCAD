@@ -24,6 +24,33 @@ final class SVGExporterTests: XCTestCase {
         XCTAssertTrue(svg.contains("width=\"80.00\""))
     }
 
+    func testExportEllipseToSVG() {
+        let ellipse = EllipseShape(center: CGPoint(x: 30, y: 40), radiusX: 20, radiusY: 10)
+        let layer = Layer(name: "Test", shapes: [.ellipse(ellipse)])
+        let doc = DocumentData(layers: [layer])
+        let svg = SVGExporter.export(document: doc)
+
+        XCTAssertTrue(svg.contains("<ellipse"))
+        XCTAssertTrue(svg.contains("cx=\"30.00\""))
+        XCTAssertTrue(svg.contains("cy=\"40.00\""))
+        XCTAssertTrue(svg.contains("rx=\"20.00\""))
+        XCTAssertTrue(svg.contains("ry=\"10.00\""))
+        // No rotation → no transform attribute should be emitted.
+        XCTAssertFalse(svg.contains("transform="), "Unrotated ellipse must not emit a transform")
+    }
+
+    func testRotatedEllipseEmitsTransform() {
+        var ellipse = EllipseShape(center: CGPoint(x: 10, y: 10), radiusX: 5, radiusY: 3)
+        ellipse.rotation = .pi / 4
+        let layer = Layer(name: "Test", shapes: [.ellipse(ellipse)])
+        let doc = DocumentData(layers: [layer])
+        let svg = SVGExporter.export(document: doc)
+
+        // π/4 rad = 45° rotation around the ellipse center (10, 10).
+        XCTAssertTrue(svg.contains("transform=\"rotate(45.00 10.00 10.00)\""),
+                      "Rotated ellipse should emit a rotate transform about its center")
+    }
+
     func testSVGHeaderContainsViewBox() {
         let line = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 50, y: 50))
         let layer = Layer(name: "Test", shapes: [.line(line)])
