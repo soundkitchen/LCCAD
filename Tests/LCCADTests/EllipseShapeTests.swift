@@ -38,4 +38,15 @@ final class EllipseShapeTests: XCTestCase {
         XCTAssertEqual(bb.width, half * 2, accuracy: 1e-6)
         XCTAssertEqual(bb.height, half * 2, accuracy: 1e-6)
     }
+
+    func testHitTestRespectsRotation() {
+        // 100x10 ellipse rotated 90° → long axis becomes vertical (±50 in y, ±5 in x).
+        var e = EllipseShape(center: CGPoint(x: 0, y: 0), radiusX: 50, radiusY: 5)
+        e.rotation = .pi / 2
+        // A point on the rotated long (vertical) axis hits the outline.
+        XCTAssertTrue(e.hitTest(point: CGPoint(x: 0, y: 50), tolerance: 1))
+        // A point on the unrotated long axis (now the short horizontal one) misses
+        // — it would have hit before the rotation was accounted for.
+        XCTAssertFalse(e.hitTest(point: CGPoint(x: 50, y: 0), tolerance: 1))
+    }
 }

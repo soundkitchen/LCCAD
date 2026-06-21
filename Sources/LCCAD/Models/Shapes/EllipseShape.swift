@@ -37,8 +37,11 @@ struct EllipseShape: Shape, Codable, Equatable, Sendable {
     }
 
     func hitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
-        let dx = (point.x - center.x) / radiusX
-        let dy = (point.y - center.y) / radiusY
+        // Undo the rotation so the test runs against the axis-aligned ellipse,
+        // mirroring RectangleShape/TextShape.hitTest.
+        let p = rotation == 0 ? point : point.rotated(around: center, angle: -rotation)
+        let dx = (p.x - center.x) / radiusX
+        let dy = (p.y - center.y) / radiusY
         let normalizedDist = sqrt(dx * dx + dy * dy)
         let normalizedTolerance = tolerance / min(radiusX, radiusY)
         return abs(normalizedDist - 1.0) <= normalizedTolerance
