@@ -146,6 +146,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
     case dot(DotShape)
     case bezier(BezierShape)
     case text(TextShape)
+    case dimensionLine(DimensionLineShape)
     case group(GroupShape)
 
     var id: UUID {
@@ -157,6 +158,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(let s): return s.id
         case .bezier(let s): return s.id
         case .text(let s): return s.id
+        case .dimensionLine(let s): return s.id
         case .group(let s): return s.id
         }
     }
@@ -171,6 +173,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
             case .dot(let s): return s.stroke
             case .bezier(let s): return s.stroke
             case .text(let s): return s.stroke
+            case .dimensionLine(let s): return s.stroke
             case .group(let s): return s.stroke
             }
         }
@@ -183,6 +186,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
             case .dot(var s): s.stroke = newValue; self = .dot(s)
             case .bezier(var s): s.stroke = newValue; self = .bezier(s)
             case .text(var s): s.stroke = newValue; self = .text(s)
+            case .dimensionLine(var s): s.stroke = newValue; self = .dimensionLine(s)
             case .group(var s): s.stroke = newValue; self = .group(s)
             }
         }
@@ -198,6 +202,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
             case .dot(let s): return s.isLocked
             case .bezier(let s): return s.isLocked
             case .text(let s): return s.isLocked
+            case .dimensionLine(let s): return s.isLocked
             case .group(let s): return s.isLocked
             }
         }
@@ -210,6 +215,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
             case .dot(var s): s.isLocked = newValue; self = .dot(s)
             case .bezier(var s): s.isLocked = newValue; self = .bezier(s)
             case .text(var s): s.isLocked = newValue; self = .text(s)
+            case .dimensionLine(var s): s.isLocked = newValue; self = .dimensionLine(s)
             case .group(var s): s.isLocked = newValue; self = .group(s)
             }
         }
@@ -224,6 +230,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(let s): return s.boundingBox
         case .bezier(let s): return s.boundingBox
         case .text(let s): return s.boundingBox
+        case .dimensionLine(let s): return s.boundingBox
         case .group(let s): return s.boundingBox
         }
     }
@@ -237,6 +244,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(let s): return s.visualBoundingBox
         case .bezier(let s): return s.visualBoundingBox
         case .text(let s): return s.visualBoundingBox
+        case .dimensionLine(let s): return s.visualBoundingBox
         case .group(let s): return s.visualBoundingBox
         }
     }
@@ -250,6 +258,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(let s): return s.hitTest(point: point, tolerance: tolerance)
         case .bezier(let s): return s.hitTest(point: point, tolerance: tolerance)
         case .text(let s): return s.hitTest(point: point, tolerance: tolerance)
+        case .dimensionLine(let s): return s.hitTest(point: point, tolerance: tolerance)
         case .group(let s): return s.hitTest(point: point, tolerance: tolerance)
         }
     }
@@ -263,6 +272,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(var s): s.translate(by: delta); self = .dot(s)
         case .bezier(var s): s.translate(by: delta); self = .bezier(s)
         case .text(var s): s.translate(by: delta); self = .text(s)
+        case .dimensionLine(var s): s.translate(by: delta); self = .dimensionLine(s)
         case .group(var s): s.translate(by: delta); self = .group(s)
         }
     }
@@ -276,6 +286,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(var s): s.mirror(axis: axis); self = .dot(s)
         case .bezier(var s): s.mirror(axis: axis); self = .bezier(s)
         case .text(var s): s.mirror(axis: axis); self = .text(s)
+        case .dimensionLine(var s): s.mirror(axis: axis); self = .dimensionLine(s)
         case .group(var s): s.mirror(axis: axis); self = .group(s)
         }
     }
@@ -289,6 +300,7 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .dot(var s): s.rotate(around: center, angle: angle); self = .dot(s)
         case .bezier(var s): s.rotate(around: center, angle: angle); self = .bezier(s)
         case .text(var s): s.rotate(around: center, angle: angle); self = .text(s)
+        case .dimensionLine(var s): s.rotate(around: center, angle: angle); self = .dimensionLine(s)
         case .group(var s): s.rotate(around: center, angle: angle); self = .group(s)
         }
     }

@@ -16,7 +16,11 @@ struct CanvasView: View {
                 gridRenderer.draw(in: context, size: size)
 
                 // 2. Committed shapes
-                let renderer = CanvasRenderer(transform: editor.transform)
+                let renderer = CanvasRenderer(
+                    transform: editor.transform,
+                    colorScheme: colorScheme,
+                    unit: editor.document.settings.unit
+                )
                 for layer in editor.document.layers where layer.isVisible {
                     for shape in layer.shapes {
                         renderer.draw(shape: shape, in: context)
@@ -152,6 +156,7 @@ struct CanvasView: View {
                 case "a": editor.selectTool(.arc); return .handled
                 case "p": editor.selectTool(.bezier); return .handled
                 case "t": editor.selectTool(.text); return .handled
+                case "d": editor.selectTool(.dimensionLine); return .handled
                 default: return .ignored
                 }
             }

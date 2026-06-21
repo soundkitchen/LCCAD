@@ -42,7 +42,44 @@ enum DrawingPreviewRenderer {
             drawStartPoint(p1, transform: transform, in: context)
             drawStartPoint(p2, transform: transform, in: context)
             drawPreviewLine(from: p1, to: p2, transform: transform, in: context)
+
+        case .dimensionPreview(let dim):
+            drawDimensionPreview(dim, transform: transform, in: context)
         }
+    }
+
+    // MARK: - Preview Dimension
+
+    private static func drawDimensionPreview(_ dim: DimensionLineShape, transform: CanvasTransform, in context: GraphicsContext) {
+        let (a, b) = dim.dimEndpoints
+        let sA = transform.worldToScreen(a)
+        let sB = transform.worldToScreen(b)
+        let sStart = transform.worldToScreen(dim.start)
+        let sEnd = transform.worldToScreen(dim.end)
+
+        // Extension lines (thin solid)
+        for (from, to) in [(sStart, sA), (sEnd, sB)] {
+            let path = Path { p in p.move(to: from); p.addLine(to: to) }
+            context.stroke(path, with: .color(previewColor.opacity(0.6)), lineWidth: 0.75)
+        }
+
+        // Dimension line (dashed)
+        let dimPath = Path { p in p.move(to: sA); p.addLine(to: sB) }
+        context.stroke(dimPath, with: .color(previewColor), style: SwiftUI.StrokeStyle(lineWidth: previewLineWidth, dash: [6, 3]))
+
+        drawStartPoint(dim.start, transform: transform, in: context)
+        drawStartPoint(dim.end, transform: transform, in: context)
+
+        // Measured value label (mm, consistent with other previews)
+        let label = String(format: "%.1f mm", dim.measuredValue)
+        let midDim = transform.worldToScreen(dim.labelAnchor)
+        context.draw(
+            Text(label)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(previewColor),
+            at: CGPoint(x: midDim.x, y: midDim.y - 12),
+            anchor: .center
+        )
     }
 
     // MARK: - Start Point (pulsing dot)

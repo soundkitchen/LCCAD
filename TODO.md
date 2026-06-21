@@ -11,8 +11,34 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
 | 1 | L. 反転 / 反転コピー（Mirror） | 中 | 低 | ✅ 完了 |
 | 2 | N-a-1. Array（Linear / Grid） | 中 | 低 | ✅ 完了 |
 | 3 | N-a-2. Array（Polar / 円形） | 中-大 | 中 | ✅ 完了 |
-| 4 | N-b. 寸法線（Dimension Lines） | 中-大 | 中 | 未着手 |
+| 4 | N-b. 寸法線（Dimension Lines） | 中-大 | 中 | 🔄 実装済み（レビュー待ち） |
 | 5 | M. テンプレート機能 | 大 | 中 | 未着手 |
+
+### N-b. 寸法線（Dimension Lines）
+
+- 背景
+  - レザークラフトの型紙は寸法管理が要。これまで距離を図形として注記する手段が無かった。
+- スコープ（v1, ユーザー合意）
+  - 種別: **Aligned（2点間の実距離）＋ Horizontal（X成分）＋ Vertical（Y成分）**。角度/半径は後回し。
+  - 操作: **3ステップ（始点 → 終点 → オフセット）**。Arc ツールと同型。始点・終点はスナップ有効。
+  - ラベル: **自動（単位 mm/inch 連動）。右パネルで手動上書き可（空=自動）**。
+- やったこと
+  - **`DimensionLineShape`（新規）**: `start`/`end`/`offset`/`kind`(DimensionKind)/`labelOverride`/`stroke`。`dimEndpoints`・`measuredValue`・`labelAnchor`・`displayLabel(unit:)` を計算プロパティで提供し、全レンダラ/エクスポータが幾何を共有。`mirror` は kind/axis に応じて offset 符号を反転、`rotate` は aligned が offset 維持。Codable は新規型のため後方互換考慮不要。
+  - **`AnyShape` に `dimensionLine` ケース追加**（Shape.swift の11スイッチ全更新）。
+  - **`DrawingTool.dimensionLine`**: icon `ruler`(SF Symbol) / 単キー `D` / `drawingTools` に追加（ツールバー自動反映）。`CanvasView.onKeyPress` と Draw メニューにも `D`。
+  - **作図フロー**（EditorViewModel）: `dimensionSecondPoint` 状態 + `currentDimensionKind`。handleClick/handleMouseMove で3クリック処理、3点目で `DimensionLineShape(start:end:third:kind:)` 生成。`updateDimensionProperty` で undo 付き編集。
+  - **描画**: `CanvasRenderer` に colorScheme/unit を追加し延長線＋寸法線＋矢印＋ラベルを `dimension-color` で描画。`DrawingPreviewRenderer` に `.dimensionPreview` 追加。
+  - **右パネル `DimensionLineSection`（新規）**: Type セグメント（Aligned/Horizontal/Vertical）＋ Measured(L, 読み取り)＋ Offset(O, 編集)＋ Label 上書き。`RightPanelView` で dimension 選択時に表示（StitchSection は非表示）。
+  - **スナップ**: `SnapEngine` が start/end を端点候補に。
+  - **エクスポート**: SVG（`<g>` 線＋`<polygon>`矢印＋`<text>`）、DXF（LINE×延長/寸法＋矢印 LINE＋TEXT、unit 連動）、Print（`PrintCoordinator` で線＋塗り矢印＋ラベル）。全て単位連動のラベル。
+  - **デザイン**: `dimension-color` 変数（Light #5C7C99 / Dark #7E9CB8）新設。Toolbar ボタン・右パネル Dimension セクション・キャンバス寸法サンプルを Light/Dark 両方に追加。
+- 完了条件（コードビルド成功・ユーザー動作確認待ち）
+  - 3ステップで Aligned/Horizontal/Vertical を作図できる。
+  - 自動ラベルが mm/inch 連動。右パネルで手動上書き可。
+  - 移動・反転・Undo/Redo に追従。
+  - SVG/DXF/Print に反映。Light/Dark 両対応。
+
+---
 
 ### N-a-2. Array（Polar / 円形配列複製）
 

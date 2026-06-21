@@ -96,6 +96,11 @@ struct SnapEngine {
             return bezierSnapPoints(bezier)
         case .text(let text):
             return [SnapCandidate(point: text.position, kind: .endpoint)]
+        case .dimensionLine(let dim):
+            return [
+                SnapCandidate(point: dim.start, kind: .endpoint),
+                SnapCandidate(point: dim.end, kind: .endpoint),
+            ]
         case .group(let group):
             return group.children.flatMap { snapPoints(for: $0) }
         }

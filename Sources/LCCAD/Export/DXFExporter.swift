@@ -219,9 +219,45 @@ enum DXFExporter {
                 layer: layer
             )
 
+        case .dimensionLine(let dim):
+            let (a, b) = dim.dimEndpoints
+            var s = ""
+            s += lineEntity(x1: dim.start.x, y1: yVal(dim.start.y, options), x2: a.x, y2: yVal(a.y, options), layer: layer, linetype: lt)
+            s += lineEntity(x1: dim.end.x, y1: yVal(dim.end.y, options), x2: b.x, y2: yVal(b.y, options), layer: layer, linetype: lt)
+            s += lineEntity(x1: a.x, y1: yVal(a.y, options), x2: b.x, y2: yVal(b.y, options), layer: layer, linetype: lt)
+            s += dxfArrowhead(tip: a, toward: b, options: options, layer: layer)
+            s += dxfArrowhead(tip: b, toward: a, options: options, layer: layer)
+            // Exported coordinates are always in mm, so the auto label is mm too,
+            // keeping the file self-consistent regardless of the document's unit.
+            s += textEntity(
+                x: dim.labelAnchor.x, y: yVal(dim.labelAnchor.y, options),
+                height: DimensionLineShape.textHeight, content: dim.displayLabel(unit: .millimeters),
+                layer: layer
+            )
+            return s
+
         case .group(let group):
             return group.children.map { dxfEntities(for: $0, layer: layer, options: options) }.joined()
         }
+    }
+
+    /// Two short LINE segments forming an open arrowhead with its tip at `tip`,
+    /// opening toward `toward`.
+    private static func dxfArrowhead(tip: CGPoint, toward: CGPoint, options: DXFExportOptions, layer: String) -> String {
+        let dx = toward.x - tip.x, dy = toward.y - tip.y
+        let len = (dx * dx + dy * dy).squareRoot()
+        guard len > 1e-9 else { return "" }
+        let ux = dx / len, uy = dy / len
+        let L = DimensionLineShape.arrowLength
+        let halfW = L * 0.35
+        let bx = tip.x + ux * L, by = tip.y + uy * L
+        let px = -uy, py = ux
+        let p1 = CGPoint(x: bx + px * halfW, y: by + py * halfW)
+        let p2 = CGPoint(x: bx - px * halfW, y: by - py * halfW)
+        var s = ""
+        s += lineEntity(x1: tip.x, y1: yVal(tip.y, options), x2: p1.x, y2: yVal(p1.y, options), layer: layer)
+        s += lineEntity(x1: tip.x, y1: yVal(tip.y, options), x2: p2.x, y2: yVal(p2.y, options), layer: layer)
+        return s
     }
 
     // MARK: - DXF Entity Builders

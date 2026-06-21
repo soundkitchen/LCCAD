@@ -50,4 +50,20 @@ final class SVGExporterTests: XCTestCase {
         XCTAssertTrue(svg.contains("class=\"stitch\""))
         XCTAssertTrue(svg.contains("<circle"))
     }
+
+    func testDimensionExportsArrowsAndMmLabel() {
+        var doc = DocumentData()
+        doc.settings.unit = .inches
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.dimensionLine(
+            DimensionLineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 25.4, y: 0),
+                               offset: 5, kind: .horizontal)))
+
+        let svg = SVGExporter.export(document: doc)
+
+        XCTAssertTrue(svg.contains("<polygon"), "Arrowheads should be emitted as polygons")
+        // Label uses mm (matches the file's mm coordinates), not the inch display unit.
+        XCTAssertTrue(svg.contains(">25.4</text>"), "Dimension label should be the mm value")
+        XCTAssertFalse(svg.contains(">1.0</text>"), "Inch-converted label must not appear")
+    }
 }

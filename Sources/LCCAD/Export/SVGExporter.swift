@@ -107,6 +107,22 @@ enum SVGExporter {
             s += ">\(escapeXML(text.content))</text>"
             return s
 
+        case .dimensionLine(let dim):
+            let c = String(format: "#%06X", DimensionLineShape.colorLightHex)
+            let (a, b) = dim.dimEndpoints
+            var s = "<g stroke=\"\(c)\" stroke-width=\"0.3\" fill=\"none\">"
+            s += "\n  <line x1=\"\(fmt(dim.start.x))\" y1=\"\(fmt(dim.start.y))\" x2=\"\(fmt(a.x))\" y2=\"\(fmt(a.y))\"/>"
+            s += "\n  <line x1=\"\(fmt(dim.end.x))\" y1=\"\(fmt(dim.end.y))\" x2=\"\(fmt(b.x))\" y2=\"\(fmt(b.y))\"/>"
+            s += "\n  <line x1=\"\(fmt(a.x))\" y1=\"\(fmt(a.y))\" x2=\"\(fmt(b.x))\" y2=\"\(fmt(b.y))\"/>"
+            s += "\n  " + svgArrowhead(tip: a, toward: b, color: c)
+            s += "\n  " + svgArrowhead(tip: b, toward: a, color: c)
+            // Exported geometry is always in mm, so the auto label is mm too,
+            // keeping the file self-consistent regardless of the document's unit.
+            let label = dim.displayLabel(unit: .millimeters)
+            s += "\n  <text x=\"\(fmt(dim.labelAnchor.x))\" y=\"\(fmt(dim.labelAnchor.y))\" font-size=\"\(fmt(DimensionLineShape.textHeight))\" fill=\"\(c)\" stroke=\"none\" text-anchor=\"middle\">\(escapeXML(label))</text>"
+            s += "\n</g>"
+            return s
+
         case .group(let group):
             var s = "<g>"
             for child in group.children {
@@ -115,6 +131,21 @@ enum SVGExporter {
             s += "\n</g>"
             return s
         }
+    }
+
+    /// A filled triangular arrowhead whose tip is at `tip`, opening toward `toward`.
+    private static func svgArrowhead(tip: CGPoint, toward: CGPoint, color: String) -> String {
+        let dx = toward.x - tip.x, dy = toward.y - tip.y
+        let len = (dx * dx + dy * dy).squareRoot()
+        guard len > 1e-9 else { return "" }
+        let ux = dx / len, uy = dy / len
+        let L = DimensionLineShape.arrowLength
+        let halfW = L * 0.35
+        let bx = tip.x + ux * L, by = tip.y + uy * L
+        let px = -uy, py = ux
+        let p1x = bx + px * halfW, p1y = by + py * halfW
+        let p2x = bx - px * halfW, p2y = by - py * halfW
+        return "<polygon points=\"\(fmt(tip.x)),\(fmt(tip.y)) \(fmt(p1x)),\(fmt(p1y)) \(fmt(p2x)),\(fmt(p2y))\" fill=\"\(color)\" stroke=\"none\"/>"
     }
 
     // MARK: - Helpers

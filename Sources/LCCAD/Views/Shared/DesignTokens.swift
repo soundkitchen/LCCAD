@@ -110,6 +110,12 @@ enum DesignTokens {
     static let accentHover = Color(hex: 0x3A7BC8)
     static let stitchColor = Color(hex: 0xD4A574)
     static let textOnAccent = Color.white
+
+    // MARK: - Dimension
+
+    static func dimensionColor(_ scheme: ColorScheme) -> Color {
+        Color(hex: scheme == .dark ? DimensionLineShape.colorDarkHex : DimensionLineShape.colorLightHex)
+    }
 }
 
 // MARK: - Color hex init

@@ -473,11 +473,59 @@ private class PrintableDocumentView: NSView {
                 context.restoreGState()
             }
 
+        case .dimensionLine(let dim):
+            context.saveGState()
+            let dimHex = DimensionLineShape.colorLightHex
+            let dimColor = NSColor(red: CGFloat((dimHex >> 16) & 0xFF) / 255.0,
+                                   green: CGFloat((dimHex >> 8) & 0xFF) / 255.0,
+                                   blue: CGFloat(dimHex & 0xFF) / 255.0, alpha: 1.0)
+            context.setStrokeColor(dimColor.cgColor)
+            context.setFillColor(dimColor.cgColor)
+            context.setLineWidth(0.3)
+            context.setLineDash(phase: 0, lengths: [])
+            let (a, b) = dim.dimEndpoints
+            context.move(to: dim.start); context.addLine(to: a)
+            context.move(to: dim.end); context.addLine(to: b)
+            context.move(to: a); context.addLine(to: b)
+            context.strokePath()
+            fillArrowhead(in: context, tip: a, toward: b)
+            fillArrowhead(in: context, tip: b, toward: a)
+            let label = dim.displayLabel(unit: document.settings.unit)
+            let font = NSFont.systemFont(ofSize: DimensionLineShape.textHeight)
+            let para = NSMutableParagraphStyle()
+            para.alignment = .center
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font, .foregroundColor: dimColor, .paragraphStyle: para
+            ]
+            let attrStr = NSAttributedString(string: label, attributes: attrs)
+            let sz = attrStr.size()
+            let anchor = dim.labelAnchor
+            attrStr.draw(in: NSRect(x: anchor.x - sz.width / 2, y: anchor.y - sz.height / 2,
+                                    width: sz.width, height: sz.height))
+            context.restoreGState()
+
         case .group(let group):
             for child in group.children {
                 drawShape(child, in: context)
             }
         }
+    }
+
+    /// Fill a triangular arrowhead with its tip at `tip`, opening toward `toward`.
+    private func fillArrowhead(in context: CGContext, tip: CGPoint, toward: CGPoint) {
+        let dx = toward.x - tip.x, dy = toward.y - tip.y
+        let len = (dx * dx + dy * dy).squareRoot()
+        guard len > 1e-9 else { return }
+        let ux = dx / len, uy = dy / len
+        let L = DimensionLineShape.arrowLength
+        let halfW = L * 0.35
+        let bx = tip.x + ux * L, by = tip.y + uy * L
+        let px = -uy, py = ux
+        context.move(to: tip)
+        context.addLine(to: CGPoint(x: bx + px * halfW, y: by + py * halfW))
+        context.addLine(to: CGPoint(x: bx - px * halfW, y: by - py * halfW))
+        context.closePath()
+        context.fillPath()
     }
 
     // MARK: - Alignment Marks (drawn in points)
