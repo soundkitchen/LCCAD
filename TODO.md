@@ -2,6 +2,10 @@
 
 UI を変更する項目は、実装前に `design/lccad.pen` を更新して確認してからコードへ反映する。
 
+> **管理方針（2026-06-22〜）**: 今後の未着手・残タスクは **GitHub Issues** で管理する（Security を除く）。
+> 本ファイルは **完了タスクのアーカイブ＋設計メモ**（各タスクの「やったこと」記録）として残し、
+> レガシー化した時点で削除する。未完タスクは Issues を参照: <https://github.com/soundkitchen/LCCAD/issues>
+
 ## Phase 3（実用 CAD 化の継続強化）
 
 レザークラフトの実作業フロー（左右対称パーツ、寸法管理、テンプレート再利用など）にフィットさせるための機能群。
@@ -12,7 +16,7 @@ UI を変更する項目は、実装前に `design/lccad.pen` を更新して確
 | 2 | N-a-1. Array（Linear / Grid） | 中 | 低 | ✅ 完了 |
 | 3 | N-a-2. Array（Polar / 円形） | 中-大 | 中 | ✅ 完了 |
 | 4 | N-b. 寸法線（Dimension Lines） | 中-大 | 中 | ✅ 完了 |
-| 5 | M. テンプレート機能 | 大 | 中 | 未着手 |
+| 5 | M. テンプレート機能 | 大 | 中 | [#13](https://github.com/soundkitchen/LCCAD/issues/13) で管理 |
 
 ### N-b. 寸法線（Dimension Lines）
 
@@ -283,13 +287,12 @@ H と I は独立しており、E/F/G とも独立。H → I の順で実装す�
 - 背景
   - Trim / Offset は現在 Line（直線）のみ対応。
   - 曲線を含む型紙を作るには Arc / Bezier への対応が必要。
-- 現状（一部実装済み）
-  - **Trim**: Line-Line, Arc-Line, Bezier-Line は線分近似で対応済み。
-  - **Offset**: Line, Rectangle, Ellipse は対応済み。
-- 残作業
-  - **Trim**: Arc-Arc, Bezier-Bezier の真の曲線交差計算。
-  - **Offset**: Arc のオフセット（半径加減）、Bezier の近似オフセット。
-  - 交点計算の精度担保（数値的安定性）。
+- 現状（2026-06-22 時点・実装済み）
+  - **Trim**: Line-Line, Arc-Line, Bezier-Line, Arc-Arc（解析的な円-円交差）。
+  - **Offset**: Line, Rectangle, Ellipse, Arc（半径加減）, Bezier（Tiller-Hanson 近似）。
+- 残作業 → GitHub Issue [#15](https://github.com/soundkitchen/LCCAD/issues/15) で管理
+  - **Trim**: Bezier-Bezier の真の曲線交差（現状は 64 分割の線分近似）。
+  - Trim/Offset の専用テスト（`TrimToolTests` / `OffsetToolTests`）が未整備。
 - 主な影響箇所
   - `Sources/LCCAD/Tools/TrimTool.swift`
   - `Sources/LCCAD/Tools/OffsetTool.swift`
