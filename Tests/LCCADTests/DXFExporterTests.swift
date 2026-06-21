@@ -102,5 +102,14 @@ final class DXFExporterTests: XCTestCase {
         let dxf = DXFExporter.export(document: doc)
         let lineCount = dxf.components(separatedBy: "\n0\nLINE\n").count - 1
         XCTAssertEqual(lineCount, 72, "Rotated ellipse must also emit its polyline approximation")
+
+        // The rotation must actually be applied to the emitted coordinates, not
+        // just produce the right number of segments. The θ=0 vertex sits at
+        // (center.x + radiusX, center.y) = (15, 10) when unrotated; a π/4
+        // rotation around the center (10, 10) moves it to (13.5355, 13.5355).
+        XCTAssertFalse(dxf.contains("\n10\n15.0000\n20\n10.0000\n"),
+                       "Unrotated θ=0 vertex must not appear once the ellipse is rotated")
+        XCTAssertTrue(dxf.contains("\n10\n13.5355\n20\n13.5355\n"),
+                      "Rotated θ=0 vertex (13.5355, 13.5355) should appear in the output")
     }
 }
