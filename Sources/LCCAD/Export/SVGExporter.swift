@@ -65,7 +65,14 @@ enum SVGExporter {
             return s
 
         case .ellipse(let ellipse):
-            return "<ellipse cx=\"\(fmt(ellipse.center.x))\" cy=\"\(fmt(ellipse.center.y))\" rx=\"\(fmt(ellipse.radiusX))\" ry=\"\(fmt(ellipse.radiusY))\" \(strokeAttr)/>"
+            var s = "<ellipse cx=\"\(fmt(ellipse.center.x))\" cy=\"\(fmt(ellipse.center.y))\" rx=\"\(fmt(ellipse.radiusX))\" ry=\"\(fmt(ellipse.radiusY))\""
+            if ellipse.rotation != 0 {
+                let deg = ellipse.rotation * 180 / .pi
+                let c = ellipse.center
+                s += " transform=\"rotate(\(fmt(deg)) \(fmt(c.x)) \(fmt(c.y)))\""
+            }
+            s += " \(strokeAttr)/>"
+            return s
 
         case .arc(let arc):
             let start = arc.startPoint

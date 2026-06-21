@@ -65,8 +65,15 @@ struct CanvasRenderer {
     }
 
     private func drawEllipse(_ ellipse: EllipseShape, color: Color, strokeStyle: SwiftUI.StrokeStyle, in context: GraphicsContext) {
-        let screenRect = transform.worldToScreen(ellipse.boundingBox)
-        let path = Path(ellipseIn: screenRect)
+        let screenRect = transform.worldToScreen(ellipse.unrotatedBounds)
+        var path = Path(ellipseIn: screenRect)
+        if ellipse.rotation != 0 {
+            let centerScreen = transform.worldToScreen(ellipse.center)
+            let t = CGAffineTransform(translationX: centerScreen.x, y: centerScreen.y)
+                .rotated(by: ellipse.rotation)
+                .translatedBy(x: -centerScreen.x, y: -centerScreen.y)
+            path = path.applying(t)
+        }
         context.stroke(path, with: .color(color), style: strokeStyle)
     }
 
