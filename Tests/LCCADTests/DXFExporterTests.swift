@@ -75,4 +75,32 @@ final class DXFExporterTests: XCTestCase {
         XCTAssertTrue(dxf.contains("Pattern"))
         XCTAssertTrue(dxf.contains("\n0\nLINE\n"))
     }
+
+    // MARK: - Ellipse polyline approximation (regression: was silently dropped)
+
+    func testEllipseEmitsLineSegments() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.ellipse(
+            EllipseShape(center: CGPoint(x: 10, y: 10), radiusX: 5, radiusY: 3)))
+
+        let dxf = DXFExporter.export(document: doc)
+
+        // The ellipse must be approximated by a closed 72-segment polyline,
+        // not silently omitted (the original bug returned "").
+        let lineCount = dxf.components(separatedBy: "\n0\nLINE\n").count - 1
+        XCTAssertEqual(lineCount, 72, "Ellipse should emit 72 LINE segments, not be dropped")
+    }
+
+    func testRotatedEllipseStillEmitsSegments() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        var ellipse = EllipseShape(center: CGPoint(x: 10, y: 10), radiusX: 5, radiusY: 3)
+        ellipse.rotation = .pi / 4
+        doc.layers[0].shapes.append(.ellipse(ellipse))
+
+        let dxf = DXFExporter.export(document: doc)
+        let lineCount = dxf.components(separatedBy: "\n0\nLINE\n").count - 1
+        XCTAssertEqual(lineCount, 72, "Rotated ellipse must also emit its polyline approximation")
+    }
 }
