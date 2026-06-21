@@ -75,4 +75,41 @@ final class DXFExporterTests: XCTestCase {
         XCTAssertTrue(dxf.contains("Pattern"))
         XCTAssertTrue(dxf.contains("\n0\nLINE\n"))
     }
+
+    // MARK: - Ellipse polyline approximation (regression: was silently dropped)
+
+    func testEllipseEmitsLineSegments() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.ellipse(
+            EllipseShape(center: CGPoint(x: 10, y: 10), radiusX: 5, radiusY: 3)))
+
+        let dxf = DXFExporter.export(document: doc)
+
+        // The ellipse must be approximated by a closed 72-segment polyline,
+        // not silently omitted (the original bug returned "").
+        let lineCount = dxf.components(separatedBy: "\n0\nLINE\n").count - 1
+        XCTAssertEqual(lineCount, 72, "Ellipse should emit 72 LINE segments, not be dropped")
+    }
+
+    func testRotatedEllipseStillEmitsSegments() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        var ellipse = EllipseShape(center: CGPoint(x: 10, y: 10), radiusX: 5, radiusY: 3)
+        ellipse.rotation = .pi / 4
+        doc.layers[0].shapes.append(.ellipse(ellipse))
+
+        let dxf = DXFExporter.export(document: doc)
+        let lineCount = dxf.components(separatedBy: "\n0\nLINE\n").count - 1
+        XCTAssertEqual(lineCount, 72, "Rotated ellipse must also emit its polyline approximation")
+
+        // The rotation must actually be applied to the emitted coordinates, not
+        // just produce the right number of segments. The θ=0 vertex sits at
+        // (center.x + radiusX, center.y) = (15, 10) when unrotated; a π/4
+        // rotation around the center (10, 10) moves it to (13.5355, 13.5355).
+        XCTAssertFalse(dxf.contains("\n10\n15.0000\n20\n10.0000\n"),
+                       "Unrotated θ=0 vertex must not appear once the ellipse is rotated")
+        XCTAssertTrue(dxf.contains("\n10\n13.5355\n20\n13.5355\n"),
+                      "Rotated θ=0 vertex (13.5355, 13.5355) should appear in the output")
+    }
 }

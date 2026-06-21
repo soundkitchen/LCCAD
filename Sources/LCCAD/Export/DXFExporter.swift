@@ -144,9 +144,36 @@ enum DXFExporter {
                 layer: layer, linetype: lt
             )
 
-        case .ellipse:
-            // R12 doesn't support ELLIPSE — approximate with polyline
-            return ""  // TODO: polyline approximation
+        case .ellipse(let ellipse):
+            // R12 has no ELLIPSE entity — approximate the (possibly rotated)
+            // ellipse with a closed loop of LINE segments, matching the bezier
+            // approach. Y-flip is handled per-point by yVal, so no separate
+            // angle adjustment is needed for flipY.
+            let segments = 72  // 5° resolution
+            var pts: [CGPoint] = []
+            pts.reserveCapacity(segments)
+            for i in 0..<segments {
+                let theta = CGFloat(i) / CGFloat(segments) * 2 * .pi
+                var p = CGPoint(
+                    x: ellipse.center.x + ellipse.radiusX * cos(theta),
+                    y: ellipse.center.y + ellipse.radiusY * sin(theta)
+                )
+                if ellipse.rotation != 0 {
+                    p = p.rotated(around: ellipse.center, angle: ellipse.rotation)
+                }
+                pts.append(p)
+            }
+            var s = ""
+            for i in 0..<segments {
+                let a = pts[i]
+                let b = pts[(i + 1) % segments]
+                s += lineEntity(
+                    x1: a.x, y1: yVal(a.y, options),
+                    x2: b.x, y2: yVal(b.y, options),
+                    layer: layer, linetype: lt
+                )
+            }
+            return s
 
         case .dot(let dot):
             return pointEntity(x: dot.position.x, y: yVal(dot.position.y, options), layer: layer)
