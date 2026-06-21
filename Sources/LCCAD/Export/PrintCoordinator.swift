@@ -406,8 +406,18 @@ private class PrintableDocumentView: NSView {
             }
 
         case .ellipse(let ellipse):
-            context.addEllipse(in: ellipse.boundingBox)
+            if ellipse.rotation != 0 {
+                context.saveGState()
+                let c = ellipse.center
+                context.translateBy(x: c.x, y: c.y)
+                context.rotate(by: ellipse.rotation)
+                context.translateBy(x: -c.x, y: -c.y)
+            }
+            context.addEllipse(in: ellipse.unrotatedBounds)
             context.strokePath()
+            if ellipse.rotation != 0 {
+                context.restoreGState()
+            }
 
         case .arc(let arc):
             context.addArc(center: arc.center, radius: arc.radius,
