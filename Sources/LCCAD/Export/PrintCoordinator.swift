@@ -475,7 +475,10 @@ private class PrintableDocumentView: NSView {
 
         case .dimensionLine(let dim):
             context.saveGState()
-            let dimColor = NSColor(red: 0x5C / 255.0, green: 0x7C / 255.0, blue: 0x99 / 255.0, alpha: 1.0)
+            let dimHex = DimensionLineShape.colorLightHex
+            let dimColor = NSColor(red: CGFloat((dimHex >> 16) & 0xFF) / 255.0,
+                                   green: CGFloat((dimHex >> 8) & 0xFF) / 255.0,
+                                   blue: CGFloat(dimHex & 0xFF) / 255.0, alpha: 1.0)
             context.setStrokeColor(dimColor.cgColor)
             context.setFillColor(dimColor.cgColor)
             context.setLineWidth(0.3)

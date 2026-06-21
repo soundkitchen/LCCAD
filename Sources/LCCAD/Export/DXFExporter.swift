@@ -93,7 +93,7 @@ enum DXFExporter {
         for layer in document.layers where layer.isVisible {
             let layerName = sanitize(layer.name)
             for shape in layer.shapes {
-                s += dxfEntities(for: shape, layer: layerName, options: options, unit: document.settings.unit)
+                s += dxfEntities(for: shape, layer: layerName, options: options)
             }
             for stitchLine in layer.stitchLines {
                 for hole in stitchLine.holes {
@@ -108,7 +108,7 @@ enum DXFExporter {
 
     // MARK: - Shape → DXF Entities
 
-    private static func dxfEntities(for shape: AnyShape, layer: String, options: DXFExportOptions, unit: LengthUnit) -> String {
+    private static func dxfEntities(for shape: AnyShape, layer: String, options: DXFExportOptions) -> String {
         let lt = shape.stroke.lineStyle.dxfName
 
         switch shape {
@@ -227,15 +227,17 @@ enum DXFExporter {
             s += lineEntity(x1: a.x, y1: yVal(a.y, options), x2: b.x, y2: yVal(b.y, options), layer: layer, linetype: lt)
             s += dxfArrowhead(tip: a, toward: b, options: options, layer: layer)
             s += dxfArrowhead(tip: b, toward: a, options: options, layer: layer)
+            // Exported coordinates are always in mm, so the auto label is mm too,
+            // keeping the file self-consistent regardless of the document's unit.
             s += textEntity(
                 x: dim.labelAnchor.x, y: yVal(dim.labelAnchor.y, options),
-                height: DimensionLineShape.textHeight, content: dim.displayLabel(unit: unit),
+                height: DimensionLineShape.textHeight, content: dim.displayLabel(unit: .millimeters),
                 layer: layer
             )
             return s
 
         case .group(let group):
-            return group.children.map { dxfEntities(for: $0, layer: layer, options: options, unit: unit) }.joined()
+            return group.children.map { dxfEntities(for: $0, layer: layer, options: options) }.joined()
         }
     }
 

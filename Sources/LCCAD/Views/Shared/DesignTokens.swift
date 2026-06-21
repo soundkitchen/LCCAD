@@ -114,7 +114,7 @@ enum DesignTokens {
     // MARK: - Dimension
 
     static func dimensionColor(_ scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: 0x7E9CB8) : Color(hex: 0x5C7C99)
+        Color(hex: scheme == .dark ? DimensionLineShape.colorDarkHex : DimensionLineShape.colorLightHex)
     }
 }
 

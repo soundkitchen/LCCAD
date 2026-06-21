@@ -112,4 +112,39 @@ final class DXFExporterTests: XCTestCase {
         XCTAssertTrue(dxf.contains("\n10\n13.5355\n20\n13.5355\n"),
                       "Rotated θ=0 vertex (13.5355, 13.5355) should appear in the output")
     }
+
+    // MARK: - Dimension line
+
+    func testDimensionEmitsLinesAndText() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.dimensionLine(
+            DimensionLineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0),
+                               offset: 5, kind: .horizontal)))
+
+        let dxf = DXFExporter.export(document: doc)
+
+        // 3 base lines (2 extension + 1 dimension) + 2 lines per arrowhead (×2) = 7
+        let lineCount = dxf.components(separatedBy: "\n0\nLINE\n").count - 1
+        XCTAssertEqual(lineCount, 7, "Dimension should emit its extension/dimension/arrow lines")
+        // And a single TEXT entity for the label.
+        let textCount = dxf.components(separatedBy: "\n0\nTEXT\n").count - 1
+        XCTAssertEqual(textCount, 1)
+    }
+
+    func testDimensionLabelIsMillimetersEvenForInchDocument() {
+        var doc = DocumentData()
+        doc.settings.unit = .inches
+        doc.layers = [Layer(name: "L1")]
+        // 25.4mm horizontal span = 1.0 inch
+        doc.layers[0].shapes.append(.dimensionLine(
+            DimensionLineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 25.4, y: 0),
+                               offset: 5, kind: .horizontal)))
+
+        let dxf = DXFExporter.export(document: doc)
+
+        // Exported coordinates are mm, so the label must be the mm value, not inches.
+        XCTAssertTrue(dxf.contains("\n1\n25.4\n"), "Dimension label should be the mm value (25.4)")
+        XCTAssertFalse(dxf.contains("\n1\n1.0\n"), "Inch-converted label (1.0) must not be exported")
+    }
 }

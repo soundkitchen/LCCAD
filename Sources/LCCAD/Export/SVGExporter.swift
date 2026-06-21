@@ -20,7 +20,7 @@ enum SVGExporter {
         for layer in document.layers where (!visibleOnly || layer.isVisible) {
             svg += "\n<g id=\"\(escapeXML(layer.name))\">\n"
             for shape in layer.shapes {
-                svg += svgElement(for: shape, unit: document.settings.unit) + "\n"
+                svg += svgElement(for: shape) + "\n"
             }
 
             if !layer.stitchLines.isEmpty {
@@ -44,7 +44,7 @@ enum SVGExporter {
 
     // MARK: - Shape → SVG Element
 
-    private static func svgElement(for shape: AnyShape, unit: LengthUnit) -> String {
+    private static func svgElement(for shape: AnyShape) -> String {
         let strokeAttr = strokeAttributes(shape.stroke)
 
         switch shape {
@@ -108,7 +108,7 @@ enum SVGExporter {
             return s
 
         case .dimensionLine(let dim):
-            let c = "#5C7C99"
+            let c = String(format: "#%06X", DimensionLineShape.colorLightHex)
             let (a, b) = dim.dimEndpoints
             var s = "<g stroke=\"\(c)\" stroke-width=\"0.3\" fill=\"none\">"
             s += "\n  <line x1=\"\(fmt(dim.start.x))\" y1=\"\(fmt(dim.start.y))\" x2=\"\(fmt(a.x))\" y2=\"\(fmt(a.y))\"/>"
@@ -116,7 +116,9 @@ enum SVGExporter {
             s += "\n  <line x1=\"\(fmt(a.x))\" y1=\"\(fmt(a.y))\" x2=\"\(fmt(b.x))\" y2=\"\(fmt(b.y))\"/>"
             s += "\n  " + svgArrowhead(tip: a, toward: b, color: c)
             s += "\n  " + svgArrowhead(tip: b, toward: a, color: c)
-            let label = dim.displayLabel(unit: unit)
+            // Exported geometry is always in mm, so the auto label is mm too,
+            // keeping the file self-consistent regardless of the document's unit.
+            let label = dim.displayLabel(unit: .millimeters)
             s += "\n  <text x=\"\(fmt(dim.labelAnchor.x))\" y=\"\(fmt(dim.labelAnchor.y))\" font-size=\"\(fmt(DimensionLineShape.textHeight))\" fill=\"\(c)\" stroke=\"none\" text-anchor=\"middle\">\(escapeXML(label))</text>"
             s += "\n</g>"
             return s
@@ -124,7 +126,7 @@ enum SVGExporter {
         case .group(let group):
             var s = "<g>"
             for child in group.children {
-                s += "\n  " + svgElement(for: child, unit: unit)
+                s += "\n  " + svgElement(for: child)
             }
             s += "\n</g>"
             return s

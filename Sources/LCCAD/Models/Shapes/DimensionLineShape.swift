@@ -38,6 +38,13 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
     /// Arrowhead length in world units (mm).
     static let arrowLength: CGFloat = 2.4
 
+    /// Canonical dimension color, shared by the canvas renderer (via
+    /// `DesignTokens.dimensionColor`), the SVG/DXF exporters, and print so the
+    /// value is defined once. Keep in sync with the `dimension-color` design
+    /// variable (Single Source of Truth in lccad.pen).
+    static let colorLightHex: UInt = 0x5C7C99
+    static let colorDarkHex: UInt = 0x7E9CB8
+
     init(id: UUID = UUID(), start: CGPoint, end: CGPoint, offset: CGFloat,
          kind: DimensionKind = .aligned, labelOverride: String? = nil, stroke: StrokeStyle = .default) {
         self.id = id
