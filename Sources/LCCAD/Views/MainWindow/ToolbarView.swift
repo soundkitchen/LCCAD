@@ -32,9 +32,8 @@ struct ToolbarView: View {
             stitchToolButton(icon: "grid", label: "Auto Stitch") {
                 editor.autoStitchSelectedShape()
             }
-            stitchToolButton(icon: "eye", label: "Stitch Simulator") {
-                // TODO: Stitch simulator not yet implemented
-            }
+            // Stitch Simulator is a planned feature; shown disabled until implemented.
+            stitchToolButton(icon: "eye", label: "Stitch Simulator (coming soon)", enabled: false) {}
 
             Spacer()
 
@@ -91,7 +90,7 @@ struct ToolbarView: View {
 
     // MARK: - Stitch tool button (warm accent color)
 
-    private func stitchToolButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+    private func stitchToolButton(icon: String, label: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 16))
@@ -100,6 +99,8 @@ struct ToolbarView: View {
                 .foregroundStyle(DesignTokens.stitchColor)
         }
         .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1.0 : 0.4)
         .help(label)
     }
 

@@ -203,8 +203,9 @@ struct AppCommands: Commands {
             }
 
             Button("Stitch Simulator") {
-                // TODO: not yet implemented
+                // Planned feature; not yet implemented.
             }
+            .disabled(true)
 
             Divider()
 
