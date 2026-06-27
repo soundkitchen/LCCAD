@@ -253,6 +253,27 @@ enum TrimTool {
                 continue
             }
 
+            // Curve × curve (Bézier / Arc / Ellipse on both sides): true
+            // cubic-cubic intersection via subdivision, replacing the fixed
+            // 64-segment polyline approximation that could miss crossings
+            // between sample points (Issue #15 parts 2 & 3).
+            if let targetCubics = smoothCurveCubics(shape),
+               let otherCubics = smoothCurveCubics(other) {
+                let segCount = max(targetCubics.count, 1)
+                for (i, tc) in targetCubics.enumerated() {
+                    for oc in otherCubics {
+                        for hit in Intersection.cubicCubicIntersections(tc, oc) {
+                            if let t = curveParameter(for: shape, point: hit.point,
+                                                      cubicIndex: i, localT: hit.ta,
+                                                      segCount: segCount) {
+                                results.append(t)
+                            }
+                        }
+                    }
+                }
+                continue
+            }
+
             let otherSegments = toSegments(other)
             for (s1, s2) in otherSegments {
                 let ts = intersectTargetWithSegment(target: shape, segStart: s1, segEnd: s2)
@@ -338,6 +359,45 @@ enum TrimTool {
             results.append((CGFloat(i) + localT) / CGFloat(n))
         }
         return results
+    }
+
+    // MARK: - Curve → Cubic Segments (for analytical curve×curve intersection)
+
+    /// Cubic-segment representation of a smooth curve (Bézier / Arc / Ellipse),
+    /// or `nil` for shapes that aren't smooth curves (Line / Rectangle / …).
+    private static func smoothCurveCubics(_ shape: AnyShape) -> [CubicSegment]? {
+        switch shape {
+        case .bezier(let b):
+            return Intersection.bezierCubics(b)
+        case .arc(let a):
+            let span = a.clockwise ? -a.angleSpan : a.angleSpan
+            return Intersection.arcCubics(center: a.center, rx: a.radius, ry: a.radius,
+                                          startAngle: a.startAngle, signedSpan: span)
+        case .ellipse(let e):
+            return Intersection.arcCubics(center: e.center, rx: e.radiusX, ry: e.radiusY,
+                                          startAngle: 0, signedSpan: 2 * .pi)
+        default:
+            return nil
+        }
+    }
+
+    /// Map a cubic-cubic hit back to the target curve's own [0,1] parameter.
+    /// Bézier uses the cubic index + local parameter; Arc/Ellipse use the exact
+    /// angle of the intersection point (robust to the tiny radial error of the
+    /// cubic approximation).
+    private static func curveParameter(for shape: AnyShape, point: CGPoint,
+                                       cubicIndex: Int, localT: CGFloat, segCount: Int) -> CGFloat? {
+        switch shape {
+        case .bezier:
+            return (CGFloat(cubicIndex) + localT) / CGFloat(segCount)
+        case .arc(let arc):
+            let angle = atan2(point.y - arc.center.y, point.x - arc.center.x)
+            return arc.parameterForAngle(angle)
+        case .ellipse(let ellipse):
+            return projectPointOnEllipse(point, ellipse: ellipse)
+        default:
+            return nil
+        }
     }
 
     // MARK: - Shape → Line Segments
