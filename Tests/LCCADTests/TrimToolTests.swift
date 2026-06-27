@@ -235,4 +235,26 @@ final class TrimToolTests: XCTestCase {
         guard case .arc(let kept) = replacements[0] else { return XCTFail("expected arc") }
         assertPoint(kept.pointAtParameter(0.5), 40, 0, accuracy: 0.1)
     }
+
+    /// Non-circular ellipse (rx ≠ ry) cut by a vertical diameter at (0, ±20).
+    /// Clicking the left half keeps the right half, which — being a true ellipse
+    /// rather than a circle — is emitted as a bezier via `ellipseArcToBezier`
+    /// (the path refactored onto `arcCubics`). This is the only coverage of that
+    /// non-circular extraction branch.
+    func testEllipseTrimNonCircularKeepsBezierHalf() {
+        let ellipse = EllipseShape(center: .zero, radiusX: 40, radiusY: 20)
+        let diameter = AnyShape.line(line(0, -30, 0, 30)) // crosses at (0, 20) and (0, -20)
+
+        let result = TrimTool.trim(shape: .ellipse(ellipse), against: [diameter],
+                                   clickPoint: CGPoint(x: -40, y: 0))
+        let replacements = try! XCTUnwrap(result?.replacements)
+        XCTAssertEqual(replacements.count, 1)
+
+        guard case .bezier(let kept) = replacements[0] else { return XCTFail("expected bezier remnant") }
+        // π/2 + π/2 span → 2 cubics → 3 anchors, threading the right-side apex.
+        XCTAssertEqual(kept.points.count, 3)
+        assertPoint(kept.points.first!.point, 0, -20, accuracy: 0.5)
+        assertPoint(kept.points[1].point, 40, 0, accuracy: 0.5)
+        assertPoint(kept.points.last!.point, 0, 20, accuracy: 0.5)
+    }
 }
