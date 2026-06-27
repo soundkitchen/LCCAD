@@ -207,6 +207,12 @@ final class EditorViewModel {
     // Array sheet state
     var showArraySheet: Bool = false
 
+    // Template state
+    /// Presents the "save selection as template" sheet.
+    var showSaveTemplateSheet: Bool = false
+    /// When non-nil, the next canvas click places this template (click-to-place mode).
+    var pendingTemplate: Template?
+
     var activePrickingIron: PrickingIron? {
         if let id = selectedIronId {
             return document.prickingIrons.first { $0.id == id }
@@ -572,6 +578,7 @@ final class EditorViewModel {
         selectedPageId = nil
         pageMoveUndoSnapshot = nil
         pageDragRawOrigin = nil
+        pendingTemplate = nil
         currentTool = tool
         if tool != .select {
             selectedShapeIds = []
@@ -621,6 +628,15 @@ final class EditorViewModel {
     }
 
     func handleClick(at screenPoint: CGPoint, shiftHeld: Bool = false) {
+        // Click-to-place: a pending template intercepts the click regardless of tool.
+        if let pending = pendingTemplate {
+            let placePoint = snappedWorldPoint(from: screenPoint)
+            placeTemplate(pending, at: placePoint)
+            pendingTemplate = nil
+            activeSnapCandidate = nil
+            return
+        }
+
         // Select tool must use the raw cursor position so clicks adjacent to grid lines or
         // existing snap targets don't get pulled away from the shape under the cursor.
         let worldPoint: CGPoint = (currentTool == .select)
@@ -748,6 +764,9 @@ final class EditorViewModel {
     func handleMouseMove(screenPoint: CGPoint) {
         let worldPoint = snappedWorldPoint(from: screenPoint)
         cursorWorldPosition = worldPoint
+
+        // While placing a template, the snapped cursor drives the ghost preview.
+        if pendingTemplate != nil { return }
 
         switch currentTool {
         case .line:
@@ -920,6 +939,12 @@ final class EditorViewModel {
     }
 
     func cancelDrawing() {
+        // Cancel a pending template placement first (Escape).
+        if pendingTemplate != nil {
+            pendingTemplate = nil
+            activeSnapCandidate = nil
+            return
+        }
         // If bezier has 2+ points, commit what we have before cancelling
         if currentTool == .bezier && bezierPoints.count >= 2 {
             commitBezier()
@@ -1753,6 +1778,70 @@ final class EditorViewModel {
             )
             document.layers[li].stitchLines.append(newLine)
         }
+    }
+
+    // MARK: - Templates
+
+    /// Build a template from the current selection without touching the library.
+    /// Shapes are cloned with fresh IDs and normalized so their combined bounding
+    /// box is centered on the origin. When `asGroup` is true they are wrapped in a
+    /// single `GroupShape`; otherwise the flattened shapes are stored as-is.
+    /// Returns nil when nothing is selected.
+    func buildTemplate(name: String, asGroup: Bool) -> Template? {
+        // Gather selected shapes preserving each layer's z-order (selection may span layers).
+        var gathered: [AnyShape] = []
+        for layer in document.layers {
+            for shape in layer.shapes where selectedShapeIds.contains(shape.id) {
+                gathered.append(shape)
+            }
+        }
+        guard !gathered.isEmpty else { return nil }
+
+        var clones = gathered.map { cloneWithFreshIds($0).clone }
+        guard let box = clones.combinedBoundingBox else { return nil }
+        let recenter = CGPoint(x: -box.midX, y: -box.midY)
+        for i in clones.indices { clones[i].translate(by: recenter) }
+
+        let stored: [AnyShape] = asGroup ? [.group(GroupShape(children: clones))] : clones
+
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = trimmed.isEmpty
+            ? "Template \(TemplateLibraryStore.shared.templates.count + 1)"
+            : trimmed
+        return Template(name: finalName, shapes: stored)
+    }
+
+    /// Build a template from the current selection and add it to the global library.
+    func saveSelectionAsTemplate(name: String, asGroup: Bool) {
+        guard let template = buildTemplate(name: name, asGroup: asGroup) else { return }
+        TemplateLibraryStore.shared.add(template)
+    }
+
+    /// Enter click-to-place mode for the given template. The next canvas click
+    /// places it; a cursor-following ghost is drawn until then.
+    func beginTemplatePlacement(_ template: Template) {
+        currentTool = .select
+        selectedShapeIds = []
+        drawingPreview = nil
+        marqueeStart = nil
+        marqueeRect = nil
+        pendingTemplate = template
+    }
+
+    /// Place a template's shapes into the active layer, centered on `worldPoint`.
+    /// Each placement clones with fresh IDs so repeated drops never share IDs.
+    func placeTemplate(_ template: Template, at worldPoint: CGPoint) {
+        guard !template.shapes.isEmpty else { return }
+        let old = document
+        var placedIds: Set<UUID> = []
+        for shape in template.shapes {
+            var clone = cloneWithFreshIds(shape).clone
+            clone.translate(by: worldPoint)
+            activeLayer.shapes.append(clone)
+            placedIds.insert(clone.id)
+        }
+        selectedShapeIds = placedIds
+        registerUndo(actionName: "Place Template", oldDocument: old)
     }
 
     // MARK: - Export

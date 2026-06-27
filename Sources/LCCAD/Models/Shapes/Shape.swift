@@ -305,3 +305,15 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         }
     }
 }
+
+// MARK: - Combined Bounds
+
+extension Collection where Element == AnyShape {
+    /// Union of every shape's `boundingBox` (world mm), or nil when empty.
+    var combinedBoundingBox: CGRect? {
+        guard let first = first else { return nil }
+        var box = first.boundingBox
+        for shape in dropFirst() { box = box.union(shape.boundingBox) }
+        return box
+    }
+}

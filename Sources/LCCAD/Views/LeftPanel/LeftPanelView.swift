@@ -22,7 +22,7 @@ struct LeftPanelView: View {
             if selectedTab == 0 {
                 LayerListView(editor: editor)
             } else {
-                TemplateListPlaceholder()
+                TemplateListView(editor: editor)
             }
         }
         .background(DesignTokens.bgPanel(colorScheme))
@@ -43,19 +43,5 @@ struct LeftPanelView: View {
                 }
         }
         .buttonStyle(.plain)
-    }
-}
-
-struct TemplateListPlaceholder: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        VStack {
-            Spacer()
-            Text("Templates")
-                .foregroundStyle(DesignTokens.textSecondary(colorScheme))
-                .font(.system(size: 12))
-            Spacer()
-        }
     }
 }

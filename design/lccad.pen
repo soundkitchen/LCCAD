@@ -1,5 +1,5 @@
 {
-  "version": "2.13",
+  "version": "2.14",
   "children": [
     {
       "type": "frame",
@@ -10749,6 +10749,1438 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "I09zJO",
+      "x": 3060,
+      "y": 0,
+      "name": "Templates Panel - Light",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 240,
+      "height": 480,
+      "fill": "$bg-panel",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "Th0lS",
+          "name": "Tab Bar",
+          "width": "fill_container",
+          "height": 36,
+          "fill": "$bg-section",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Gncew",
+              "name": "Layers Tab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "noLyB",
+                  "name": "Layers Label",
+                  "fill": "$text-secondary",
+                  "content": "Layers",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jNiuj",
+              "name": "Templates Tab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "stroke": "$accent",
+              "strokeWidth": {
+                "bottom": 2
+              },
+              "strokeAlignment": "inner",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vYTBU",
+                  "name": "Templates Label",
+                  "fill": "$accent",
+                  "content": "Templates",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "YcQJ3",
+          "name": "Action Bar",
+          "width": "fill_container",
+          "height": 32,
+          "stroke": "$border-light",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "gap": 4,
+          "padding": [
+            0,
+            8
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "f1cUn",
+              "name": "Save Selection Button",
+              "cornerRadius": 4,
+              "gap": 4,
+              "padding": [
+                4,
+                6
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "iNaIB",
+                  "name": "Plus Icon",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "plus",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                },
+                {
+                  "type": "text",
+                  "id": "LXCnJ",
+                  "name": "Save Label",
+                  "fill": "$text-secondary",
+                  "content": "選択を保存",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "CS7oz",
+          "name": "Template List",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": [
+            4,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "sAtNq",
+              "name": "Row カードケース 型紙",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Pnbom",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "jpWIH",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "path",
+                          "id": "qGGxG",
+                          "x": 0,
+                          "y": 0,
+                          "name": "Glyph",
+                          "geometry": "M5 11h26v14h-26z",
+                          "viewBox": [
+                            0,
+                            0,
+                            36,
+                            36
+                          ],
+                          "width": 36,
+                          "height": 36,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5,
+                          "strokeLinejoin": "round",
+                          "strokeLinecap": "round"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "MQ2hZ",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "カードケース 型紙",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "NmgA4",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "wa2D7",
+              "name": "Row 二つ折り財布",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "veuSH",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "iTjcu",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "path",
+                          "id": "p2AYp",
+                          "x": 0,
+                          "y": 0,
+                          "name": "Glyph",
+                          "geometry": "M5 9h26v18h-26z m13 0v18",
+                          "viewBox": [
+                            0,
+                            0,
+                            36,
+                            36
+                          ],
+                          "width": 36,
+                          "height": 36,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5,
+                          "strokeLinejoin": "round",
+                          "strokeLinecap": "round"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "f5gBHQ",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "二つ折り財布",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "Sb0B0",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "InO40",
+              "name": "Row コインケース",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Yxq4N",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "K8dRX",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "JFoQf",
+                          "x": 7,
+                          "y": 7,
+                          "name": "Glyph",
+                          "fill": "$bg-section",
+                          "width": 22,
+                          "height": 22,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "r7rDCO",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "コインケース",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "NW5Tz",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "bnQLa",
+              "name": "Row ペンケース",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "hLQXP",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "N3zC1G",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "path",
+                          "id": "pFake",
+                          "x": 0,
+                          "y": 0,
+                          "name": "Glyph",
+                          "geometry": "M5 15h26v6h-26z",
+                          "viewBox": [
+                            0,
+                            0,
+                            36,
+                            36
+                          ],
+                          "width": 36,
+                          "height": 36,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5,
+                          "strokeLinejoin": "round",
+                          "strokeLinecap": "round"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "wh2tN",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "ペンケース",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "r2XI71",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "aO8lZ",
+      "x": 3340,
+      "y": 0,
+      "name": "Templates Panel - Dark",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 240,
+      "height": 480,
+      "fill": "$bg-panel",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "ODAQn",
+          "name": "Tab Bar",
+          "width": "fill_container",
+          "height": 36,
+          "fill": "$bg-section",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "children": [
+            {
+              "type": "frame",
+              "id": "RIxoC",
+              "name": "Layers Tab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "IK0He",
+                  "name": "Layers Label",
+                  "fill": "$text-secondary",
+                  "content": "Layers",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "xhgjL",
+              "name": "Templates Tab",
+              "width": "fill_container",
+              "height": "fill_container",
+              "stroke": "$accent",
+              "strokeWidth": {
+                "bottom": 2
+              },
+              "strokeAlignment": "inner",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "hBXRr",
+                  "name": "Templates Label",
+                  "fill": "$accent",
+                  "content": "Templates",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "CHmJd",
+          "name": "Action Bar",
+          "width": "fill_container",
+          "height": 32,
+          "stroke": "$border-light",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "gap": 4,
+          "padding": [
+            0,
+            8
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "GI1Gf",
+              "name": "Save Selection Button",
+              "cornerRadius": 4,
+              "gap": 4,
+              "padding": [
+                4,
+                6
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "V2UsEs",
+                  "name": "Plus Icon",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "plus",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                },
+                {
+                  "type": "text",
+                  "id": "wSmUF",
+                  "name": "Save Label",
+                  "fill": "$text-secondary",
+                  "content": "選択を保存",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "e0kFb7",
+          "name": "Template List",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": [
+            4,
+            0
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "MvSsq",
+              "name": "Row カードケース 型紙",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Vc7PC",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "n7bTkq",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "path",
+                          "id": "DfM2d",
+                          "x": 0,
+                          "y": 0,
+                          "name": "Glyph",
+                          "geometry": "M5 11h26v14h-26z",
+                          "viewBox": [
+                            0,
+                            0,
+                            36,
+                            36
+                          ],
+                          "width": 36,
+                          "height": 36,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5,
+                          "strokeLinejoin": "round",
+                          "strokeLinecap": "round"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "rIJAS",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "カードケース 型紙",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "x5eb1",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "RCV94",
+              "name": "Row 二つ折り財布",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zBYfw",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "FQYse",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "path",
+                          "id": "xfDVW",
+                          "x": 0,
+                          "y": 0,
+                          "name": "Glyph",
+                          "geometry": "M5 9h26v18h-26z m13 0v18",
+                          "viewBox": [
+                            0,
+                            0,
+                            36,
+                            36
+                          ],
+                          "width": 36,
+                          "height": 36,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5,
+                          "strokeLinejoin": "round",
+                          "strokeLinecap": "round"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "NhBdS",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "二つ折り財布",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "Qdl4P",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lTOI8",
+              "name": "Row コインケース",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "jTjNc",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "e0l8N",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "hVjxG",
+                          "x": 7,
+                          "y": 7,
+                          "name": "Glyph",
+                          "fill": "$bg-section",
+                          "width": 22,
+                          "height": 22,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "LS1KV",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "コインケース",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "VTYcH",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "hwN91",
+              "name": "Row ペンケース",
+              "width": "fill_container",
+              "height": 44,
+              "padding": [
+                0,
+                10
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "EgHj7",
+                  "name": "Left",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "P4XPI",
+                      "name": "Thumb",
+                      "width": 36,
+                      "height": 36,
+                      "fill": "$bg-section",
+                      "cornerRadius": 4,
+                      "stroke": "$border-light",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "layout": "none",
+                      "children": [
+                        {
+                          "type": "path",
+                          "id": "I0DW7m",
+                          "x": 0,
+                          "y": 0,
+                          "name": "Glyph",
+                          "geometry": "M5 15h26v6h-26z",
+                          "viewBox": [
+                            0,
+                            0,
+                            36,
+                            36
+                          ],
+                          "width": 36,
+                          "height": 36,
+                          "stroke": "$pattern-stroke",
+                          "strokeWidth": 1.5,
+                          "strokeLinejoin": "round",
+                          "strokeLinecap": "round"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "T94cDz",
+                      "name": "Name",
+                      "fill": "$text-primary",
+                      "content": "ペンケース",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "Gkbhe",
+                  "name": "Delete",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$icon-secondary"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "qgFj0",
+      "x": 3660,
+      "y": 0,
+      "name": "Save Template Sheet - Light",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 440,
+      "fill": "$bg-panel",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "BDSb7",
+          "name": "Title Bar",
+          "width": "fill_container",
+          "height": 44,
+          "fill": "$bg-toolbar",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "G8LfI",
+              "name": "Title",
+              "fill": "$text-primary",
+              "content": "テンプレートを保存",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "SjdXO",
+          "name": "Content",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "kmSs4",
+              "name": "Name Field",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "afgbR",
+                  "name": "Name Label",
+                  "fill": "$text-secondary",
+                  "content": "名前",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "zWpxO",
+                  "name": "Name Input",
+                  "width": "fill_container",
+                  "height": 30,
+                  "fill": "$bg-input",
+                  "cornerRadius": 5,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vf5zw",
+                      "name": "Name Value",
+                      "fill": "$text-primary",
+                      "content": "カードケース 型紙",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ksHB0",
+              "name": "Format Field",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "R3TobZ",
+                  "name": "Format Label",
+                  "fill": "$text-secondary",
+                  "content": "保存形式",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "yPkyE",
+                  "name": "Segmented",
+                  "width": "fill_container",
+                  "height": 30,
+                  "fill": "$bg-input",
+                  "cornerRadius": 5,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 2,
+                  "padding": 2,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Ar7S9",
+                      "name": "Seg Flat",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "fill": "$accent",
+                      "cornerRadius": 4,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uiJRZ",
+                          "name": "Flat Label",
+                          "fill": "$text-on-accent",
+                          "content": "平坦",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Z29zN3",
+                      "name": "Seg Group",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "SXayY",
+                          "name": "Group Label",
+                          "fill": "$text-secondary",
+                          "content": "グループ",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "QMGei",
+                  "name": "Format Hint",
+                  "fill": "$text-muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "平坦＝図形のまま配置 / グループ＝1つにまとめて配置",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "UNcYW",
+              "name": "Buttons",
+              "width": "fill_container",
+              "gap": 8,
+              "justifyContent": "end",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "oAuek",
+                  "name": "Cancel Button",
+                  "cornerRadius": 5,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    7,
+                    14
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XhRnM",
+                      "name": "Cancel Label",
+                      "fill": "$text-secondary",
+                      "content": "キャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "u0fkwC",
+                  "name": "Save Button",
+                  "fill": "$accent",
+                  "cornerRadius": 5,
+                  "padding": [
+                    7,
+                    14
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "neYn7",
+                      "name": "Save Label",
+                      "fill": "$text-on-accent",
+                      "content": "保存",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Zms6P",
+      "x": 4140,
+      "y": 0,
+      "name": "Save Template Sheet - Dark",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 440,
+      "fill": "$bg-panel",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "NGKKI",
+          "name": "Title Bar",
+          "width": "fill_container",
+          "height": 44,
+          "fill": "$bg-toolbar",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "HJZup",
+              "name": "Title",
+              "fill": "$text-primary",
+              "content": "テンプレートを保存",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "DUX3I",
+          "name": "Content",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "m3XQbd",
+              "name": "Name Field",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "QHsjS",
+                  "name": "Name Label",
+                  "fill": "$text-secondary",
+                  "content": "名前",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "JQIfg",
+                  "name": "Name Input",
+                  "width": "fill_container",
+                  "height": 30,
+                  "fill": "$bg-input",
+                  "cornerRadius": 5,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "zBWck",
+                      "name": "Name Value",
+                      "fill": "$text-primary",
+                      "content": "カードケース 型紙",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "OuT0I",
+              "name": "Format Field",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "zYHyR",
+                  "name": "Format Label",
+                  "fill": "$text-secondary",
+                  "content": "保存形式",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "tFxyp",
+                  "name": "Segmented",
+                  "width": "fill_container",
+                  "height": 30,
+                  "fill": "$bg-input",
+                  "cornerRadius": 5,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 2,
+                  "padding": 2,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "NAZE9",
+                      "name": "Seg Flat",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "fill": "$accent",
+                      "cornerRadius": 4,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "X19n5n",
+                          "name": "Flat Label",
+                          "fill": "$text-on-accent",
+                          "content": "平坦",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "DMECD",
+                      "name": "Seg Group",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "D4CJm",
+                          "name": "Group Label",
+                          "fill": "$text-secondary",
+                          "content": "グループ",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "n2etZ",
+                  "name": "Format Hint",
+                  "fill": "$text-muted",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "平坦＝図形のまま配置 / グループ＝1つにまとめて配置",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n89YM",
+              "name": "Buttons",
+              "width": "fill_container",
+              "gap": 8,
+              "justifyContent": "end",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "c9SRwx",
+                  "name": "Cancel Button",
+                  "cornerRadius": 5,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    7,
+                    14
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "NeeC3",
+                      "name": "Cancel Label",
+                      "fill": "$text-secondary",
+                      "content": "キャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "j1TlRv",
+                  "name": "Save Button",
+                  "fill": "$accent",
+                  "cornerRadius": 5,
+                  "padding": [
+                    7,
+                    14
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "MvQtP",
+                      "name": "Save Label",
+                      "fill": "$text-on-accent",
+                      "content": "保存",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "themes": {
@@ -11199,5 +12631,6 @@
         }
       ]
     }
-  }
+  },
+  "fileToken": "1caec7dc-99ab-4aa4-ac8f-7269edd3cd73"
 }

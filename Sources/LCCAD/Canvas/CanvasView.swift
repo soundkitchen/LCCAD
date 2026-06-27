@@ -45,6 +45,18 @@ struct CanvasView: View {
                     in: context
                 )
 
+                // 3.2 Template placement ghost (click-to-place)
+                if let pending = editor.pendingTemplate {
+                    var ghost = context
+                    ghost.opacity = 0.5
+                    let cursor = editor.cursorWorldPosition
+                    for shape in pending.shapes {
+                        var moved = shape
+                        moved.translate(by: cursor)
+                        renderer.draw(shape: moved, in: ghost)
+                    }
+                }
+
                 // 3.5. Page layout overlay
                 let pageLayout = editor.document.settings.pageLayout
                 if pageLayout.showPageFrames || editor.currentTool == .page {
@@ -114,6 +126,19 @@ struct CanvasView: View {
             }
             .onAppear { editor.canvasSize = geometry.size }
             .background(DesignTokens.bgCanvas(colorScheme))
+            .overlay(alignment: .top) {
+                if editor.pendingTemplate != nil {
+                    Text("クリックで配置 ・ Esc でキャンセル")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(DesignTokens.textOnAccent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(DesignTokens.accent.opacity(0.92))
+                        .clipShape(Capsule())
+                        .padding(.top, 10)
+                        .allowsHitTesting(false)
+                }
+            }
             .scrollZoom(editor: editor)
             .gesture(makePanGesture(canvasSize: geometry.size))
             .onContinuousHover { phase in
@@ -166,6 +191,13 @@ struct CanvasView: View {
     private func makePanGesture(canvasSize: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { value in
+                // Click-to-place: while a template is pending, a drag must not start a
+                // marquee/move. Keep the ghost following the cursor and place on release.
+                if editor.pendingTemplate != nil {
+                    editor.handleMouseMove(screenPoint: value.location)
+                    return
+                }
+
                 let delta = CGPoint(
                     x: value.translation.width - (editor.lastPanTranslation?.width ?? 0),
                     y: value.translation.height - (editor.lastPanTranslation?.height ?? 0)
@@ -301,6 +333,12 @@ struct CanvasView: View {
                 editor.lastPanTranslation = value.translation
             }
             .onEnded { value in
+                // Place a pending template at the release point (drag-end also counts as a place).
+                if editor.pendingTemplate != nil {
+                    editor.handleClick(at: value.location)
+                    editor.lastPanTranslation = nil
+                    return
+                }
                 editor.stopEdgeScroll()
                 if editor.currentTool == .page {
                     editor.commitPageMove()
