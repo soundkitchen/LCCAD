@@ -195,7 +195,6 @@ struct CanvasView: View {
                 // marquee/move. Keep the ghost following the cursor and place on release.
                 if editor.pendingTemplate != nil {
                     editor.handleMouseMove(screenPoint: value.location)
-                    editor.lastPanTranslation = value.translation
                     return
                 }
 
