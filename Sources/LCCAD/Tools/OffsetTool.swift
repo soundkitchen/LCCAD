@@ -11,7 +11,8 @@ enum OffsetTool {
         let length = sqrt(dx * dx + dy * dy)
         guard length > 0 else { return line }
 
-        // Perpendicular unit vector (left side)
+        // Perpendicular (-dy, dx): for a left-to-right segment this points +y,
+        // i.e. the visually lower / clockwise side in this Y-down space.
         let nx = -dy / length * distance
         let ny = dx / length * distance
 
@@ -175,7 +176,8 @@ enum OffsetTool {
         return (l1a, newC1, newC2, l3b)
     }
 
-    /// Offset a line segment by distance along its left-side perpendicular.
+    /// Offset a line segment by `distance` along its (-dy, dx) perpendicular
+    /// (+y / clockwise side in this Y-down space) — same convention as `offsetLine`.
     private static func offsetSegment(a: CGPoint, b: CGPoint, distance: CGFloat) -> (CGPoint, CGPoint) {
         let dx = b.x - a.x
         let dy = b.y - a.y

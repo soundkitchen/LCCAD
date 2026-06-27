@@ -198,37 +198,32 @@ enum TrimTool {
     }
 
     /// Approximate an elliptic arc with cubic bezier segments.
+    ///
+    /// Geometry is shared with `Intersection.arcCubics` (single source of the
+    /// `k = 4/3·tan(span/4)` construction); this only converts the resulting
+    /// cubic chain into the shape's anchor/handle representation, with the
+    /// outer handles collapsed onto their anchors.
     private static func ellipseArcToBezier(_ ellipse: EllipseShape, startAngle: CGFloat, endAngle: CGFloat) -> AnyShape? {
         var span = endAngle - startAngle
         if span <= 0 { span += 2 * .pi }
-        guard span > eps else { return nil }
 
-        // Each bezier segment covers at most π/2 for good accuracy
-        let segCount = max(1, Int(ceil(span / (.pi / 2))))
-        let segSpan = span / CGFloat(segCount)
-        let k = (4.0 / 3.0) * tan(segSpan / 4.0)
+        let cubics = Intersection.arcCubics(
+            center: ellipse.center, rx: ellipse.radiusX, ry: ellipse.radiusY,
+            startAngle: startAngle, signedSpan: span
+        )
+        guard !cubics.isEmpty else { return nil }
 
-        var points: [BezierPoint] = []
-        for i in 0...segCount {
-            let angle = startAngle + CGFloat(i) * segSpan
-            let pt = CGPoint(
-                x: ellipse.center.x + ellipse.radiusX * cos(angle),
-                y: ellipse.center.y + ellipse.radiusY * sin(angle)
-            )
-            let tangent = CGPoint(
-                x: -ellipse.radiusX * sin(angle),
-                y: ellipse.radiusY * cos(angle)
-            )
-            points.append(BezierPoint(
-                point: pt,
-                controlIn: CGPoint(x: pt.x - tangent.x * k, y: pt.y - tangent.y * k),
-                controlOut: CGPoint(x: pt.x + tangent.x * k, y: pt.y + tangent.y * k)
-            ))
+        var points: [BezierPoint] = [
+            BezierPoint(point: cubics[0].p0, controlIn: cubics[0].p0, controlOut: cubics[0].c1)
+        ]
+        for k in 1..<cubics.count {
+            // Interior junction: cubics[k-1].p3 == cubics[k].p0.
+            points.append(BezierPoint(point: cubics[k - 1].p3,
+                                      controlIn: cubics[k - 1].c2,
+                                      controlOut: cubics[k].c1))
         }
-
-        // Endpoints: unused handles should collapse to the anchor
-        points[0].controlIn = points[0].point
-        points[points.count - 1].controlOut = points[points.count - 1].point
+        let last = cubics[cubics.count - 1]
+        points.append(BezierPoint(point: last.p3, controlIn: last.c2, controlOut: last.p3))
 
         guard points.count >= 2 else { return nil }
         return .bezier(BezierShape(points: points, isClosed: false, stroke: ellipse.stroke))
@@ -248,6 +243,27 @@ enum TrimTool {
                     let angle = atan2(pt.y - targetArc.center.y, pt.x - targetArc.center.x)
                     if let t = targetArc.parameterForAngle(angle) {
                         results.append(t)
+                    }
+                }
+                continue
+            }
+
+            // Curve × curve (Bézier / Arc / Ellipse on both sides): true
+            // cubic-cubic intersection via subdivision, replacing the fixed
+            // 64-segment polyline approximation that could miss crossings
+            // between sample points (Issue #15 parts 2 & 3).
+            if let targetCubics = smoothCurveCubics(shape),
+               let otherCubics = smoothCurveCubics(other) {
+                let segCount = max(targetCubics.count, 1)
+                for (i, tc) in targetCubics.enumerated() {
+                    for oc in otherCubics {
+                        for hit in Intersection.cubicCubicIntersections(tc, oc) {
+                            if let t = curveParameter(for: shape, point: hit.point,
+                                                      cubicIndex: i, localT: hit.ta,
+                                                      segCount: segCount) {
+                                results.append(t)
+                            }
+                        }
                     }
                 }
                 continue
@@ -338,6 +354,49 @@ enum TrimTool {
             results.append((CGFloat(i) + localT) / CGFloat(n))
         }
         return results
+    }
+
+    // MARK: - Curve → Cubic Segments (for analytical curve×curve intersection)
+
+    /// Cubic-segment representation of a smooth curve (Bézier / Arc / Ellipse),
+    /// or `nil` for shapes that aren't smooth curves (Line / Rectangle / …).
+    private static func smoothCurveCubics(_ shape: AnyShape) -> [CubicSegment]? {
+        switch shape {
+        case .bezier(let b):
+            return Intersection.bezierCubics(b)
+        case .arc(let a):
+            let span = a.clockwise ? -a.angleSpan : a.angleSpan
+            return Intersection.arcCubics(center: a.center, rx: a.radius, ry: a.radius,
+                                          startAngle: a.startAngle, signedSpan: span)
+        case .ellipse(let e):
+            // NB: intentionally ignores `e.rotation`, matching the rest of the
+            // ellipse-trim path (projectPointOnEllipse / extractEllipseRange and
+            // the legacy polyline path alike). Rotated-ellipse trim is a known
+            // pre-existing limitation, left as a follow-up.
+            return Intersection.arcCubics(center: e.center, rx: e.radiusX, ry: e.radiusY,
+                                          startAngle: 0, signedSpan: 2 * .pi)
+        default:
+            return nil
+        }
+    }
+
+    /// Map a cubic-cubic hit back to the target curve's own [0,1] parameter.
+    /// Bézier uses the cubic index + local parameter; Arc/Ellipse use the exact
+    /// angle of the intersection point (robust to the tiny radial error of the
+    /// cubic approximation).
+    private static func curveParameter(for shape: AnyShape, point: CGPoint,
+                                       cubicIndex: Int, localT: CGFloat, segCount: Int) -> CGFloat? {
+        switch shape {
+        case .bezier:
+            return (CGFloat(cubicIndex) + localT) / CGFloat(segCount)
+        case .arc(let arc):
+            let angle = atan2(point.y - arc.center.y, point.x - arc.center.x)
+            return arc.parameterForAngle(angle)
+        case .ellipse(let ellipse):
+            return projectPointOnEllipse(point, ellipse: ellipse)
+        default:
+            return nil
+        }
     }
 
     // MARK: - Shape → Line Segments
