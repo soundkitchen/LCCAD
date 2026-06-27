@@ -359,20 +359,10 @@ enum TrimTool {
             }
         }
 
-        let n = sampleCount
-        let rot = ellipse.rotation
+        let segs = rotatedEllipsePolyline(ellipse)
+        let n = segs.count
         var results: [CGFloat] = []
-        for i in 0..<n {
-            let a1 = CGFloat(i) / CGFloat(n) * 2 * .pi
-            let a2 = CGFloat(i + 1) / CGFloat(n) * 2 * .pi
-            // Sample in the local frame, then rotate the chord endpoints so the
-            // polyline traces the actual rotated ellipse.
-            var p1 = CGPoint(x: ellipse.center.x + ellipse.radiusX * cos(a1), y: ellipse.center.y + ellipse.radiusY * sin(a1))
-            var p2 = CGPoint(x: ellipse.center.x + ellipse.radiusX * cos(a2), y: ellipse.center.y + ellipse.radiusY * sin(a2))
-            if rot != 0 {
-                p1 = p1.rotated(around: ellipse.center, angle: rot)
-                p2 = p2.rotated(around: ellipse.center, angle: rot)
-            }
+        for (i, (p1, p2)) in segs.enumerated() {
             guard let pt = Intersection.lineLineIntersection(a1: p1, a2: p2, b1: segStart, b2: segEnd) else { continue }
             let localT = projectOntoSegment(pt, from: p1, to: p2)
             results.append((CGFloat(i) + localT) / CGFloat(n))
@@ -438,18 +428,7 @@ enum TrimTool {
             return [(tl, tr), (tr, br), (br, bl), (bl, tl)]
 
         case .ellipse(let e):
-            let n = sampleCount
-            return (0..<n).map { i in
-                let a1 = CGFloat(i) / CGFloat(n) * 2 * .pi
-                let a2 = CGFloat(i + 1) / CGFloat(n) * 2 * .pi
-                var p1 = CGPoint(x: e.center.x + e.radiusX * cos(a1), y: e.center.y + e.radiusY * sin(a1))
-                var p2 = CGPoint(x: e.center.x + e.radiusX * cos(a2), y: e.center.y + e.radiusY * sin(a2))
-                if e.rotation != 0 {
-                    p1 = p1.rotated(around: e.center, angle: e.rotation)
-                    p2 = p2.rotated(around: e.center, angle: e.rotation)
-                }
-                return (p1, p2)
-            }
+            return rotatedEllipsePolyline(e)
 
         case .arc(let a):
             let n = sampleCount
@@ -641,6 +620,26 @@ enum TrimTool {
 
     private static func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
         CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+    }
+
+    /// `sampleCount` chord segments approximating the ellipse boundary: sampled
+    /// in the local (axis-aligned) frame, then rotated about the center by
+    /// `rotation`. Single source for the legacy polyline paths
+    /// (`toSegments` and `intersectEllipseWithSegment`), so sample count and
+    /// rotation convention stay in sync.
+    private static func rotatedEllipsePolyline(_ e: EllipseShape) -> [(CGPoint, CGPoint)] {
+        let n = sampleCount
+        return (0..<n).map { i in
+            let a1 = CGFloat(i) / CGFloat(n) * 2 * .pi
+            let a2 = CGFloat(i + 1) / CGFloat(n) * 2 * .pi
+            var p1 = CGPoint(x: e.center.x + e.radiusX * cos(a1), y: e.center.y + e.radiusY * sin(a1))
+            var p2 = CGPoint(x: e.center.x + e.radiusX * cos(a2), y: e.center.y + e.radiusY * sin(a2))
+            if e.rotation != 0 {
+                p1 = p1.rotated(around: e.center, angle: e.rotation)
+                p2 = p2.rotated(around: e.center, angle: e.rotation)
+            }
+            return (p1, p2)
+        }
     }
 
     /// Rotate all four control points of a cubic about `center`. Used to carry
