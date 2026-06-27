@@ -161,10 +161,17 @@ enum TrimTool {
         return TrimResult(replacements: replacements)
     }
 
+    /// Map a point to the ellipse's local eccentric-angle parameter `t ∈ [0, 1)`,
+    /// where the geometric point is `center + Rot(rotation)·(rx·cosθ, ry·sinθ)`
+    /// and `t = θ / 2π`. The input is first un-rotated into the ellipse's local
+    /// (axis-aligned) frame so the parameter is consistent regardless of rotation.
     private static func projectPointOnEllipse(_ point: CGPoint, ellipse: EllipseShape) -> CGFloat {
+        let p = ellipse.rotation == 0
+            ? point
+            : point.rotated(around: ellipse.center, angle: -ellipse.rotation)
         let angle = atan2(
-            (point.y - ellipse.center.y) / ellipse.radiusY,
-            (point.x - ellipse.center.x) / ellipse.radiusX
+            (p.y - ellipse.center.y) / ellipse.radiusY,
+            (p.x - ellipse.center.x) / ellipse.radiusX
         )
         var t = angle / (2 * .pi)
         if t < 0 { t += 1 }
@@ -181,19 +188,22 @@ enum TrimTool {
             endAngle = end * 2 * .pi
         }
 
-        // For circles (equal radii), output ArcShape
+        // For circles (equal radii), output ArcShape. `t` is the local eccentric
+        // angle (see projectPointOnEllipse), so add `rotation` to recover the
+        // geometric arc angle — a circle is rotation-invariant in shape but its
+        // parametrization still carries the ellipse's rotation.
         if abs(ellipse.radiusX - ellipse.radiusY) < 0.001 {
             return .arc(ArcShape(
                 center: ellipse.center,
                 radius: ellipse.radiusX,
-                startAngle: startAngle,
-                endAngle: endAngle,
+                startAngle: startAngle + ellipse.rotation,
+                endAngle: endAngle + ellipse.rotation,
                 clockwise: false,
                 stroke: ellipse.stroke
             ))
         }
 
-        // For general ellipses, approximate with bezier
+        // For general ellipses, approximate with bezier (rotation applied inside)
         return ellipseArcToBezier(ellipse, startAngle: startAngle, endAngle: endAngle)
     }
 
@@ -207,11 +217,16 @@ enum TrimTool {
         var span = endAngle - startAngle
         if span <= 0 { span += 2 * .pi }
 
-        let cubics = Intersection.arcCubics(
+        let rawCubics = Intersection.arcCubics(
             center: ellipse.center, rx: ellipse.radiusX, ry: ellipse.radiusY,
             startAngle: startAngle, signedSpan: span
         )
-        guard !cubics.isEmpty else { return nil }
+        guard !rawCubics.isEmpty else { return nil }
+        // `startAngle`/`endAngle` are local eccentric angles; rotate the resulting
+        // cubics about the center so the emitted curve matches the rotated ellipse.
+        let cubics = ellipse.rotation == 0
+            ? rawCubics
+            : rawCubics.map { rotateCubic($0, around: ellipse.center, angle: ellipse.rotation) }
 
         var points: [BezierPoint] = [
             BezierPoint(point: cubics[0].p0, controlIn: cubics[0].p0, controlOut: cubics[0].c1)
@@ -335,20 +350,29 @@ enum TrimTool {
                 center: ellipse.center, radius: ellipse.radiusX
             )
             return hits.compactMap { pt in
-                let angle = atan2(pt.y - ellipse.center.y, pt.x - ellipse.center.x)
+                // Subtract `rotation` so the returned parameter is the local
+                // eccentric angle, consistent with projectPointOnEllipse / extract.
+                let angle = atan2(pt.y - ellipse.center.y, pt.x - ellipse.center.x) - ellipse.rotation
                 var t = angle / (2 * .pi)
-                if t < 0 { t += 1 }
+                t -= floor(t)
                 return t
             }
         }
 
         let n = sampleCount
+        let rot = ellipse.rotation
         var results: [CGFloat] = []
         for i in 0..<n {
             let a1 = CGFloat(i) / CGFloat(n) * 2 * .pi
             let a2 = CGFloat(i + 1) / CGFloat(n) * 2 * .pi
-            let p1 = CGPoint(x: ellipse.center.x + ellipse.radiusX * cos(a1), y: ellipse.center.y + ellipse.radiusY * sin(a1))
-            let p2 = CGPoint(x: ellipse.center.x + ellipse.radiusX * cos(a2), y: ellipse.center.y + ellipse.radiusY * sin(a2))
+            // Sample in the local frame, then rotate the chord endpoints so the
+            // polyline traces the actual rotated ellipse.
+            var p1 = CGPoint(x: ellipse.center.x + ellipse.radiusX * cos(a1), y: ellipse.center.y + ellipse.radiusY * sin(a1))
+            var p2 = CGPoint(x: ellipse.center.x + ellipse.radiusX * cos(a2), y: ellipse.center.y + ellipse.radiusY * sin(a2))
+            if rot != 0 {
+                p1 = p1.rotated(around: ellipse.center, angle: rot)
+                p2 = p2.rotated(around: ellipse.center, angle: rot)
+            }
             guard let pt = Intersection.lineLineIntersection(a1: p1, a2: p2, b1: segStart, b2: segEnd) else { continue }
             let localT = projectOntoSegment(pt, from: p1, to: p2)
             results.append((CGFloat(i) + localT) / CGFloat(n))
@@ -369,12 +393,11 @@ enum TrimTool {
             return Intersection.arcCubics(center: a.center, rx: a.radius, ry: a.radius,
                                           startAngle: a.startAngle, signedSpan: span)
         case .ellipse(let e):
-            // NB: intentionally ignores `e.rotation`, matching the rest of the
-            // ellipse-trim path (projectPointOnEllipse / extractEllipseRange and
-            // the legacy polyline path alike). Rotated-ellipse trim is a known
-            // pre-existing limitation, left as a follow-up.
-            return Intersection.arcCubics(center: e.center, rx: e.radiusX, ry: e.radiusY,
-                                          startAngle: 0, signedSpan: 2 * .pi)
+            let cubics = Intersection.arcCubics(center: e.center, rx: e.radiusX, ry: e.radiusY,
+                                                startAngle: 0, signedSpan: 2 * .pi)
+            return e.rotation == 0
+                ? cubics
+                : cubics.map { rotateCubic($0, around: e.center, angle: e.rotation) }
         default:
             return nil
         }
@@ -419,10 +442,13 @@ enum TrimTool {
             return (0..<n).map { i in
                 let a1 = CGFloat(i) / CGFloat(n) * 2 * .pi
                 let a2 = CGFloat(i + 1) / CGFloat(n) * 2 * .pi
-                return (
-                    CGPoint(x: e.center.x + e.radiusX * cos(a1), y: e.center.y + e.radiusY * sin(a1)),
-                    CGPoint(x: e.center.x + e.radiusX * cos(a2), y: e.center.y + e.radiusY * sin(a2))
-                )
+                var p1 = CGPoint(x: e.center.x + e.radiusX * cos(a1), y: e.center.y + e.radiusY * sin(a1))
+                var p2 = CGPoint(x: e.center.x + e.radiusX * cos(a2), y: e.center.y + e.radiusY * sin(a2))
+                if e.rotation != 0 {
+                    p1 = p1.rotated(around: e.center, angle: e.rotation)
+                    p2 = p2.rotated(around: e.center, angle: e.rotation)
+                }
+                return (p1, p2)
             }
 
         case .arc(let a):
@@ -615,6 +641,18 @@ enum TrimTool {
 
     private static func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
         CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+    }
+
+    /// Rotate all four control points of a cubic about `center`. Used to carry
+    /// `EllipseShape.rotation` into the cubic representation produced by the
+    /// rotation-agnostic `Intersection.arcCubics`.
+    private static func rotateCubic(_ c: CubicSegment, around center: CGPoint, angle: CGFloat) -> CubicSegment {
+        CubicSegment(
+            p0: c.p0.rotated(around: center, angle: angle),
+            c1: c.c1.rotated(around: center, angle: angle),
+            c2: c.c2.rotated(around: center, angle: angle),
+            p3: c.p3.rotated(around: center, angle: angle)
+        )
     }
 
     private static func evalCubic(t: CGFloat, p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint) -> CGPoint {
