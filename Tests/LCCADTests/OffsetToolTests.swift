@@ -3,8 +3,9 @@ import CoreGraphics
 @testable import LCCAD
 
 /// Tests for `OffsetTool`. Each overload is internal `static`, so it is called
-/// directly. Offsets use the left-side perpendicular convention: positive
-/// distance moves a left-to-right horizontal line in +y.
+/// directly. Offsets use the (-dy, dx) perpendicular: a positive distance moves
+/// a left-to-right horizontal line in +y — the visually lower / clockwise side
+/// in this project's Y-down coordinate space.
 final class OffsetToolTests: XCTestCase {
 
     private func assertPoint(_ p: CGPoint, _ x: CGFloat, _ y: CGFloat,
@@ -16,7 +17,7 @@ final class OffsetToolTests: XCTestCase {
 
     // MARK: - Line
 
-    func testOffsetLinePositiveMovesLeftPerpendicular() {
+    func testOffsetLinePositiveMovesPerpendicularPlusY() {
         let l = LineShape(start: .zero, end: CGPoint(x: 100, y: 0))
         let out = OffsetTool.offsetLine(l, distance: 10)
         assertPoint(out.startPoint, 0, 10)

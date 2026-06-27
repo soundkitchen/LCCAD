@@ -56,23 +56,34 @@ final class BezierIntersectionTests: XCTestCase {
     }
 
     /// The cubic approximation of a quarter circle stays within ~1e-3·r of the
-    /// true circle, validating `arcCubics` as an intersection proxy.
+    /// true circle, validating `arcCubics` as an intersection proxy. The peak
+    /// deviation sits near t ≈ 0.21 / 0.79 — the midpoint t=0.5 is an exact
+    /// zero-error point — so sweep the whole span instead of trusting one sample
+    /// (a single t=0.5 check would pass even with a degraded tangent handle).
     func testArcCubicsApproximatesCircle() {
         let r: CGFloat = 50
         let segs = Intersection.arcCubics(center: .zero, rx: r, ry: r,
                                           startAngle: 0, signedSpan: .pi / 2)
         XCTAssertEqual(segs.count, 1, "a 90° span needs exactly one cubic")
-        // Sample the midpoint of the cubic; its distance to centre ≈ r.
-        let mid = segs[0].point(at: 0.5)
-        XCTAssertEqual(mid.distance(to: .zero), r, accuracy: r * 1e-3)
+        for i in 0...20 {
+            let t = CGFloat(i) / 20
+            let p = segs[0].point(at: t)
+            XCTAssertEqual(p.distance(to: .zero), r, accuracy: r * 1e-3, "off-circle at t=\(t)")
+        }
     }
 
-    /// A full ellipse becomes 4 cubics; endpoints land on the axis extremes.
+    /// A full ellipse becomes 4 cubics that are C0-continuous (each segment's end
+    /// meets the next segment's start) and close back onto the start point.
     func testEllipseCubicsCloseTheLoop() {
         let segs = Intersection.arcCubics(center: .zero, rx: 40, ry: 20,
                                           startAngle: 0, signedSpan: 2 * .pi)
         XCTAssertEqual(segs.count, 4)
         assertPoint(segs.first!.p0, 40, 0, accuracy: 1e-6)   // angle 0
+        // No gaps / reordering between adjacent segments.
+        for i in 0..<(segs.count - 1) {
+            XCTAssertEqual(segs[i].p3.x, segs[i + 1].p0.x, accuracy: 1e-9, "junction \(i) x")
+            XCTAssertEqual(segs[i].p3.y, segs[i + 1].p0.y, accuracy: 1e-9, "junction \(i) y")
+        }
         assertPoint(segs.last!.p3, 40, 0, accuracy: 1e-4)    // wraps back to start
     }
 }
