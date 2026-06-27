@@ -128,10 +128,14 @@ struct TemplateThumbnail: View {
             let availH = size.height - pad * 2
             guard availW > 0, availH > 0 else { return }
 
+            // Fit scale per axis; a near-zero dimension (dots, axis-aligned lines) yields
+            // .infinity for that axis so the other governs. Clamp to a sane max so a
+            // degenerate/tiny template still renders (never blanks) instead of zooming away.
+            let maxScale: CGFloat = 10
             let sx = box.width  > 0.0001 ? availW / box.width  : .infinity
             let sy = box.height > 0.0001 ? availH / box.height : .infinity
-            let scale = min(sx, sy)
-            guard scale.isFinite, scale > 0 else { return }
+            let fit = min(sx, sy)
+            let scale = fit.isFinite ? min(fit, maxScale) : maxScale
 
             var transform = CanvasTransform()
             transform.scale = scale

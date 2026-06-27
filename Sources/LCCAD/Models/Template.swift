@@ -33,14 +33,7 @@ struct Template: Identifiable, Codable, Equatable, Sendable {
     }
 
     /// Combined bounding box of all shapes (world mm), or nil when empty.
-    var boundingBox: CGRect? {
-        guard let first = shapes.first else { return nil }
-        var box = first.boundingBox
-        for shape in shapes.dropFirst() {
-            box = box.union(shape.boundingBox)
-        }
-        return box
-    }
+    var boundingBox: CGRect? { shapes.combinedBoundingBox }
 }
 
 // MARK: - Persistence
@@ -69,13 +62,40 @@ final class TemplateLibraryStore: ObservableObject {
 
     func load() {
         let url = Self.storageURL
+
+        let data: Data
         do {
-            let data = try Data(contentsOf: url)
+            data = try Data(contentsOf: url)
+        } catch {
+            // No file yet (first run) — nothing to load. A subsequent save() will create it.
+            return
+        }
+
+        do {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             templates = try decoder.decode([Template].self, from: data)
         } catch {
-            // File doesn't exist yet or decode failed — keep current templates.
+            // The file exists but can't be decoded (corruption or a future schema).
+            // Preserve it by moving it aside so the next save() doesn't silently
+            // overwrite recoverable data with a fresh, near-empty library.
+            logger.error("Failed to decode templates; backing up corrupt file: \(error.localizedDescription, privacy: .public)")
+            backUpCorruptFile(at: url)
+        }
+    }
+
+    /// Move a corrupt templates file to a timestamped backup next to it, so a later
+    /// save() writes a clean file without destroying the unreadable one.
+    private func backUpCorruptFile(at url: URL) {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let backup = url.deletingPathExtension()
+            .appendingPathExtension("corrupt-\(stamp).json")
+        do {
+            try FileManager.default.moveItem(at: url, to: backup)
+            logger.error("Backed up corrupt templates to \(backup.lastPathComponent, privacy: .public)")
+        } catch {
+            logger.error("Failed to back up corrupt templates: \(error.localizedDescription, privacy: .public)")
         }
     }
 

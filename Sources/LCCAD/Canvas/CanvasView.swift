@@ -191,6 +191,14 @@ struct CanvasView: View {
     private func makePanGesture(canvasSize: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { value in
+                // Click-to-place: while a template is pending, a drag must not start a
+                // marquee/move. Keep the ghost following the cursor and place on release.
+                if editor.pendingTemplate != nil {
+                    editor.handleMouseMove(screenPoint: value.location)
+                    editor.lastPanTranslation = value.translation
+                    return
+                }
+
                 let delta = CGPoint(
                     x: value.translation.width - (editor.lastPanTranslation?.width ?? 0),
                     y: value.translation.height - (editor.lastPanTranslation?.height ?? 0)
@@ -326,6 +334,12 @@ struct CanvasView: View {
                 editor.lastPanTranslation = value.translation
             }
             .onEnded { value in
+                // Place a pending template at the release point (drag-end also counts as a place).
+                if editor.pendingTemplate != nil {
+                    editor.handleClick(at: value.location)
+                    editor.lastPanTranslation = nil
+                    return
+                }
                 editor.stopEdgeScroll()
                 if editor.currentTool == .page {
                     editor.commitPageMove()

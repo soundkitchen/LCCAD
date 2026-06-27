@@ -12,11 +12,15 @@ final class TemplateTests: XCTestCase {
         return editor
     }
 
-    private func combinedBox(_ shapes: [AnyShape]) -> CGRect? {
-        guard let first = shapes.first else { return nil }
-        var box = first.boundingBox
-        for s in shapes.dropFirst() { box = box.union(s.boundingBox) }
-        return box
+    // MARK: - Combined bounds helper
+
+    func testCombinedBoundingBoxUnionsAllShapes() {
+        let a = DotShape(position: CGPoint(x: 0, y: 0))
+        let b = DotShape(position: CGPoint(x: 10, y: 0))
+        let box = [AnyShape.dot(a), .dot(b)].combinedBoundingBox!
+        // Dots have radius 1.5 → union spans x ∈ [-1.5, 11.5], midX = 5.
+        XCTAssertEqual(box.midX, 5, accuracy: 1e-9)
+        XCTAssertNil([AnyShape]().combinedBoundingBox)
     }
 
     // MARK: - Model
@@ -110,7 +114,7 @@ final class TemplateTests: XCTestCase {
         editor.placeTemplate(template, at: CGPoint(x: 50, y: 40))
 
         XCTAssertEqual(editor.document.layers[0].shapes.count, 1)
-        let box = combinedBox(editor.document.layers[0].shapes)!
+        let box = editor.document.layers[0].shapes.combinedBoundingBox!
         XCTAssertEqual(box.midX, 50, accuracy: 1e-9)
         XCTAssertEqual(box.midY, 40, accuracy: 1e-9)
         XCTAssertEqual(editor.selectedShapeIds, Set(editor.document.layers[0].shapes.map(\.id)))

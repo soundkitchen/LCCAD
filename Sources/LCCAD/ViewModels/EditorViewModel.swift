@@ -1782,14 +1782,6 @@ final class EditorViewModel {
 
     // MARK: - Templates
 
-    /// Combined bounding box of the given shapes (world mm), or nil when empty.
-    private func combinedBoundingBox(of shapes: [AnyShape]) -> CGRect? {
-        guard let first = shapes.first else { return nil }
-        var box = first.boundingBox
-        for shape in shapes.dropFirst() { box = box.union(shape.boundingBox) }
-        return box
-    }
-
     /// Build a template from the current selection without touching the library.
     /// Shapes are cloned with fresh IDs and normalized so their combined bounding
     /// box is centered on the origin. When `asGroup` is true they are wrapped in a
@@ -1806,7 +1798,7 @@ final class EditorViewModel {
         guard !gathered.isEmpty else { return nil }
 
         var clones = gathered.map { cloneWithFreshIds($0).clone }
-        guard let box = combinedBoundingBox(of: clones) else { return nil }
+        guard let box = clones.combinedBoundingBox else { return nil }
         let recenter = CGPoint(x: -box.midX, y: -box.midY)
         for i in clones.indices { clones[i].translate(by: recenter) }
 
