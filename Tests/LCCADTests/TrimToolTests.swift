@@ -257,4 +257,101 @@ final class TrimToolTests: XCTestCase {
         assertPoint(kept.points[1].point, 40, 0, accuracy: 0.5)
         assertPoint(kept.points.last!.point, 0, 20, accuracy: 0.5)
     }
+
+    // MARK: - Rotated ellipse trim (Issue #19)
+
+    /// A non-circular ellipse (rx=40, ry=20) rotated 45° about its center, cut by
+    /// its **minor axis** (the line along (-1, 1) through the center). The minor
+    /// axis after a 45° rotation points along (-1, 1), so it crosses the ellipse
+    /// at the two co-vertices ±(-14.14, 14.14). Clicking near a major vertex
+    /// (28.28, 28.28) removes that half and keeps the opposite arc, which threads
+    /// the far major vertex (-28.28, -28.28). Drives the rotated **polyline**
+    /// path (`intersectEllipseWithSegment` / `toSegments` for the line crosser)
+    /// plus the rotated `extractEllipseRange` / `ellipseArcToBezier`.
+    ///
+    /// If rotation were ignored (the pre-fix bug), the minor-axis line would no
+    /// longer pass through co-vertices in the assumed un-rotated ellipse and the
+    /// intersections / remnant would land in the wrong place.
+    func testRotatedEllipseLineKeepsOppositeHalf() {
+        let r = sqrt(2.0) / 2.0            // cos(45°) = sin(45°)
+        let major = 40 * r                 // 28.2843
+        let minor = 20 * r                 // 14.1421
+
+        var ellipse = EllipseShape(center: .zero, radiusX: 40, radiusY: 20)
+        ellipse.rotation = .pi / 4
+        // Minor-axis cut: line along (-1, 1) through the center.
+        let cut = AnyShape.line(line(40, -40, -40, 40))
+
+        let result = TrimTool.trim(shape: .ellipse(ellipse), against: [cut],
+                                   clickPoint: CGPoint(x: major, y: major))
+        let replacements = try! XCTUnwrap(result?.replacements)
+        XCTAssertEqual(replacements.count, 1)
+
+        guard case .bezier(let kept) = replacements[0] else { return XCTFail("expected bezier remnant") }
+        XCTAssertEqual(kept.points.count, 3)
+        // Kept half: co-vertex → far major vertex → other co-vertex.
+        assertPoint(kept.points.first!.point, -minor, minor, accuracy: 0.6)
+        assertPoint(kept.points[1].point, -major, -major, accuracy: 0.6)
+        assertPoint(kept.points.last!.point, minor, -minor, accuracy: 0.6)
+    }
+
+    /// Same rotated ellipse and geometry as above, but the crosser is a
+    /// (geometrically straight) bezier rather than a line, so the trim is routed
+    /// through the analytical **cubic-cubic** path. This exercises the rotated
+    /// `smoothCurveCubics` ellipse branch together with the rotation-aware
+    /// `projectPointOnEllipse`. The kept remnant must match the line case.
+    func testRotatedEllipseBezierKeepsOppositeHalf() {
+        let r = sqrt(2.0) / 2.0
+        let major = 40 * r
+        let minor = 20 * r
+
+        var ellipse = EllipseShape(center: .zero, radiusX: 40, radiusY: 20)
+        ellipse.rotation = .pi / 4
+        // Straight bezier tracing the minor-axis line from (40,-40) to (-40,40).
+        let crosser = BezierShape(points: [
+            BezierPoint(point: CGPoint(x: 40, y: -40), controlIn: CGPoint(x: 40, y: -40), controlOut: CGPoint(x: 13, y: -13)),
+            BezierPoint(point: CGPoint(x: -40, y: 40), controlIn: CGPoint(x: -13, y: 13), controlOut: CGPoint(x: -40, y: 40)),
+        ])
+
+        let result = TrimTool.trim(shape: .ellipse(ellipse), against: [.bezier(crosser)],
+                                   clickPoint: CGPoint(x: major, y: major))
+        let replacements = try! XCTUnwrap(result?.replacements)
+        XCTAssertEqual(replacements.count, 1)
+
+        guard case .bezier(let kept) = replacements[0] else { return XCTFail("expected bezier remnant") }
+        XCTAssertEqual(kept.points.count, 3)
+        assertPoint(kept.points.first!.point, -minor, minor, accuracy: 0.6)
+        assertPoint(kept.points[1].point, -major, -major, accuracy: 0.6)
+        assertPoint(kept.points.last!.point, minor, -minor, accuracy: 0.6)
+    }
+
+    /// Trimming a **line against** a rotated ellipse: here the ellipse is the
+    /// *other* shape, so the intersection runs through `toSegments` (rotated
+    /// polyline). A horizontal line across the rotated ellipse must be cut at the
+    /// two boundary crossings; clicking the middle removes it, keeping both ends.
+    func testLineAgainstRotatedEllipseRemovesMiddle() {
+        var ellipse = EllipseShape(center: .zero, radiusX: 40, radiusY: 20)
+        ellipse.rotation = .pi / 6   // 30°
+
+        // A long horizontal line through the center; the rotated ellipse cuts it
+        // into three pieces. Clicking the center removes the middle span.
+        let target = AnyShape.line(line(-80, 0, 80, 0))
+
+        let result = TrimTool.trim(shape: target, against: [.ellipse(ellipse)],
+                                   clickPoint: .zero)
+        let replacements = try! XCTUnwrap(result?.replacements)
+        XCTAssertEqual(replacements.count, 2)
+
+        // Both remnants are the outer line segments: each keeps the (∓80, 0) end
+        // and meets the ellipse boundary at a symmetric ±x crossing.
+        let outerEnds = replacements.compactMap { endpoints($0) }
+        XCTAssertEqual(outerEnds.count, 2)
+        let farXs = outerEnds.map { abs($0.0.x) > abs($0.1.x) ? $0.0 : $0.1 }
+        XCTAssertTrue(farXs.contains { abs($0.x - 80) < 1e-6 }, "right remnant keeps (80,0)")
+        XCTAssertTrue(farXs.contains { abs($0.x + 80) < 1e-6 }, "left remnant keeps (-80,0)")
+        // The inner crossings are symmetric about the center (x and -x).
+        let innerXs = outerEnds.map { abs($0.0.x) < abs($0.1.x) ? $0.0.x : $0.1.x }.sorted()
+        XCTAssertEqual(innerXs[0], -innerXs[1], accuracy: 0.5, "crossings symmetric about center")
+        XCTAssertGreaterThan(innerXs[1], 0.5, "non-degenerate crossing")
+    }
 }
