@@ -45,6 +45,18 @@ struct CanvasView: View {
                     in: context
                 )
 
+                // 3.2 Template placement ghost (click-to-place)
+                if let pending = editor.pendingTemplate {
+                    var ghost = context
+                    ghost.opacity = 0.5
+                    let cursor = editor.cursorWorldPosition
+                    for shape in pending.shapes {
+                        var moved = shape
+                        moved.translate(by: cursor)
+                        renderer.draw(shape: moved, in: ghost)
+                    }
+                }
+
                 // 3.5. Page layout overlay
                 let pageLayout = editor.document.settings.pageLayout
                 if pageLayout.showPageFrames || editor.currentTool == .page {
@@ -114,6 +126,19 @@ struct CanvasView: View {
             }
             .onAppear { editor.canvasSize = geometry.size }
             .background(DesignTokens.bgCanvas(colorScheme))
+            .overlay(alignment: .top) {
+                if editor.pendingTemplate != nil {
+                    Text("クリックで配置 ・ Esc でキャンセル")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(DesignTokens.textOnAccent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(DesignTokens.accent.opacity(0.92))
+                        .clipShape(Capsule())
+                        .padding(.top, 10)
+                        .allowsHitTesting(false)
+                }
+            }
             .scrollZoom(editor: editor)
             .gesture(makePanGesture(canvasSize: geometry.size))
             .onContinuousHover { phase in
