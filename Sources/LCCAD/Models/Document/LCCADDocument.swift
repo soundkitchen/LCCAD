@@ -50,8 +50,21 @@ final class LCCADFileDocument: ObservableObject {
     @Published var data: DocumentData
     @Published var fileURL: URL?
 
+    /// Snapshot of `data` as of the last successful save / open / new.
+    /// `isModified` compares the live `data` against this baseline.
+    @Published private(set) var lastSavedData: DocumentData
+
     init(data: DocumentData = .empty(), fileURL: URL? = nil) {
         self.data = data
         self.fileURL = fileURL
+        self.lastSavedData = data
+    }
+
+    /// `true` when there are unsaved edits relative to the last saved baseline.
+    var isModified: Bool { data != lastSavedData }
+
+    /// Record the current `data` as the saved baseline (clears the dirty state).
+    func markSaved() {
+        lastSavedData = data
     }
 }

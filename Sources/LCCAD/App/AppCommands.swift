@@ -8,7 +8,7 @@ struct AppCommands: Commands {
         // Replace default New Window
         CommandGroup(replacing: .newItem) {
             Button("New") {
-                fileDocument.data = .empty()
+                fileDocument.newDocumentGuarded()
             }
             .keyboardShortcut("n")
         }

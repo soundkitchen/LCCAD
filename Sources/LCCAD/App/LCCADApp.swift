@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct LCCADApp: App {
     @State private var fileDocument = LCCADFileDocument()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
 
     var body: some Scene {
@@ -10,6 +11,7 @@ struct LCCADApp: App {
             MainEditorView(fileDocument: fileDocument)
                 .onAppear {
                     AppearanceMode(rawValue: appearanceMode)?.apply()
+                    appDelegate.fileDocument = fileDocument
                 }
         }
         .windowStyle(.titleBar)
@@ -25,6 +27,18 @@ struct LCCADApp: App {
     }
 }
 
+/// Intercepts ⌘Q so unsaved changes can be guarded (Issue #22).
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// The single shared document, injected from `LCCADApp` once the window appears.
+    weak var fileDocument: LCCADFileDocument?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let fileDocument else { return .terminateNow }
+        // AppKit calls this on the main thread.
+        return MainActor.assumeIsolated { fileDocument.terminationReply() }
+    }
+}
+
 /// File menu commands for manual Save/Open/Print
 struct FileCommands: Commands {
     let fileDocument: LCCADFileDocument
@@ -32,19 +46,19 @@ struct FileCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .saveItem) {
             Button("Save") {
-                saveDocument()
+                fileDocument.saveOrPresentPanel()
             }
             .keyboardShortcut("s")
 
             Button("Save As...") {
-                saveDocumentAs()
+                fileDocument.presentSaveAsPanel()
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
 
             Divider()
 
             Button("Open...") {
-                openDocument()
+                fileDocument.openDocumentGuarded()
             }
             .keyboardShortcut("o")
 
@@ -70,60 +84,6 @@ struct FileCommands: Commands {
 
             Button("Print Calibration Page...") {
                 PrintCoordinator.printCalibrationPage(from: NSApp.keyWindow)
-            }
-        }
-    }
-
-    @MainActor
-    private func saveToURL(_ url: URL) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(fileDocument.data)
-        try data.write(to: url, options: .atomic)
-    }
-
-    @MainActor
-    private func saveDocument() {
-        if let url = fileDocument.fileURL {
-            do {
-                try saveToURL(url)
-            } catch {
-                NSAlert(error: error).runModal()
-            }
-        } else {
-            saveDocumentAs()
-        }
-    }
-
-    @MainActor
-    private func saveDocumentAs() {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.lccad]
-        panel.nameFieldStringValue = fileDocument.fileURL?.lastPathComponent ?? "Untitled.lccad"
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
-            do {
-                try saveToURL(url)
-                fileDocument.fileURL = url
-            } catch {
-                NSAlert(error: error).runModal()
-            }
-        }
-    }
-
-    @MainActor
-    private func openDocument() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.lccad, .json]
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
-            do {
-                let data = try Data(contentsOf: url)
-                let decoded = try JSONDecoder().decode(DocumentData.self, from: data)
-                fileDocument.data = decoded
-                fileDocument.fileURL = url
-            } catch {
-                NSAlert(error: error).runModal()
             }
         }
     }

@@ -27,6 +27,7 @@ struct MainEditorView: View {
 
             StatusBarView(editor: editor)
         }
+        .background(WindowConfigurator(fileDocument: fileDocument))
         .onAppear {
             editor.fileDocument = fileDocument
             editor.undoManager = undoManager
