@@ -105,12 +105,14 @@ Sources/LCCAD/
 │   │   ├── ArcSection.swift
 │   │   ├── StitchSection.swift
 │   │   ├── TextSection.swift
+│   │   ├── BevelSection.swift   # Bevel ツール時の半径入力
 │   │   └── PageSection.swift     # ページレイアウト編集 (Page ツール時)
 │   ├── Shared/
-│   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField
+│   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField, NumberBoxField
 │   │   ├── DesignTokens.swift   # Pencil デザイン変数の Swift 転写
 │   │   └── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
 │   ├── PrickingIronSheet.swift  # 目打ち管理シート
+│   ├── BevelSheet.swift         # 範囲選択の一括面取りシート (Arrange ▸ Bevel…)
 │   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
 │
 ├── ViewModels/
@@ -343,7 +345,7 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
 | 操作 | 穴への反映 |
 |------|-----------|
 | ベジェ制御点ドラッグ (`endBezierPointDrag`) | 再生成 |
-| Bevel (`bevelCorner`) | 両ラインの id を保存しつつ短縮後の線で再生成。コーナー arc には生成しない |
+| Bevel (`bevelSelectedCorners` 一括 / `bevelClickedCorner` クリック) | 直線・ベジェ・矩形(cornerRadius) は id を保存し短縮後の図形で再生成。矩形のクリック個別面取りは4辺へ分解し元矩形が消えるため削除。フィレット arc には穴を生成しない |
 | Trim (`trimSelectedShape`) | 元図形が消えるのでステッチラインを削除 |
 
 **削除** — `deleteSelectedShapes` で `sourceShapeId` が一致するステッチラインを除去。
