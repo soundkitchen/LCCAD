@@ -1172,10 +1172,11 @@ final class EditorViewModel {
         document.layers[li].shapes[si] = .line(preservedLine1)
         document.layers[li].shapes[pick.index] = .line(preservedLine2)
         document.layers[li].shapes.append(.arc(result.arc))
-        // Drop any edge the fillet fully consumed (zero length, when radius == edge).
+        // Drop any edge the fillet fully consumed (zero length, when radius == edge),
+        // and drop its id from the selection so the panel/overlay don't dangle on it.
         var dropIndices: [Int] = []
-        if preservedLine1.length < 1e-6 { dropIndices.append(si) }
-        if preservedLine2.length < 1e-6 { dropIndices.append(pick.index) }
+        if preservedLine1.length < 1e-6 { dropIndices.append(si); selectedShapeIds.remove(line1.id) }
+        if preservedLine2.length < 1e-6 { dropIndices.append(pick.index); selectedShapeIds.remove(pick.line.id) }
         for idx in dropIndices.sorted(by: >) { document.layers[li].shapes.remove(at: idx) }
         regenerateStitchLines(forShapeIds: [line1.id, pick.line.id])
         registerUndo(actionName: "Bevel Corner", oldDocument: old)
@@ -1329,6 +1330,9 @@ final class EditorViewModel {
             ends.append(EndRef(si: si, isStart: true, point: l.startPoint))
             ends.append(EndRef(si: si, isStart: false, point: l.endPoint))
         }
+        // Deterministic order: Dictionary iteration is per-run randomized, which would
+        // otherwise make *which* corners get beveled (when some are skipped) vary by run.
+        ends.sort { ($0.si, $0.isStart ? 0 : 1) < ($1.si, $1.isStart ? 0 : 1) }
 
         // Greedy proximity clustering — selections are small, so O(n²) is fine.
         var clusters: [[EndRef]] = []
@@ -1342,26 +1346,34 @@ final class EditorViewModel {
 
         var corners: [LineCorner] = []
         for cluster in clusters where cluster.count == 2 {
-            let a = cluster[0], b = cluster[1]
+            let (a, b) = cluster[0].si <= cluster[1].si ? (cluster[0], cluster[1]) : (cluster[1], cluster[0])
             guard a.si != b.si else { continue }
             corners.append(LineCorner(siA: a.si, isStartA: a.isStart, siB: b.si, isStartB: b.isStart))
         }
+        corners.sort { ($0.siA, $0.siB) < ($1.siA, $1.siB) }
         return corners
     }
 
-    /// Count line corners for the preview (non-iterative; uses original geometry).
+    /// Count line corners for the preview. Mirrors `bevelSelectedLines` exactly —
+    /// shortening each leg as it goes — so the previewed count matches what Apply does
+    /// (a later corner sharing an already-shortened leg may no longer fit).
     private func countLineCorners(selectedLines lines: [LineShape], radius: CGFloat) -> Int {
         guard lines.count >= 2 else { return 0 }
         var working: [Int: LineShape] = [:]
         for (i, l) in lines.enumerated() { working[i] = l }
         var count = 0
         for corner in Self.detectLineCorners(working) {
-            let lineA = working[corner.siA]!
-            let lineB = working[corner.siB]!
+            var lineA = working[corner.siA]!
+            var lineB = working[corner.siB]!
             let vertex = corner.isStartA ? lineA.startPoint : lineA.endPoint
             let farA = corner.isStartA ? lineA.endPoint : lineA.startPoint
             let farB = corner.isStartB ? lineB.endPoint : lineB.startPoint
-            if BevelTool.filletCorner(prev: farA, corner: vertex, next: farB, radius: radius) != nil { count += 1 }
+            guard let fillet = BevelTool.filletCorner(prev: farA, corner: vertex, next: farB, radius: radius) else { continue }
+            if corner.isStartA { lineA.startPoint = fillet.tangentPrev } else { lineA.endPoint = fillet.tangentPrev }
+            if corner.isStartB { lineB.startPoint = fillet.tangentNext } else { lineB.endPoint = fillet.tangentNext }
+            working[corner.siA] = lineA
+            working[corner.siB] = lineB
+            count += 1
         }
         return count
     }
@@ -1369,43 +1381,58 @@ final class EditorViewModel {
     /// Fillet the straight-segment corner anchors of a bézier in place, keeping it a
     /// single connected path. Curved-segment anchors are left untouched (limitation).
     /// Returns the updated shape and the number of corners rounded.
+    ///
+    /// Adjacent corners that share a straight segment are accepted greedily so their
+    /// tangent points never overrun each other on that segment — overrunning would
+    /// reverse the segment direction and self-intersect the path.
     private static func beveledBezier(_ bezier: BezierShape, radius: CGFloat) -> (BezierShape, Int) {
         let pts = bezier.points
         let n = pts.count
         guard n >= 3 else { return (bezier, 0) }
 
-        var newPoints: [BezierPoint] = []
-        var count = 0
-        for i in 0..<n {
-            // Endpoints of an open path have no corner.
-            if !bezier.isClosed && (i == 0 || i == n - 1) {
-                newPoints.append(pts[i])
-                continue
-            }
-            let prevP = pts[(i - 1 + n) % n]
-            let curP = pts[i]
-            let nextP = pts[(i + 1) % n]
+        func segLen(_ k: Int) -> CGFloat { pts[k].point.distance(to: pts[(k + 1) % n].point) }
+        // Interior anchors for an open path; every anchor for a closed loop.
+        let indices: [Int] = bezier.isClosed ? Array(0..<n) : Array(1..<(n - 1))
 
+        // Candidate fillet per corner, measured against the full original legs.
+        var fillets: [Int: BevelTool.CornerFillet] = [:]
+        var tangentDist: [Int: CGFloat] = [:]
+        for i in indices {
+            let prevP = pts[(i - 1 + n) % n], curP = pts[i], nextP = pts[(i + 1) % n]
             guard isStraightSegment(from: prevP, to: curP),
                   isStraightSegment(from: curP, to: nextP),
-                  let fillet = BevelTool.filletCorner(prev: prevP.point, corner: curP.point, next: nextP.point, radius: radius)
-            else {
-                newPoints.append(curP)
-                continue
-            }
-
-            let (cOut, cIn) = BevelTool.arcToCubicControlPoints(from: fillet.tangentPrev, to: fillet.tangentNext,
-                                                                center: fillet.center, radius: fillet.radius)
-            // First tangent point: straight handle towards prev, arc handle towards next.
-            newPoints.append(BezierPoint(point: fillet.tangentPrev, controlIn: fillet.tangentPrev, controlOut: cOut))
-            // Second tangent point: arc handle towards prev, straight handle towards next.
-            newPoints.append(BezierPoint(point: fillet.tangentNext, controlIn: cIn, controlOut: fillet.tangentNext))
-            count += 1
+                  let f = BevelTool.filletCorner(prev: prevP.point, corner: curP.point, next: nextP.point, radius: radius)
+            else { continue }
+            fillets[i] = f
+            tangentDist[i] = curP.point.distance(to: f.tangentPrev)
         }
-        guard count > 0 else { return (bezier, 0) }
+        guard !fillets.isEmpty else { return (bezier, 0) }
+
+        // Greedily accept corners so two fillets never overrun a shared segment.
+        var consumed: [Int: CGFloat] = [:]
+        var accepted = Set<Int>()
+        for i in indices {
+            guard let td = tangentDist[i] else { continue }
+            let inSeg = (i - 1 + n) % n
+            let outSeg = i % n
+            guard (consumed[inSeg] ?? 0) + td <= segLen(inSeg) + 1e-6,
+                  (consumed[outSeg] ?? 0) + td <= segLen(outSeg) + 1e-6 else { continue }
+            accepted.insert(i)
+            consumed[inSeg, default: 0] += td
+            consumed[outSeg, default: 0] += td
+        }
+        guard !accepted.isEmpty else { return (bezier, 0) }
+
+        // Replace each accepted corner anchor with the fillet arc (≤90° cubic chain).
+        var newPoints: [BezierPoint] = []
+        for i in 0..<n {
+            guard accepted.contains(i), let f = fillets[i] else { newPoints.append(pts[i]); continue }
+            newPoints.append(contentsOf: BevelTool.arcBezierAnchors(from: f.tangentPrev, to: f.tangentNext,
+                                                                    center: f.center, radius: f.radius))
+        }
         var result = bezier
         result.points = newPoints
-        return (result, count)
+        return (result, accepted.count)
     }
 
     /// A bézier segment is "straight" when both of its control handles lie on the

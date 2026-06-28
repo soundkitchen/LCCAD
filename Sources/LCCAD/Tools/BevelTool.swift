@@ -112,34 +112,38 @@ enum BevelTool {
         return BevelResult(line1: newLine1, line2: newLine2, arc: arc)
     }
 
-    /// Approximate the minor circular arc from `from` to `to` (both on the circle
-    /// of `center` / `radius`) with a single cubic Bézier segment. Returns the two
-    /// interior control points so the fillet can be inserted into a Bézier path
-    /// without disconnecting it. Accurate for sweeps up to ~90°, good enough up to
-    /// ~120° which is the practical range for leather-pattern corners.
-    static func arcToCubicControlPoints(from: CGPoint, to: CGPoint, center: CGPoint, radius: CGFloat) -> (controlOut: CGPoint, controlIn: CGPoint) {
-        // Sweep angle (unsigned) between the two radii.
+    /// Approximate the minor circular arc from `from` to `to` (both on the circle of
+    /// `center`/`radius`) as a chain of cubic Bézier anchors, splitting so each cubic
+    /// spans ≤ 90° (a single cubic visibly bulges past ~120°, e.g. sharp corners). The
+    /// returned anchors run `from` → `to`; the first anchor's `controlIn` and the last
+    /// anchor's `controlOut` are zeroed (set to the anchor point) so the caller can keep
+    /// the adjoining straight legs straight.
+    static func arcBezierAnchors(from: CGPoint, to: CGPoint, center: CGPoint, radius: CGFloat) -> [BezierPoint] {
         let a0 = atan2(from.y - center.y, from.x - center.x)
         let a1 = atan2(to.y - center.y, to.x - center.x)
         var sweep = a1 - a0
         while sweep <= -CGFloat.pi { sweep += 2 * .pi }
         while sweep > CGFloat.pi { sweep -= 2 * .pi }
 
-        // Magnitude only — the travel direction is carried by `sign` below, so
-        // keeping `handle` positive avoids cancelling the direction twice.
-        let handle = (4.0 / 3.0) * tan(abs(sweep) / 4) * radius
-
-        // Unit tangents in the travel direction: perpendicular to each radius,
-        // rotated by +90° times the sign of the sweep.
+        let segments = max(1, Int(ceil(abs(sweep) / (.pi / 2 + 1e-9))))
+        let delta = sweep / CGFloat(segments)
+        let handle = (4.0 / 3.0) * tan(abs(delta) / 4) * radius
         let sign: CGFloat = sweep >= 0 ? 1 : -1
-        let rFrom = normalize(CGPoint(x: from.x - center.x, y: from.y - center.y))
-        let rTo = normalize(CGPoint(x: to.x - center.x, y: to.y - center.y))
-        let tanFrom = CGPoint(x: -rFrom.y * sign, y: rFrom.x * sign)
-        let tanTo = CGPoint(x: -rTo.y * sign, y: rTo.x * sign)
 
-        let controlOut = CGPoint(x: from.x + tanFrom.x * handle, y: from.y + tanFrom.y * handle)
-        let controlIn = CGPoint(x: to.x - tanTo.x * handle, y: to.y - tanTo.y * handle)
-        return (controlOut, controlIn)
+        var anchors: [BezierPoint] = []
+        for k in 0...segments {
+            let a = a0 + delta * CGFloat(k)
+            let p = CGPoint(x: center.x + radius * cos(a), y: center.y + radius * sin(a))
+            // Travel-direction unit tangent (perpendicular to the radius).
+            let tan = CGPoint(x: -sin(a) * sign, y: cos(a) * sign)
+            let cIn = k == 0 ? p : CGPoint(x: p.x - tan.x * handle, y: p.y - tan.y * handle)
+            let cOut = k == segments ? p : CGPoint(x: p.x + tan.x * handle, y: p.y + tan.y * handle)
+            anchors.append(BezierPoint(point: p, controlIn: cIn, controlOut: cOut))
+        }
+        // Snap the endpoints exactly to the requested tangent points (kill float drift).
+        anchors[0] = BezierPoint(point: from, controlIn: from, controlOut: anchors[0].controlOut)
+        anchors[segments] = BezierPoint(point: to, controlIn: anchors[segments].controlIn, controlOut: to)
+        return anchors
     }
 
     private static func normalize(_ v: CGPoint) -> CGPoint {

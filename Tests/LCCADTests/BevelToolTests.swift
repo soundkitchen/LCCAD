@@ -92,16 +92,30 @@ final class BevelToolTests: XCTestCase {
 
     // MARK: - arc → cubic approximation
 
-    func testArcCubicMidpointLiesOnCircle() {
+    func testArcBezierAnchorsMidpointOnCircle() {
         // Quarter circle from (10,0) to (0,10) about center (10,10), r=10.
         let center = CGPoint(x: 10, y: 10)
-        let from = CGPoint(x: 10, y: 0)
-        let to = CGPoint(x: 0, y: 10)
-        let (cOut, cIn) = BevelTool.arcToCubicControlPoints(from: from, to: to, center: center, radius: 10)
-        // Evaluate the cubic at t = 0.5 and confirm it is ~on the circle.
-        let mid = cubic(from, cOut, cIn, to, 0.5)
+        let arc = BevelTool.arcBezierAnchors(from: CGPoint(x: 10, y: 0), to: CGPoint(x: 0, y: 10), center: center, radius: 10)
+        XCTAssertEqual(arc.count, 2, "a 90° arc needs a single cubic")
+        let mid = cubic(arc[0].point, arc[0].controlOut, arc[1].controlIn, arc[1].point, 0.5)
         XCTAssertEqual(center.distance(to: mid), 10, accuracy: 0.05,
                        "cubic midpoint should approximate the arc radius")
+    }
+
+    func testArcBezierAnchorsSplitsObtuseArcForAccuracy() {
+        // A 150° fillet (sharp corner) must split into two ≤90° cubics so it doesn't
+        // bulge off the true circle. Sample each sub-cubic and confirm it's on-circle.
+        let center = CGPoint.zero
+        let r: CGFloat = 10
+        let a = CGFloat.pi * 5 / 6 // 150°
+        let arc = BevelTool.arcBezierAnchors(from: CGPoint(x: r, y: 0),
+                                             to: CGPoint(x: r * cos(a), y: r * sin(a)),
+                                             center: center, radius: r)
+        XCTAssertEqual(arc.count, 3, "150° splits into two cubics")
+        for i in 0..<(arc.count - 1) {
+            let mid = cubic(arc[i].point, arc[i].controlOut, arc[i + 1].controlIn, arc[i + 1].point, 0.5)
+            XCTAssertEqual(center.distance(to: mid), r, accuracy: 0.05)
+        }
     }
 
     private func cubic(_ p0: CGPoint, _ p1: CGPoint, _ p2: CGPoint, _ p3: CGPoint, _ t: CGFloat) -> CGPoint {
@@ -123,6 +137,15 @@ final class BevelToolTests: XCTestCase {
         editor.document.layers[0].shapes = shapes
         editor.selectedShapeIds = Set(shapes.map { $0.id })
         return editor
+    }
+
+    /// Straight-segment (zero-handle) polyline bézier through the given points.
+    private func straightBezier(_ pts: [(CGFloat, CGFloat)], closed: Bool) -> BezierShape {
+        let bps = pts.map { p -> BezierPoint in
+            let pt = CGPoint(x: p.0, y: p.1)
+            return BezierPoint(point: pt, controlIn: pt, controlOut: pt)
+        }
+        return BezierShape(points: bps, isClosed: closed)
     }
 
     @MainActor
@@ -312,5 +335,59 @@ final class BevelToolTests: XCTestCase {
         XCTAssertEqual(arcs.count, 1)
         XCTAssertLessThan(arcs[0].center.x, 25, "fillet at the clicked (0,0) corner")
         XCTAssertLessThan(arcs[0].center.y, 25)
+    }
+
+    // MARK: - Review fixes (PR #28)
+
+    @MainActor
+    func testBulkBevelBezierSkipsOverlappingAdjacentCorner() {
+        // Open polyline; corners (20,0) and (20,20) share the 20mm right edge.
+        // radius 12 needs 12+12 = 24mm of that edge → only one corner may bevel,
+        // otherwise the tangent points reverse and the path self-intersects.
+        let bezier = straightBezier([(0, 0), (20, 0), (20, 20), (0, 20)], closed: false)
+        let editor = makeEditor([.bezier(bezier)])
+        XCTAssertEqual(editor.bevelSelectedCorners(radius: 12), 1)
+    }
+
+    @MainActor
+    func testBulkBevelBezierBothCornersWhenTheyFit() {
+        let bezier = straightBezier([(0, 0), (20, 0), (20, 20), (0, 20)], closed: false)
+        let editor = makeEditor([.bezier(bezier)])
+        XCTAssertEqual(editor.bevelSelectedCorners(radius: 8), 2) // 8+8 ≤ 20
+    }
+
+    @MainActor
+    func testBevelPreviewCountMatchesAppliedCountForTightRadius() {
+        // Four independent lines forming a 20mm square. radius 11 fits the first
+        // corner but shrinks shared edges to 9mm, so adjacent corners can't bevel.
+        // The previewed count must equal what Apply actually does.
+        let a = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let b = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let c = LineShape(start: CGPoint(x: 20, y: 20), end: CGPoint(x: 0, y: 20))
+        let d = LineShape(start: CGPoint(x: 0, y: 20), end: CGPoint(x: 0, y: 0))
+        let editor = makeEditor([.line(a), .line(b), .line(c), .line(d)])
+
+        let predicted = editor.bevelableCornerCount(radius: 11)
+        let applied = editor.bevelSelectedCorners(radius: 11)
+        XCTAssertEqual(predicted, applied, "preview count must match the applied count")
+        XCTAssertLessThan(applied, 4, "radius 11 cannot fit all four 20mm-square corners")
+    }
+
+    @MainActor
+    func testClickBevelClearsSelectionWhenLineFullyConsumed() {
+        // 20mm square of lines; bevel one corner, then bevel the adjacent corner with
+        // radius = remaining edge so the shared line is fully consumed and removed.
+        let a = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let b = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let c = LineShape(start: CGPoint(x: 20, y: 20), end: CGPoint(x: 0, y: 20))
+        let d = LineShape(start: CGPoint(x: 0, y: 20), end: CGPoint(x: 0, y: 0))
+        let editor = makeEditor([.line(a), .line(b), .line(c), .line(d)])
+
+        editor.bevelClickedCorner(shapeId: a.id, near: CGPoint(x: 0, y: 0), radius: 10)    // TL: shortens a → (10,0)-(20,0)
+        editor.selectedShapeIds = [a.id]
+        editor.bevelClickedCorner(shapeId: a.id, near: CGPoint(x: 20, y: 0), radius: 10)   // TR: consumes the rest of a
+
+        XCTAssertFalse(editor.document.layers[0].shapes.contains { $0.id == a.id }, "consumed edge removed")
+        XCTAssertFalse(editor.selectedShapeIds.contains(a.id), "selection must not dangle on the removed edge")
     }
 }
