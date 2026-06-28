@@ -42,7 +42,7 @@ enum DrawingTool: String, CaseIterable, Sendable {
         case .dimensionLine: return "ruler"
         case .offset: return "square.inset.filled"
         case .trim: return "scissors"
-        case .bevel: return "arrow.turn.up.right"
+        case .bevel: return "app"
         case .page: return "doc.plaintext"
         }
     }
@@ -206,6 +206,10 @@ final class EditorViewModel {
 
     // Array sheet state
     var showArraySheet: Bool = false
+
+    // Bevel state — shared radius (mm) used by both the click tool and the bulk sheet.
+    var bevelRadius: CGFloat = 2.0
+    var showBevelSheet: Bool = false
 
     // Template state
     /// Presents the "save selection as template" sheet.
@@ -750,10 +754,10 @@ final class EditorViewModel {
             }
 
         case .bevel:
-            // Click on a line to bevel its corner
+            // Click a corner to round it: a line corner, or a single rectangle corner.
             if let hitId = hitTest(at: worldPoint, tolerance: tolerance) {
                 selectedShapeIds = [hitId]
-                bevelCorner(radius: 2.0)
+                bevelClickedCorner(shapeId: hitId, near: worldPoint, radius: bevelRadius)
             }
 
         case .page:
@@ -1097,36 +1101,328 @@ final class EditorViewModel {
         trimSelectedShape(clickPoint: shape.boundingBox.center)
     }
 
-    /// Bevel (round corner) between two selected lines.
-    func bevelCorner(radius: CGFloat) {
-        // For now, bevel requires exactly two lines to be adjacent
-        // This is a simplified version — the user selects a line, and we find the adjacent one
-        guard let id = selectedShapeIds.first,
-              let (li, si) = findShapeLocation(id: id),
+    /// Bevel the single corner nearest the clicked point on the hit shape.
+    /// Lines round the adjacent corner closest to the click; a rectangle explodes
+    /// into 4 edges and only the clicked corner is filleted (so individual corners
+    /// can be rounded — e.g. just the bottom two).
+    func bevelClickedCorner(shapeId: UUID, near point: CGPoint, radius: CGFloat) {
+        guard let (li, si) = findShapeLocation(id: shapeId) else { return }
+        switch document.layers[li].shapes[si] {
+        case .rectangle(let rect):
+            bevelRectangleCorner(rect, layer: li, index: si, near: point, radius: radius)
+        case .line:
+            bevelLineCorner(lineId: shapeId, layer: li, near: point, radius: radius)
+        default:
+            break
+        }
+    }
+
+    /// Explode a rectangle into 4 line edges and fillet only the corner nearest
+    /// the click. The other three corners stay sharp (as connected line edges),
+    /// so further clicks can round them too. Any uniform `cornerRadius` is dropped.
+    private func bevelRectangleCorner(_ rect: RectangleShape, layer li: Int, index si: Int, near point: CGPoint, radius: CGFloat) {
+        let c = rect.rotatedCorners  // [TL, TR, BR, BL]
+        var edges = [
+            LineShape(start: c[0], end: c[1], stroke: rect.stroke),  // 0 top
+            LineShape(start: c[1], end: c[2], stroke: rect.stroke),  // 1 right
+            LineShape(start: c[2], end: c[3], stroke: rect.stroke),  // 2 bottom
+            LineShape(start: c[3], end: c[0], stroke: rect.stroke),  // 3 left
+        ]
+        // Nearest corner; corner i is shared by edge (i+3)%4 (incoming) and edge i (outgoing).
+        let ci = (0..<4).min(by: { c[$0].distance(to: point) < c[$1].distance(to: point) }) ?? 0
+        let inIdx = (ci + 3) % 4
+        let outIdx = ci
+        guard let result = BevelTool.bevel(line1: edges[inIdx], line2: edges[outIdx], radius: radius) else { return }
+
+        let old = document
+        edges[inIdx] = LineShape(id: edges[inIdx].id, start: result.line1.startPoint, end: result.line1.endPoint, stroke: result.line1.stroke)
+        edges[outIdx] = LineShape(id: edges[outIdx].id, start: result.line2.startPoint, end: result.line2.endPoint, stroke: result.line2.stroke)
+
+        // Drop any edge the fillet fully consumed (zero length, when radius == edge).
+        var replacements: [AnyShape] = edges.filter { $0.length > 1e-6 }.map { .line($0) }
+        replacements.append(.arc(result.arc))
+        document.layers[li].shapes.remove(at: si)
+        document.layers[li].shapes.insert(contentsOf: replacements, at: si)
+        // The rectangle no longer exists → drop any stitch lines that tracked it.
+        regenerateStitchLines(forShapeIds: [rect.id])
+        selectedShapeIds = []
+        registerUndo(actionName: "Bevel Corner", oldDocument: old)
+    }
+
+    /// Fillet the corner where the clicked line meets an adjacent line, choosing
+    /// the shared vertex nearest the click when the line has corners at both ends.
+    private func bevelLineCorner(lineId: UUID, layer li: Int, near point: CGPoint, radius: CGFloat) {
+        guard let si = document.layers[li].shapes.firstIndex(where: { $0.id == lineId }),
               case .line(let line1) = document.layers[li].shapes[si] else { return }
 
-        // Find an adjacent line
+        var best: (index: Int, line: LineShape, vertexDist: CGFloat)?
         for (si2, shape) in document.layers[li].shapes.enumerated() {
-            guard si2 != si, case .line(let line2) = shape else { continue }
-            if let result = BevelTool.bevel(line1: line1, line2: line2, radius: radius) {
-                let old = document
-                // Preserve original ids so stitch lines keep tracking each shortened line.
-                let preservedLine1 = LineShape(id: line1.id,
-                                               start: result.line1.startPoint,
-                                               end: result.line1.endPoint,
-                                               stroke: result.line1.stroke)
-                let preservedLine2 = LineShape(id: line2.id,
-                                               start: result.line2.startPoint,
-                                               end: result.line2.endPoint,
-                                               stroke: result.line2.stroke)
-                document.layers[li].shapes[si] = .line(preservedLine1)
-                document.layers[li].shapes[si2] = .line(preservedLine2)
-                document.layers[li].shapes.append(.arc(result.arc))
-                regenerateStitchLines(forShapeIds: [line1.id, line2.id])
-                registerUndo(actionName: "Bevel Corner", oldDocument: old)
-                return
+            guard si2 != si, case .line(let line2) = shape,
+                  let vertex = sharedEndpoint(line1, line2, tolerance: 0.5) else { continue }
+            let d = vertex.distance(to: point)
+            if best == nil || d < best!.vertexDist { best = (si2, line2, d) }
+        }
+        guard let pick = best,
+              let result = BevelTool.bevel(line1: line1, line2: pick.line, radius: radius) else { return }
+
+        let old = document
+        // Preserve original ids so stitch lines keep tracking each shortened line.
+        let preservedLine1 = LineShape(id: line1.id, start: result.line1.startPoint, end: result.line1.endPoint, stroke: result.line1.stroke)
+        let preservedLine2 = LineShape(id: pick.line.id, start: result.line2.startPoint, end: result.line2.endPoint, stroke: result.line2.stroke)
+        document.layers[li].shapes[si] = .line(preservedLine1)
+        document.layers[li].shapes[pick.index] = .line(preservedLine2)
+        document.layers[li].shapes.append(.arc(result.arc))
+        // Drop any edge the fillet fully consumed (zero length, when radius == edge).
+        var dropIndices: [Int] = []
+        if preservedLine1.length < 1e-6 { dropIndices.append(si) }
+        if preservedLine2.length < 1e-6 { dropIndices.append(pick.index) }
+        for idx in dropIndices.sorted(by: >) { document.layers[li].shapes.remove(at: idx) }
+        regenerateStitchLines(forShapeIds: [line1.id, pick.line.id])
+        registerUndo(actionName: "Bevel Corner", oldDocument: old)
+    }
+
+    /// The point where two lines meet within tolerance, or nil if they don't share an endpoint.
+    private func sharedEndpoint(_ a: LineShape, _ b: LineShape, tolerance: CGFloat) -> CGPoint? {
+        let pairs = [(a.endPoint, b.startPoint), (a.endPoint, b.endPoint),
+                     (a.startPoint, b.startPoint), (a.startPoint, b.endPoint)]
+        for (p, q) in pairs where p.distance(to: q) < tolerance { return p }
+        return nil
+    }
+
+    // MARK: - Bulk Bevel (range selection)
+
+    /// Round every detected corner across the current selection in one pass.
+    /// Rectangles get a non-destructive `cornerRadius`; selected line corners and
+    /// straight bézier corners are filleted. Returns the number of corners rounded.
+    @discardableResult
+    func bevelSelectedCorners(radius: CGFloat) -> Int {
+        guard radius > 0, hasSelection else { return 0 }
+
+        let old = document
+        var totalCorners = 0
+        var affectedShapeIds = Set<UUID>()
+
+        for li in document.layers.indices {
+            guard document.layers[li].shapes.contains(where: { selectedShapeIds.contains($0.id) }) else { continue }
+
+            // 1. Rectangles → set cornerRadius (non-destructive, clamped to fit).
+            for si in document.layers[li].shapes.indices {
+                guard selectedShapeIds.contains(document.layers[li].shapes[si].id),
+                      case .rectangle(var rect) = document.layers[li].shapes[si] else { continue }
+                let maxR = min(rect.size.width, rect.size.height) / 2
+                let r = min(radius, maxR)
+                guard r > 0 else { continue }
+                rect.cornerRadius = r
+                document.layers[li].shapes[si] = .rectangle(rect)
+                totalCorners += 4
+                affectedShapeIds.insert(rect.id)
+            }
+
+            // 2. Béziers → fillet straight-segment corner anchors in place.
+            for si in document.layers[li].shapes.indices {
+                guard selectedShapeIds.contains(document.layers[li].shapes[si].id),
+                      case .bezier(let bezier) = document.layers[li].shapes[si] else { continue }
+                let (newBezier, count) = Self.beveledBezier(bezier, radius: radius)
+                guard count > 0 else { continue }
+                document.layers[li].shapes[si] = .bezier(newBezier)
+                totalCorners += count
+                affectedShapeIds.insert(bezier.id)
+            }
+
+            // 3. Lines → fillet shared-endpoint corners among the selected lines.
+            totalCorners += bevelSelectedLines(inLayer: li, radius: radius, affectedShapeIds: &affectedShapeIds)
+        }
+
+        guard totalCorners > 0 else { return 0 }
+        regenerateStitchLines(forShapeIds: affectedShapeIds)
+        registerUndo(actionName: "Bevel", oldDocument: old)
+        return totalCorners
+    }
+
+    /// Non-mutating estimate of how many corners `bevelSelectedCorners` would round,
+    /// used to preview the count in the Bevel sheet.
+    func bevelableCornerCount(radius: CGFloat) -> Int {
+        guard radius > 0, hasSelection else { return 0 }
+        var total = 0
+        for layer in document.layers {
+            let selected = layer.shapes.filter { selectedShapeIds.contains($0.id) }
+            for shape in selected {
+                switch shape {
+                case .rectangle(let rect):
+                    if min(rect.size.width, rect.size.height) / 2 > 0 { total += 4 }
+                case .bezier(let bezier):
+                    total += Self.beveledBezier(bezier, radius: radius).1
+                default:
+                    break
+                }
+            }
+            total += countLineCorners(selectedLines: selected.compactMap {
+                if case .line(let l) = $0 { return l } else { return nil }
+            }, radius: radius)
+        }
+        return total
+    }
+
+    /// Fillet every corner shared by exactly two of the selected lines in a layer.
+    /// Returns the number of corners rounded. Lines are shortened in place (ids
+    /// preserved so stitch lines keep tracking them); a fillet arc is appended per corner.
+    private func bevelSelectedLines(inLayer li: Int, radius: CGFloat, affectedShapeIds: inout Set<UUID>) -> Int {
+        // Working geometry of the selected lines, keyed by shape index.
+        var working: [Int: LineShape] = [:]
+        for si in document.layers[li].shapes.indices {
+            if case .line(let l) = document.layers[li].shapes[si], selectedShapeIds.contains(l.id) {
+                working[si] = l
             }
         }
+        guard working.count >= 2 else { return 0 }
+
+        let corners = Self.detectLineCorners(working)
+        guard !corners.isEmpty else { return 0 }
+
+        var arcs: [ArcShape] = []
+        var count = 0
+        for corner in corners {
+            var lineA = working[corner.siA]!
+            var lineB = working[corner.siB]!
+            let vertex = corner.isStartA ? lineA.startPoint : lineA.endPoint
+            let farA = corner.isStartA ? lineA.endPoint : lineA.startPoint
+            let farB = corner.isStartB ? lineB.endPoint : lineB.startPoint
+
+            guard let fillet = BevelTool.filletCorner(prev: farA, corner: vertex, next: farB, radius: radius) else { continue }
+
+            if corner.isStartA { lineA.startPoint = fillet.tangentPrev } else { lineA.endPoint = fillet.tangentPrev }
+            if corner.isStartB { lineB.startPoint = fillet.tangentNext } else { lineB.endPoint = fillet.tangentNext }
+            working[corner.siA] = lineA
+            working[corner.siB] = lineB
+
+            arcs.append(ArcShape(center: fillet.center, radius: fillet.radius,
+                                 startAngle: fillet.startAngle, endAngle: fillet.endAngle,
+                                 clockwise: fillet.clockwise, stroke: lineA.stroke))
+            count += 1
+        }
+        guard count > 0 else { return 0 }
+
+        for (si, line) in working {
+            document.layers[li].shapes[si] = .line(line)
+            affectedShapeIds.insert(line.id)
+        }
+        for arc in arcs { document.layers[li].shapes.append(.arc(arc)) }
+        // Drop any edge a fillet fully consumed (zero length, when radius == edge).
+        for idx in working.filter({ $0.value.length < 1e-6 }).keys.sorted(by: >) {
+            document.layers[li].shapes.remove(at: idx)
+        }
+        return count
+    }
+
+    /// A corner shared by two distinct selected lines.
+    private struct LineCorner {
+        let siA: Int; let isStartA: Bool
+        let siB: Int; let isStartB: Bool
+    }
+
+    /// Cluster the endpoints of the working lines and return vertices shared by
+    /// exactly two distinct lines. Vertices where 3+ lines meet are ambiguous and skipped.
+    private static func detectLineCorners(_ working: [Int: LineShape], tolerance: CGFloat = 0.5) -> [LineCorner] {
+        struct EndRef { let si: Int; let isStart: Bool; let point: CGPoint }
+        var ends: [EndRef] = []
+        for (si, l) in working {
+            ends.append(EndRef(si: si, isStart: true, point: l.startPoint))
+            ends.append(EndRef(si: si, isStart: false, point: l.endPoint))
+        }
+
+        // Greedy proximity clustering — selections are small, so O(n²) is fine.
+        var clusters: [[EndRef]] = []
+        for e in ends {
+            if let idx = clusters.firstIndex(where: { $0[0].point.distance(to: e.point) <= tolerance }) {
+                clusters[idx].append(e)
+            } else {
+                clusters.append([e])
+            }
+        }
+
+        var corners: [LineCorner] = []
+        for cluster in clusters where cluster.count == 2 {
+            let a = cluster[0], b = cluster[1]
+            guard a.si != b.si else { continue }
+            corners.append(LineCorner(siA: a.si, isStartA: a.isStart, siB: b.si, isStartB: b.isStart))
+        }
+        return corners
+    }
+
+    /// Count line corners for the preview (non-iterative; uses original geometry).
+    private func countLineCorners(selectedLines lines: [LineShape], radius: CGFloat) -> Int {
+        guard lines.count >= 2 else { return 0 }
+        var working: [Int: LineShape] = [:]
+        for (i, l) in lines.enumerated() { working[i] = l }
+        var count = 0
+        for corner in Self.detectLineCorners(working) {
+            let lineA = working[corner.siA]!
+            let lineB = working[corner.siB]!
+            let vertex = corner.isStartA ? lineA.startPoint : lineA.endPoint
+            let farA = corner.isStartA ? lineA.endPoint : lineA.startPoint
+            let farB = corner.isStartB ? lineB.endPoint : lineB.startPoint
+            if BevelTool.filletCorner(prev: farA, corner: vertex, next: farB, radius: radius) != nil { count += 1 }
+        }
+        return count
+    }
+
+    /// Fillet the straight-segment corner anchors of a bézier in place, keeping it a
+    /// single connected path. Curved-segment anchors are left untouched (limitation).
+    /// Returns the updated shape and the number of corners rounded.
+    private static func beveledBezier(_ bezier: BezierShape, radius: CGFloat) -> (BezierShape, Int) {
+        let pts = bezier.points
+        let n = pts.count
+        guard n >= 3 else { return (bezier, 0) }
+
+        var newPoints: [BezierPoint] = []
+        var count = 0
+        for i in 0..<n {
+            // Endpoints of an open path have no corner.
+            if !bezier.isClosed && (i == 0 || i == n - 1) {
+                newPoints.append(pts[i])
+                continue
+            }
+            let prevP = pts[(i - 1 + n) % n]
+            let curP = pts[i]
+            let nextP = pts[(i + 1) % n]
+
+            guard isStraightSegment(from: prevP, to: curP),
+                  isStraightSegment(from: curP, to: nextP),
+                  let fillet = BevelTool.filletCorner(prev: prevP.point, corner: curP.point, next: nextP.point, radius: radius)
+            else {
+                newPoints.append(curP)
+                continue
+            }
+
+            let (cOut, cIn) = BevelTool.arcToCubicControlPoints(from: fillet.tangentPrev, to: fillet.tangentNext,
+                                                                center: fillet.center, radius: fillet.radius)
+            // First tangent point: straight handle towards prev, arc handle towards next.
+            newPoints.append(BezierPoint(point: fillet.tangentPrev, controlIn: fillet.tangentPrev, controlOut: cOut))
+            // Second tangent point: arc handle towards prev, straight handle towards next.
+            newPoints.append(BezierPoint(point: fillet.tangentNext, controlIn: cIn, controlOut: fillet.tangentNext))
+            count += 1
+        }
+        guard count > 0 else { return (bezier, 0) }
+        var result = bezier
+        result.points = newPoints
+        return (result, count)
+    }
+
+    /// A bézier segment is "straight" when both of its control handles lie on the
+    /// chord between the two anchors (within tolerance).
+    private static func isStraightSegment(from a: BezierPoint, to b: BezierPoint, tolerance: CGFloat = 0.05) -> Bool {
+        let chord = a.point.distance(to: b.point)
+        guard chord > 1e-6 else { return false }
+        return distancePointToLine(a.controlOut, a.point, b.point) <= tolerance
+            && distancePointToLine(b.controlIn, a.point, b.point) <= tolerance
+    }
+
+    /// Perpendicular distance from `p` to the infinite line through `a` and `b`.
+    private static func distancePointToLine(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let len = sqrt(dx * dx + dy * dy)
+        guard len > 1e-9 else { return p.distance(to: a) }
+        return abs((p.x - a.x) * dy - (p.y - a.y) * dx) / len
     }
 
     // MARK: - Group / Ungroup

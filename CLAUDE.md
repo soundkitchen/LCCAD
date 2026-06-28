@@ -87,6 +87,7 @@ xcodebuild -project LCCAD.xcodeproj -scheme LCCAD -configuration Release build
 | Arc | radius | circle.and.line.horizontal |
 | Bezier | spline | point.topleft.down.to.point.bottomright.curvepath |
 | Text | type | character |
+| Bevel | squircle | app |
 
 ## Key Design Decisions
 

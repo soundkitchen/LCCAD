@@ -56,6 +56,9 @@ struct MainEditorView: View {
         .sheet(isPresented: $editor.showArraySheet) {
             ArraySheet(editor: editor)
         }
+        .sheet(isPresented: $editor.showBevelSheet) {
+            BevelSheet(editor: editor)
+        }
         .sheet(isPresented: $editor.showSaveTemplateSheet) {
             SaveTemplateSheet(editor: editor)
         }
