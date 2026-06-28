@@ -54,6 +54,11 @@ final class LCCADFileDocument: ObservableObject {
     /// `isModified` compares the live `data` against this baseline.
     @Published private(set) var lastSavedData: DocumentData
 
+    /// Bumped whenever `data` is wholesale replaced by New or Open (not by edits).
+    /// Observers use this — rather than `data`, which also changes on every edit —
+    /// to reset editor state (active layer, selection, undo) on document load.
+    @Published private(set) var loadGeneration: Int = 0
+
     init(data: DocumentData = .empty(), fileURL: URL? = nil) {
         self.data = data
         self.fileURL = fileURL
@@ -66,5 +71,10 @@ final class LCCADFileDocument: ObservableObject {
     /// Record the current `data` as the saved baseline (clears the dirty state).
     func markSaved() {
         lastSavedData = data
+    }
+
+    /// Signal that `data` was replaced by a New/Open load (see `loadGeneration`).
+    func notifyDocumentReplaced() {
+        loadGeneration &+= 1
     }
 }

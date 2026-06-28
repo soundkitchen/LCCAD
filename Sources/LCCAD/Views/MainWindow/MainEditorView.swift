@@ -35,10 +35,16 @@ struct MainEditorView: View {
         .onChange(of: undoManager) { _, newValue in
             editor.undoManager = newValue
         }
-        .onChange(of: fileDocument.data) { _, newData in
-            // Sync when file is opened externally
-            editor.document = newData
+        .onChange(of: fileDocument.loadGeneration) { _, _ in
+            // A New/Open load wholesale-replaced the document: adopt it and reset
+            // editor state that referenced the old document (Issue #22 review).
+            editor.document = fileDocument.data
             editor.fileDocument = fileDocument
+            editor.activeLayerIndex = min(max(editor.activeLayerIndex, 0),
+                                          max(fileDocument.data.layers.count - 1, 0))
+            editor.selectedShapeIds = []
+            // Drop undo history so ⌘Z can't resurrect the discarded document.
+            editor.undoManager?.removeAllActions()
         }
         .focusedValue(\.editor, editor)
         .onDeleteCommand {

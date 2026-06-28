@@ -57,6 +57,29 @@ final class DocumentDirtyTrackingTests: XCTestCase {
         XCTAssertEqual(decoded, doc.data)
     }
 
+    func testNotifyDocumentReplacedBumpsLoadGeneration() {
+        let doc = LCCADFileDocument()
+        let before = doc.loadGeneration
+        doc.notifyDocumentReplaced()
+        XCTAssertEqual(doc.loadGeneration, before + 1)
+    }
+
+    /// A stale active-layer index from a larger document must not index out of
+    /// bounds after the document shrinks (e.g. New / Open of a smaller file).
+    func testActiveLayerIsSafeAfterDocumentShrinks() {
+        let editor = EditorViewModel(document: DocumentData(layers: [
+            Layer(name: "L1"), Layer(name: "L2"), Layer(name: "L3"),
+        ]))
+        editor.activeLayerIndex = 2
+
+        // Simulate a New load (single layer) without resetting the index.
+        editor.document = .empty()
+
+        // Must not crash, and must resolve to a valid layer.
+        XCTAssertEqual(editor.document.layers.count, 1)
+        XCTAssertEqual(editor.activeLayer.name, editor.document.layers[0].name)
+    }
+
     func testEditingAfterSaveMarksModifiedAgain() throws {
         let doc = LCCADFileDocument()
         let url = FileManager.default.temporaryDirectory

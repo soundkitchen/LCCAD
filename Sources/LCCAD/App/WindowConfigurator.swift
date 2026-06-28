@@ -38,6 +38,10 @@ struct WindowConfigurator: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, NSWindowDelegate {
         private let fileDocument: LCCADFileDocument
+        // weak by design: `NSWindow.delegate` is itself a weak reference, so we must
+        // not strongly retain SwiftUI's delegate (it would outlive the window /
+        // create a cycle). `attach(to:)` re-runs from `updateNSView`, re-capturing
+        // SwiftUI's delegate if it is ever reinstalled.
         private weak var previousDelegate: NSWindowDelegate?
 
         init(fileDocument: LCCADFileDocument) {
@@ -54,9 +58,12 @@ struct WindowConfigurator: NSViewRepresentable {
         // MARK: NSWindowDelegate
 
         func windowShouldClose(_ sender: NSWindow) -> Bool {
-            guard fileDocument.windowShouldClose(sender) else { return false }
-            // Honor any close veto from SwiftUI's original delegate.
-            return previousDelegate?.windowShouldClose?(sender) ?? true
+            // The unsaved-changes guard owns the close decision. We deliberately do
+            // not also consult the original delegate's `windowShouldClose`: once the
+            // guard has saved (and cleared the dirty state), a veto there would leave
+            // a "saved but won't close" window. SwiftUI's teardown runs via
+            // `windowWillClose`, which is still forwarded below.
+            fileDocument.windowShouldClose(sender)
         }
 
         // Forward every callback we don't implement to SwiftUI's delegate.

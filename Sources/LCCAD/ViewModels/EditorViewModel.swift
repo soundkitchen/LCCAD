@@ -297,9 +297,15 @@ final class EditorViewModel {
 
     // MARK: - Layer Access
 
+    /// Index clamped into the valid range, so a stale `activeLayerIndex` left over
+    /// from a larger document (e.g. after New/Open) can't index out of bounds.
+    private var safeActiveLayerIndex: Int {
+        min(max(activeLayerIndex, 0), max(document.layers.count - 1, 0))
+    }
+
     var activeLayer: Layer {
-        get { document.layers[activeLayerIndex] }
-        set { document.layers[activeLayerIndex] = newValue }
+        get { document.layers[safeActiveLayerIndex] }
+        set { document.layers[safeActiveLayerIndex] = newValue }
     }
 
     // MARK: - Undo Support

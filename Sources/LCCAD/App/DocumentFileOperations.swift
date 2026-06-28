@@ -77,6 +77,7 @@ extension LCCADFileDocument {
             self.data = .empty()
             self.fileURL = nil
             self.markSaved()
+            self.notifyDocumentReplaced()
         }
     }
 
@@ -98,6 +99,7 @@ extension LCCADFileDocument {
                 self.data = decoded
                 self.fileURL = url
                 self.markSaved()
+                self.notifyDocumentReplaced()
             } catch {
                 NSAlert(error: error).runModal()
             }
@@ -155,20 +157,19 @@ extension LCCADFileDocument {
         case .cancel:
             return .terminateCancel
         case .save:
-            if let url = fileURL {
-                do {
-                    try write(to: url)
-                    return .terminateNow
-                } catch {
-                    NSAlert(error: error).runModal()
-                    return .terminateCancel
-                }
-            } else {
-                presentSaveAsPanel { saved in
+            // `saveOrPresentPanel` calls back synchronously when saving to an
+            // existing file, and asynchronously when a Save As panel is shown.
+            var reply: NSApplication.TerminateReply = .terminateLater
+            var inSyncScope = true
+            saveOrPresentPanel { saved in
+                if inSyncScope {
+                    reply = saved ? .terminateNow : .terminateCancel
+                } else {
                     NSApp.reply(toApplicationShouldTerminate: saved)
                 }
-                return .terminateLater
             }
+            inSyncScope = false
+            return reply
         }
     }
 
@@ -183,20 +184,19 @@ extension LCCADFileDocument {
         case .cancel:
             return false
         case .save:
-            if let url = fileURL {
-                do {
-                    try write(to: url)
-                    return true
-                } catch {
-                    NSAlert(error: error).runModal()
-                    return false
+            // Synchronous (existing file) → return whether it was saved.
+            // Asynchronous (Save As panel) → keep the window open, close on success.
+            var shouldClose = false
+            var inSyncScope = true
+            saveOrPresentPanel { [weak window] saved in
+                if inSyncScope {
+                    shouldClose = saved
+                } else if saved {
+                    window?.close()
                 }
-            } else {
-                presentSaveAsPanel { [weak window] saved in
-                    if saved { window?.close() }
-                }
-                return false
             }
+            inSyncScope = false
+            return shouldClose
         }
     }
 }
