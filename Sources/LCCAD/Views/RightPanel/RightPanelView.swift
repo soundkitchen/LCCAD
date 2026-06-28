@@ -23,6 +23,8 @@ struct RightPanelView: View {
 
                 if editor.currentTool == .page {
                     PageSection(editor: editor)
+                } else if editor.currentTool == .bevel {
+                    BevelSection(editor: editor)
                 } else if editor.isMultiSelection {
                     // Multi-selection: show count and combined bounding box
                     VStack(alignment: .leading, spacing: 8) {

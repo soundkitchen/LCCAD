@@ -358,7 +358,7 @@
                   "name": "ic10",
                   "width": 16,
                   "height": 16,
-                  "icon": "corner-up-right",
+                  "icon": "squircle",
                   "library": "lucide",
                   "fill": "$icon-primary"
                 }
@@ -2179,6 +2179,107 @@
                 },
                 {
                   "type": "frame",
+                  "id": "t9ifSO",
+                  "name": "Bevel Section",
+                  "width": "fill_container",
+                  "stroke": "$border-light",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "h9A9s",
+                      "name": "bevelLabel",
+                      "fill": "$text-secondary",
+                      "content": "Bevel",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.5
+                    },
+                    {
+                      "type": "frame",
+                      "id": "qJrkv",
+                      "name": "bevelRadiusRow",
+                      "width": "fill_container",
+                      "height": 28,
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xnujK",
+                          "name": "bevelRadiusLbl",
+                          "fill": "$text-secondary",
+                          "textGrowth": "fixed-width",
+                          "width": 70,
+                          "content": "Radius",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "bjdwi",
+                          "name": "bevelRadiusInput",
+                          "width": "fill_container",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "aTgm0",
+                              "name": "bevelRadiusVal",
+                              "fill": "$text-primary",
+                              "content": "2.0",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "x2XbQo",
+                          "name": "bevelRadiusUnit",
+                          "fill": "$text-muted",
+                          "content": "mm",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "ZnWCu",
+                      "name": "bevelHelp",
+                      "fill": "$text-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Click a corner to round it",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
                   "id": "5EFAe",
                   "name": "Arc Section",
                   "width": "fill_container",
@@ -3263,7 +3364,7 @@
                   "name": "ic10",
                   "width": 16,
                   "height": 16,
-                  "icon": "corner-up-right",
+                  "icon": "squircle",
                   "library": "lucide",
                   "fill": "$icon-primary"
                 }
@@ -5079,6 +5180,107 @@
                           ]
                         }
                       ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FiUKx",
+                  "name": "Bevel Section",
+                  "width": "fill_container",
+                  "stroke": "$border-light",
+                  "strokeWidth": {
+                    "bottom": 1
+                  },
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tc6IN",
+                      "name": "dbevelLabel",
+                      "fill": "$text-secondary",
+                      "content": "Bevel",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.5
+                    },
+                    {
+                      "type": "frame",
+                      "id": "W1jHM",
+                      "name": "dbevelRadiusRow",
+                      "width": "fill_container",
+                      "height": 28,
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "NzbU0",
+                          "name": "dbevelRadiusLbl",
+                          "fill": "$text-secondary",
+                          "textGrowth": "fixed-width",
+                          "width": 70,
+                          "content": "Radius",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "obaFB",
+                          "name": "dbevelRadiusInput",
+                          "width": "fill_container",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "iCFJz",
+                              "name": "dbevelRadiusVal",
+                              "fill": "$text-primary",
+                              "content": "2.0",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "sfSSf",
+                          "name": "dbevelRadiusUnit",
+                          "fill": "$text-muted",
+                          "content": "mm",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "laZ2G",
+                      "name": "dbevelHelp",
+                      "fill": "$text-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Click a corner to round it",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -12172,6 +12374,482 @@
                       "content": "保存",
                       "fontFamily": "Inter",
                       "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "rrEVF",
+      "x": 0,
+      "y": 2808,
+      "name": "Bevel Sheet - Light",
+      "theme": {
+        "mode": "light"
+      },
+      "clip": true,
+      "width": 440,
+      "height": 230,
+      "fill": "$bg-panel",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "kGMsk",
+          "name": "Title Bar",
+          "width": "fill_container",
+          "height": 44,
+          "fill": "$bg-toolbar",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "roJJu",
+              "name": "titletext",
+              "fill": "$text-primary",
+              "content": "Bevel",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "NJg97",
+              "name": "titlespc",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "icon",
+              "id": "jklmq",
+              "name": "closebtn",
+              "width": 16,
+              "height": 16,
+              "icon": "x",
+              "library": "lucide",
+              "fill": "$icon-secondary"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "vufMf",
+          "name": "Content",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 14,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "E4dkDB",
+              "name": "bevHdr",
+              "fill": "$text-muted",
+              "content": "BEVEL",
+              "fontFamily": "Inter",
+              "fontSize": 10,
+              "fontWeight": "600",
+              "letterSpacing": 0.5
+            },
+            {
+              "type": "frame",
+              "id": "djIQW",
+              "name": "radiusRow",
+              "width": "fill_container",
+              "height": 28,
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Ga3hr",
+                  "name": "radiusLbl",
+                  "fill": "$text-secondary",
+                  "textGrowth": "fixed-width",
+                  "width": 80,
+                  "content": "Radius",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "E9wm0P",
+                  "name": "radiusInput",
+                  "width": "fill_container",
+                  "height": 28,
+                  "fill": "$bg-input",
+                  "cornerRadius": 4,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    8
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TFGFi",
+                      "name": "radiusVal",
+                      "fill": "$text-primary",
+                      "content": "2.0",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "aVUuc",
+                  "name": "radiusUnit",
+                  "fill": "$text-muted",
+                  "content": "mm",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Ym30u",
+              "name": "cornerInfo",
+              "fill": "$text-secondary",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "4 corners will be rounded",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "ifWsv",
+              "name": "spacer",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "a58Htz",
+              "name": "Action Bar",
+              "width": "fill_container",
+              "height": 32,
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "CHHiP",
+                  "name": "cancelbtn",
+                  "height": 28,
+                  "cornerRadius": 4,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "J0w7na",
+                      "name": "canceltext",
+                      "fill": "$text-secondary",
+                      "content": "Cancel",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fsmkI",
+                  "name": "actspc",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "R8YVU7",
+                  "name": "applybtn",
+                  "height": 28,
+                  "fill": "$accent",
+                  "cornerRadius": 4,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oy5Hq",
+                      "name": "applytext",
+                      "fill": "$text-on-accent",
+                      "content": "Apply",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "fXzU5",
+      "x": 500,
+      "y": 2808,
+      "name": "Bevel Sheet - Dark",
+      "theme": {
+        "mode": "dark"
+      },
+      "clip": true,
+      "width": 440,
+      "height": 230,
+      "fill": "$bg-panel",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "e1Nuw",
+          "name": "dTitle Bar",
+          "width": "fill_container",
+          "height": 44,
+          "fill": "$bg-toolbar",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "strokeAlignment": "inner",
+          "padding": [
+            0,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "rTKVF",
+              "name": "dtitletext",
+              "fill": "$text-primary",
+              "content": "Bevel",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "NSpoP",
+              "name": "dtitlespc",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "icon",
+              "id": "z5vwj",
+              "name": "dclosebtn",
+              "width": 16,
+              "height": 16,
+              "icon": "x",
+              "library": "lucide",
+              "fill": "$icon-secondary"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "K99yU",
+          "name": "dContent",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 14,
+          "padding": 16,
+          "children": [
+            {
+              "type": "text",
+              "id": "BB1zE",
+              "name": "dbevHdr",
+              "fill": "$text-muted",
+              "content": "BEVEL",
+              "fontFamily": "Inter",
+              "fontSize": 10,
+              "fontWeight": "600",
+              "letterSpacing": 0.5
+            },
+            {
+              "type": "frame",
+              "id": "XM0EW",
+              "name": "dradiusRow",
+              "width": "fill_container",
+              "height": 28,
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "qAUsa",
+                  "name": "dradiusLbl",
+                  "fill": "$text-secondary",
+                  "textGrowth": "fixed-width",
+                  "width": 80,
+                  "content": "Radius",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "R5LYST",
+                  "name": "dradiusInput",
+                  "width": "fill_container",
+                  "height": 28,
+                  "fill": "$bg-input",
+                  "cornerRadius": 4,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    8
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hNUfc",
+                      "name": "dradiusVal",
+                      "fill": "$text-primary",
+                      "content": "2.0",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "AeZN3",
+                  "name": "dradiusUnit",
+                  "fill": "$text-muted",
+                  "content": "mm",
+                  "fontFamily": "Inter",
+                  "fontSize": 10,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "SzQFk",
+              "name": "dcornerInfo",
+              "fill": "$text-secondary",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "4 corners will be rounded",
+              "fontFamily": "Inter",
+              "fontSize": 11,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "frame",
+              "id": "a8Fhx",
+              "name": "dspacer",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "tHJ5N",
+              "name": "dAction Bar",
+              "width": "fill_container",
+              "height": 32,
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "TQXFc",
+                  "name": "dcancelbtn",
+                  "height": 28,
+                  "cornerRadius": 4,
+                  "stroke": "$border",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "qaOrU",
+                      "name": "dcanceltext",
+                      "fill": "$text-secondary",
+                      "content": "Cancel",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rSzNy",
+                  "name": "dactspc",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "BB0iJ",
+                  "name": "dapplybtn",
+                  "height": 28,
+                  "fill": "$accent",
+                  "cornerRadius": 4,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "r2ReK",
+                      "name": "dapplytext",
+                      "fill": "$text-on-accent",
+                      "content": "Apply",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
                       "fontWeight": "600"
                     }
                   ]

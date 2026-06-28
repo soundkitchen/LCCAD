@@ -172,6 +172,12 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("a", modifiers: [.command, .option])
             .disabled(!hasAnySelection)
+
+            Button("Bevel...") {
+                editor?.showBevelSheet = true
+            }
+            .keyboardShortcut("b", modifiers: [.command, .option])
+            .disabled(!hasAnySelection)
         }
 
         // Draw menu — tool switching (shortcuts are single-key, handled via onKeyPress in CanvasView)

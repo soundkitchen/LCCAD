@@ -129,3 +129,68 @@ struct EditablePropertyField: View {
         editText = formatted(clamped)
     }
 }
+
+/// Box-only editable numeric field (no built-in label or suffix). The caller
+/// places the label and unit alongside it — used where the label sits outside
+/// the input box (Bevel radius), unlike `EditablePropertyField`.
+struct NumberBoxField: View {
+    let value: CGFloat
+    var range: ClosedRange<CGFloat>? = nil
+    var onCommit: (CGFloat) -> Void
+
+    @State private var editText: String = ""
+    @State private var isEditing: Bool = false
+    @FocusState private var isFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        TextField("", text: $editText)
+            .font(.system(size: 11))
+            .textFieldStyle(.plain)
+            .focused($isFocused)
+            .onSubmit { commitEdit() }
+            .onChange(of: isFocused) { _, focused in
+                if focused { isEditing = true } else { commitEdit() }
+            }
+            .onChange(of: editText) { _, newText in
+                // Live-commit: push every parseable value to the binding right away
+                // so an Apply button (e.g. the Bevel sheet) never reads a stale value
+                // while the field still has focus.
+                guard isEditing, let parsed = Double(newText) else { return }
+                var next = CGFloat(parsed)
+                if let range { next = min(max(next, range.lowerBound), range.upperBound) }
+                if next != value { onCommit(next) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .frame(height: 28)
+            .background(DesignTokens.bgInput(colorScheme))
+            .cornerRadius(4)
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(isFocused ? DesignTokens.accent : DesignTokens.border(colorScheme), lineWidth: 1)
+            )
+            .onAppear { editText = formatted(value) }
+            .onChange(of: value) { _, newValue in
+                if !isEditing { editText = formatted(newValue) }
+            }
+    }
+
+    private func formatted(_ v: CGFloat) -> String {
+        String(format: "%.1f", v)
+    }
+
+    private func commitEdit() {
+        isEditing = false
+        guard let parsed = Double(editText) else {
+            editText = formatted(value)
+            return
+        }
+        var clamped = CGFloat(parsed)
+        if let range {
+            clamped = min(max(clamped, range.lowerBound), range.upperBound)
+        }
+        onCommit(clamped)
+        editText = formatted(clamped)
+    }
+}
