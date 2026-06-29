@@ -325,9 +325,27 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
 
 `SnapEngine` と `PathWalker` の更新は重要で、これを忘れると回転矩形のスナップ端点が回転前の位置に取り残されたり、ステッチが回転しないラインに沿って生成されて穴の位置がずれる。
 
+### 自動ステッチ生成（PathWalker / StitchPathBuilder / AutoStitchEngine）
+
+選択図形からステッチ穴を生成するパイプライン:
+
+1. **葉図形へ展開** — `EditorViewModel.autoStitchSelectedShape` が選択（グループは再帰展開）を `leafShapes(of:)` で葉図形列にする。複数選択もまとめて処理する。
+2. **パス化と連結（welding）** — `StitchPathBuilder.build(from:)` が各葉を `PathWalkerFactory.walker(for:)` で `PathWalkable` 化し、
+   - 閉じた図形（矩形・楕円/円・閉ベジェ）は各自 1 本の閉パス、
+   - 開いたセグメント（直線・円弧・開ベジェ）は端点近接（`weldTolerance` 0.1mm）で連結し、必要なら `ReversedPathWalker` で向きを揃える。両端が出会えば閉ループ化。
+
+   結果は `StitchPath { walker, sourceShapeIds }`。これにより線+円弧+…で描いた輪郭を **1 本の連続ステッチ**として扱える（#24 駒合わせの土台）。内・外を選べば各パーツが 1 本ずつになる。
+3. **穴生成** — `AutoStitchEngine.generateHoles(along:iron:mode:)` が walker に沿って穴を配置:
+   - **コーナーアンカー**: `CompositePathWalker.cornerDistances`（接線不連続 > 5°、閉なら継ぎ目も判定）で角に必ず穴を置き、**各「角〜角」スパンを均等割り**（`round(spanLen/pitch)`）して間隔を ≈ピッチに保つ。端数による角付近の詰まりを避けるため、コーナーを含む図形ではモードに依らず均等配置になる。
+   - **角の無い図形**: 閉（円・楕円・滑らかな閉曲線）は均等ループ（継ぎ目重複なし）、開（単一の直線・開曲線）は `Fixed`=定ピッチ／`Variable`=両端揃え。
+
+`PathWalkable` は `pathLength` / `pointAtDistance` / `tangentAtDistance` に加え、`isClosed`・`cornerDistances`（既定は「開・角なし」）を持つ。具体 walker: `Line` / `Arc` / `Ellipse`（円=厳密・楕円=弧長LUT・回転対応）/ `BezierSegment` / `Composite`（連結・`isClosed`・角検出）/ `Reversed`。
+
+ステッチ設定 UI（`StitchSection`: Iron Type / Mode / Pitch）は単一選択だけでなく**複数選択時も右パネルに表示**する（連結輪郭・複数パーツを選んで Auto Stitch するため）。
+
 ### ステッチラインの図形追従
 
-`StitchHole.position` は絶対 world 座標で保存されるため、元図形の移動・変形・削除と同期させる必要がある。`EditorViewModel` は `StitchLine.sourceShapeId` を介して 2 方式で追従する:
+`StitchHole.position` は絶対 world 座標で保存されるため、元図形の移動・変形・削除と同期させる必要がある。`StitchLine.sourceShapeIds`（連結ラインは複数図形にまたがる）を介して `EditorViewModel` が 2 方式で追従する:
 
 **平行移動（delta シフト）** — `translateStitchHoles(forShapeIds:by:)`
 
@@ -338,8 +356,8 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
 | 整列・分布 (`alignSelectedShapes` / `distributeSelectedShapes`) | 図形ごとの delta でシフト |
 
 **変形（穴再生成）** — `regenerateStitchLines(forShapeIds:)`
-- 対象ラインの `sourceShapeId` から現在の図形と `PathWalkerFactory.walker(for:)` を引き、`AutoStitchEngine.generateHoles(along:iron:mode:)` で `holes` を差し替え
-- 図形が消えた／walker 非対応の場合はステッチラインごと削除
+- 対象ラインの `sourceShapeIds` から `weldedWalker(forShapeIds:)`（`StitchPathBuilder` で再連結）を引き、`AutoStitchEngine.generateHoles(along:iron:mode:)` で `holes` を差し替え。多セグメント輪郭は各セグメントの編集に追従して再生成される
+- 図形が消えた／walker 非対応／連結が崩れて 1 本にまとまらない場合はステッチラインごと削除
 - `PrickingIron` が見つからない場合は穴を維持（ユーザーデータを保全）
 
 | 操作 | 穴への反映 |
@@ -348,7 +366,7 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
 | Bevel (`bevelSelectedCorners` 一括 / `bevelClickedCorner` クリック) | 直線・ベジェ・矩形(cornerRadius) は id を保存し短縮後の図形で再生成。矩形のクリック個別面取りは4辺へ分解し元矩形が消えるため削除。フィレット arc には穴を生成しない |
 | Trim (`trimSelectedShape`) | 元図形が消えるのでステッチラインを削除 |
 
-**削除** — `deleteSelectedShapes` で `sourceShapeId` が一致するステッチラインを除去。
+**削除** — `deleteSelectedShapes` で `sourceShapeIds` のいずれかが削除対象に含まれるステッチラインを除去（連結ラインは構成図形が 1 つでも消えると破綻するため全体を削除）。複製（Mirror/Array）の `duplicateStitchLines` は全構成 id を新 id へ写し替える。
 
 グループ移動・削除では `collectShapeIds(in:)` が子孫 id を再帰収集するため、ネスト内部の図形に紐づいた穴も追従する。Undo は `registerUndo` のドキュメントスナップショットに穴の差分も含まれるため追加処理不要。
 
