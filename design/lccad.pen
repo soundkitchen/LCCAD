@@ -2551,6 +2551,72 @@
                     },
                     {
                       "type": "frame",
+                      "id": "t8o8F",
+                      "name": "rpModeRow",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "oq09m",
+                          "name": "rpModeLabel",
+                          "fill": "$text-secondary",
+                          "content": "Mode",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "V9Eah",
+                          "name": "rpModeSpacer",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "M7SKA",
+                          "name": "rpModeVal",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "CLbYw",
+                              "name": "rpModeVT",
+                              "fill": "$text-primary",
+                              "content": "Fixed Pitch",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "pY55z",
+                              "name": "rpModeVIc",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "chevron-down",
+                              "library": "lucide",
+                              "fill": "$icon-secondary"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
                       "id": "VV3AM",
                       "name": "rpPitchRow",
                       "width": "fill_container",
@@ -5545,6 +5611,72 @@
                               "type": "icon",
                               "id": "EHlAr",
                               "name": "rpIronVIc",
+                              "width": 12,
+                              "height": 12,
+                              "icon": "chevron-down",
+                              "library": "lucide",
+                              "fill": "$icon-secondary"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Y0v35",
+                      "name": "rpModeRow",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "nFHO1",
+                          "name": "rpModeLabel",
+                          "fill": "$text-secondary",
+                          "content": "Mode",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "j1BXI1",
+                          "name": "rpModeSpacer",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "mpdtj",
+                          "name": "rpModeVal",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "O838kb",
+                              "name": "rpModeVT",
+                              "fill": "$text-primary",
+                              "content": "Fixed Pitch",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "PCHJ2",
+                              "name": "rpModeVIc",
                               "width": 12,
                               "height": 12,
                               "icon": "chevron-down",

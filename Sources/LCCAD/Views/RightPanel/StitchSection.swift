@@ -42,6 +42,23 @@ struct StitchSection: View {
                 .help("Pricking Iron Settings")
             }
 
+            // Mode row
+            HStack(spacing: 8) {
+                Text("Mode")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.textSecondary(colorScheme))
+
+                Spacer()
+
+                Picker("", selection: $editor.selectedStitchMode) {
+                    ForEach(StitchMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .frame(height: 28)
+            }
+
             // Pitch row
             HStack(spacing: 8) {
                 Text("Pitch")

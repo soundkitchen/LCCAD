@@ -287,8 +287,8 @@ final class EditorViewModelMirrorTests: XCTestCase {
         editor.mirrorSelectedShapes(.vertical, copy: true)
 
         XCTAssertEqual(editor.document.layers[0].stitchLines.count, 2, "stitch lines should duplicate")
-        // The original stitch line keeps its sourceShapeId; the copy points to the new shape.
-        let copySourceIds = Set(editor.document.layers[0].stitchLines.map(\.sourceShapeId))
+        // The original stitch line keeps its source shape; the copy points to the new shape.
+        let copySourceIds = Set(editor.document.layers[0].stitchLines.flatMap(\.sourceShapeIds))
         let shapeIds = Set(editor.document.layers[0].shapes.map(\.id))
         XCTAssertEqual(copySourceIds, shapeIds, "every stitch line must reference an existing shape")
     }
