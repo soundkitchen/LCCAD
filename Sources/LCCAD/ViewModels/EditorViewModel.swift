@@ -456,14 +456,19 @@ final class EditorViewModel {
     }
 
     /// After an operation replaces a shape (e.g. bevel turns a corner into shortened
-    /// edges + a fillet arc), rewrite the `sourceShapeIds` of stitch lines that referenced
-    /// it: drop `removed` ids and add `added` ids, so the welded run can be rebuilt over
-    /// the new shapes. Caller follows up with `regenerateStitchLines`.
-    private func remapStitchLineSources(touching anchors: Set<UUID>, removing removed: Set<UUID>, adding added: [UUID]) {
+    /// edges + a fillet arc), rewrite the `sourceShapeIds` of affected stitch lines: drop
+    /// `removed` ids and add `added` ids, so the welded run can be rebuilt over the new
+    /// shapes. Caller follows up with `regenerateStitchLines`.
+    ///
+    /// Only lines whose sources contain **all** of `anchors` are rewritten. For a line
+    /// bevel that means the single run threading through *both* edges of the corner — a
+    /// stitch line following only one edge (or a separate per-edge line) is left alone so
+    /// the fillet arc isn't double-counted onto it.
+    private func remapStitchLineSources(containingAll anchors: Set<UUID>, removing removed: Set<UUID>, adding added: [UUID]) {
         for li in document.layers.indices {
             for si in document.layers[li].stitchLines.indices {
                 var ids = document.layers[li].stitchLines[si].sourceShapeIds
-                guard ids.contains(where: anchors.contains) else { continue }
+                guard anchors.allSatisfy({ ids.contains($0) }) else { continue }
                 ids.removeAll { removed.contains($0) }
                 for newId in added where !ids.contains(newId) { ids.append(newId) }
                 document.layers[li].stitchLines[si].sourceShapeIds = ids
@@ -1219,7 +1224,7 @@ final class EditorViewModel {
         // The rectangle is replaced by its filleted edges + arc; re-point stitch lines
         // that tracked it so they re-weld over the new outline instead of being dropped.
         let newIds = replacements.map { $0.id }
-        remapStitchLineSources(touching: [rect.id], removing: [rect.id], adding: newIds)
+        remapStitchLineSources(containingAll: [rect.id], removing: [rect.id], adding: newIds)
         regenerateStitchLines(forShapeIds: Set(newIds))
         selectedShapeIds = []
         registerUndo(actionName: "Bevel Corner", oldDocument: old)
@@ -1257,7 +1262,7 @@ final class EditorViewModel {
         for idx in dropIndices.sorted(by: >) { document.layers[li].shapes.remove(at: idx) }
         // Weave the new fillet arc into stitch lines that follow these edges so a welded
         // outline reconnects through the fillet instead of splitting and being dropped.
-        remapStitchLineSources(touching: [line1.id, pick.line.id], removing: removedIds, adding: [result.arc.id])
+        remapStitchLineSources(containingAll: [line1.id, pick.line.id], removing: removedIds, adding: [result.arc.id])
         regenerateStitchLines(forShapeIds: [line1.id, pick.line.id, result.arc.id])
         registerUndo(actionName: "Bevel Corner", oldDocument: old)
     }

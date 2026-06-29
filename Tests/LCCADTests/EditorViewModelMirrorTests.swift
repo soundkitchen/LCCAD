@@ -346,6 +346,38 @@ final class EditorViewModelMirrorTests: XCTestCase {
         XCTAssertTrue(arcIds.allSatisfy(sources.contains), "fillet arc must be woven into stitch sources")
     }
 
+    func testBevelingCornerOfSeparatelyStitchedLinesDoesNotPullInArc() {
+        // line1 and line2 stitched as two SEPARATE runs. Beveling the shared corner must
+        // not weave the fillet arc into either single-edge line (which would double holes
+        // onto the arc); the arc only joins a run that threads through BOTH edges.
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(l1), .line(l2)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [l1.id]
+        editor.autoStitchSelectedShape()
+        editor.selectedShapeIds = [l2.id]
+        editor.autoStitchSelectedShape()
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 2)
+
+        editor.bevelClickedCorner(shapeId: l1.id, near: CGPoint(x: 20, y: 0), radius: 5)
+
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 2, "both single-edge stitch lines survive")
+        let arcIds = Set(editor.document.layers[0].shapes.compactMap { shape -> UUID? in
+            if case .arc = shape { return shape.id } else { return nil }
+        })
+        XCTAssertFalse(arcIds.isEmpty)
+        for line in editor.document.layers[0].stitchLines {
+            XCTAssertTrue(arcIds.isDisjoint(with: line.sourceShapeIds),
+                          "fillet arc must not be pulled into a single-edge stitch line")
+        }
+    }
+
     func testWholeWeldedRunMoveShiftsHolesRigidly() {
         let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
         let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
