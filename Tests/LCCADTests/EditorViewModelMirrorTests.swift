@@ -425,6 +425,61 @@ final class EditorViewModelMirrorTests: XCTestCase {
                       "partially-moved welded run must regenerate, not rigid-shift")
     }
 
+    /// #33: a live drag that briefly breaks the weld, then returns to a welded position
+    /// within the same gesture, must keep the run — the weld decision is deferred to commit.
+    func testLivePartialMoveDefersWeldDecisionToCommit() {
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(l1), .line(l2)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [l1.id, l2.id]
+        editor.autoStitchSelectedShape()
+        let snapshot = editor.document
+
+        // Begin dragging ONLY l1. Mid-drag the weld breaks, but a live move must park the
+        // run (not drop it) so it can recover later in the same gesture.
+        editor.selectedShapeIds = [l1.id]
+        editor.moveSelectedShapes(by: CGPoint(x: 0, y: -50), live: true)
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1,
+                       "live drag must park a broken weld, not drop it")
+
+        // Return l1 to where it welds again, then commit.
+        editor.moveSelectedShapes(by: CGPoint(x: 0, y: 50), live: true)
+        editor.commitMoveWithUndo(oldDocument: snapshot)
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1,
+                       "returning to a welded position in the same drag must keep the run")
+    }
+
+    /// #33: a live drag that leaves the weld broken at release drops the run — but only
+    /// once, at commit (parked during the gesture).
+    func testLivePartialMoveDropsBrokenWeldOnlyAtCommit() {
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(l1), .line(l2)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [l1.id, l2.id]
+        editor.autoStitchSelectedShape()
+        let snapshot = editor.document
+
+        editor.selectedShapeIds = [l1.id]
+        editor.moveSelectedShapes(by: CGPoint(x: 0, y: -50), live: true)
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1, "parked during drag")
+
+        editor.commitMoveWithUndo(oldDocument: snapshot)
+        XCTAssertTrue(editor.document.layers[0].stitchLines.isEmpty,
+                      "broken weld is dropped at commit")
+    }
+
     // MARK: - Undo / Redo
 
     func testInPlaceMirrorUndoRestoresOriginal() {

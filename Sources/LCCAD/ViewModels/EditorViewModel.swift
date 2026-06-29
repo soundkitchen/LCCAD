@@ -294,9 +294,10 @@ final class EditorViewModel {
         transform.pan(by: screenDelta)
 
         // Move the selected shapes in the opposite world direction
-        // so they track with the cursor position (skip during bezier point drag)
+        // so they track with the cursor position (skip during bezier point drag).
+        // This fires only mid-drag (edge scroll), so park stitch welds until commit.
         if hasSelection && draggingBezierPointIndex == nil {
-            moveSelectedShapes(by: CGPoint(x: -d.x, y: -d.y))
+            moveSelectedShapes(by: CGPoint(x: -d.x, y: -d.y), live: true)
         }
     }
 
@@ -332,6 +333,16 @@ final class EditorViewModel {
     }
 
     func commitMoveWithUndo(oldDocument: DocumentData) {
+        // A live drag parks partially-moved stitch runs (see `translateStitchHoles(live:)`):
+        // their holes stay put during the gesture so the run is not destroyed mid-drag.
+        // Now the drag is over, settle the weld decision against the final geometry. (#33)
+        var movedIds: Set<UUID> = []
+        for id in selectedShapeIds {
+            if let (li, si) = findShapeLocation(id: id) {
+                movedIds.formUnion(collectShapeIds(in: document.layers[li].shapes[si]))
+            }
+        }
+        finalizeStitchHoleWeld(forShapeIds: movedIds)
         guard oldDocument != document else { return }
         registerUndo(actionName: "Move Shape", oldDocument: oldDocument)
     }
@@ -386,7 +397,13 @@ final class EditorViewModel {
     /// - A line whose **every** source moved is shifted rigidly by `delta` (fast path).
     /// - A line whose sources only **partially** moved is deformed, so it is regenerated
     ///   from current geometry (and dropped if the run no longer welds into one path).
-    private func translateStitchHoles(forShapeIds ids: Set<UUID>, by delta: CGPoint) {
+    ///
+    /// During a live drag (`live: true`) the partial case is **not** resolved each frame:
+    /// the holes are parked in place and the weld decision is deferred to drag-commit
+    /// (`finalizeStitchHoleWeld`). That keeps a run alive even if it momentarily breaks
+    /// weld — then returns to a welded position in the same gesture — and avoids the
+    /// per-frame regenerate cost. (#33)
+    private func translateStitchHoles(forShapeIds ids: Set<UUID>, by delta: CGPoint, live: Bool = false) {
         guard !ids.isEmpty, delta.x != 0 || delta.y != 0 else { return }
         for li in document.layers.indices {
             var si = 0
@@ -400,17 +417,45 @@ final class EditorViewModel {
                         document.layers[li].stitchLines[si].holes[hi].position.y += delta.y
                     }
                     si += 1
+                } else if live {
+                    si += 1   // park; resolved at drag-commit
                 } else {
-                    let line = document.layers[li].stitchLines[si]
-                    if let walker = weldedWalker(forShapeIds: sources),
-                       let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
-                        document.layers[li].stitchLines[si].holes =
-                            AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode)
-                        si += 1
-                    } else {
-                        document.layers[li].stitchLines.remove(at: si)
-                    }
+                    si = resolvePartialStitchLine(layer: li, index: si)
                 }
+            }
+        }
+    }
+
+    /// Apply the partial-move weld decision to the stitch line at `[layer][index]`: a run
+    /// whose sources moved only partially is deformed, so regenerate its holes from the
+    /// current geometry — or drop the line if the segments no longer weld into one path
+    /// (or the iron is gone). Returns the next index to examine.
+    private func resolvePartialStitchLine(layer li: Int, index si: Int) -> Int {
+        let line = document.layers[li].stitchLines[si]
+        if let walker = weldedWalker(forShapeIds: line.sourceShapeIds),
+           let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
+            document.layers[li].stitchLines[si].holes =
+                AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode)
+            return si + 1
+        } else {
+            document.layers[li].stitchLines.remove(at: si)
+            return si
+        }
+    }
+
+    /// Settle the weld decision for stitch runs that were parked during a live drag.
+    /// Only partially-moved runs were parked (`translateStitchHoles(live:)`); fully-moved
+    /// runs were rigidly shifted frame-by-frame and stay welded, so they need no work.
+    /// Run once at drag-commit. (#33)
+    private func finalizeStitchHoleWeld(forShapeIds ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for li in document.layers.indices {
+            var si = 0
+            while si < document.layers[li].stitchLines.count {
+                let sources = document.layers[li].stitchLines[si].sourceShapeIds
+                guard sources.contains(where: ids.contains),
+                      !sources.allSatisfy({ ids.contains($0) }) else { si += 1; continue }
+                si = resolvePartialStitchLine(layer: li, index: si)
             }
         }
     }
@@ -995,7 +1040,11 @@ final class EditorViewModel {
         }
     }
 
-    func moveSelectedShapes(by worldDelta: CGPoint) {
+    /// Translate the current selection. Pass `live: true` for per-frame drag updates so
+    /// partially-moved stitch runs are parked rather than resolved every frame; the weld
+    /// decision is then settled once in `commitMoveWithUndo`. One-shot moves keep the
+    /// default (`live: false`) and resolve immediately. (#33)
+    func moveSelectedShapes(by worldDelta: CGPoint, live: Bool = false) {
         var movedIds: Set<UUID> = []
         for id in selectedShapeIds {
             if let (li, si) = findShapeLocation(id: id) {
@@ -1003,7 +1052,7 @@ final class EditorViewModel {
                 document.layers[li].shapes[si].translate(by: worldDelta)
             }
         }
-        translateStitchHoles(forShapeIds: movedIds, by: worldDelta)
+        translateStitchHoles(forShapeIds: movedIds, by: worldDelta, live: live)
     }
 
     func deleteSelectedShapes() {
