@@ -220,9 +220,16 @@ struct CompositePathWalker: PathWalkable {
 
     /// Find joints whose incoming and outgoing tangents differ sharply. For a closed
     /// path the seam (last segment → first segment) is also checked, reported at 0.
+    /// Corners *inside* a segment (e.g. a multi-segment bezier with a cusp) are also
+    /// surfaced by offsetting that segment's own `cornerDistances` to the parent path.
     private static func detectCorners(segments: [PathWalkable], cumulative: [CGFloat], isClosed: Bool) -> [CGFloat] {
-        guard segments.count >= 2 else { return [] }
+        guard !segments.isEmpty else { return [] }
         var corners: [CGFloat] = []
+        for i in segments.indices {
+            for inner in segments[i].cornerDistances {
+                corners.append(cumulative[i] + inner)
+            }
+        }
         for i in 0..<(segments.count - 1) {
             let incoming = segments[i].tangentAtDistance(segments[i].pathLength)
             let outgoing = segments[i + 1].tangentAtDistance(0)
@@ -362,6 +369,7 @@ struct ReversedPathWalker: PathWalkable {
 
     var pathLength: CGFloat { inner.pathLength }
     var isClosed: Bool { inner.isClosed }
+    var cornerDistances: [CGFloat] { inner.cornerDistances.map { inner.pathLength - $0 } }
 
     func pointAtDistance(_ distance: CGFloat) -> CGPoint {
         inner.pointAtDistance(inner.pathLength - distance)

@@ -228,4 +228,43 @@ final class AutoStitchTests: XCTestCase {
         let paths = StitchPathBuilder.build(from: [inner, outer])
         XCTAssertEqual(paths.count, 2)  // two parts → two stitch runs (駒合わせ setup)
     }
+
+    func testWeldStopsAtLoopClosureIgnoringStray() {
+        // Triangle L1→L2→L3 closes at (0,0); a stray L4 touching that seam must NOT be
+        // absorbed (which would emit the closed triangle as an open path).
+        let l1 = AnyShape.line(LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 10, y: 0)))
+        let l2 = AnyShape.line(LineShape(start: CGPoint(x: 10, y: 0), end: CGPoint(x: 5, y: 10)))
+        let l3 = AnyShape.line(LineShape(start: CGPoint(x: 5, y: 10), end: CGPoint(x: 0, y: 0)))
+        let stray = AnyShape.line(LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: -5, y: -5)))
+        let paths = StitchPathBuilder.build(from: [l1, l2, l3, stray])
+        XCTAssertEqual(paths.count, 2, "closed triangle + stray = two paths")
+        XCTAssertTrue(
+            paths.contains { $0.walker.isClosed && $0.sourceShapeIds.count == 3 },
+            "the triangle must stay a closed 3-segment loop"
+        )
+    }
+
+    func testNestedCompositeSurfacesInnerCorners() {
+        // An L-shaped inner composite (one 90° corner at distance 10) wrapped in an outer
+        // composite must still surface that inner corner.
+        let inner = CompositePathWalker(segments: [
+            LinePathWalker(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 10, y: 0)),
+            LinePathWalker(start: CGPoint(x: 10, y: 0), end: CGPoint(x: 10, y: 10)),
+        ])
+        XCTAssertEqual(inner.cornerDistances.count, 1)
+        let outer = CompositePathWalker(segments: [
+            inner,
+            LinePathWalker(start: CGPoint(x: 10, y: 10), end: CGPoint(x: 20, y: 10)),
+        ])
+        XCTAssertTrue(outer.cornerDistances.contains { abs($0 - 10) < 1e-6 }, "inner corner not surfaced")
+    }
+
+    func testReversedWalkerForwardsCorners() {
+        let inner = CompositePathWalker(segments: [
+            LinePathWalker(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 10, y: 0)),
+            LinePathWalker(start: CGPoint(x: 10, y: 0), end: CGPoint(x: 10, y: 10)),
+        ])
+        // Inner corner at 10; reversed → pathLength(20) − 10 = 10.
+        XCTAssertEqual(ReversedPathWalker(inner: inner).cornerDistances, [10])
+    }
 }

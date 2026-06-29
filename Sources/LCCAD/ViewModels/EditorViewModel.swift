@@ -382,15 +382,34 @@ final class EditorViewModel {
         return [shape]
     }
 
-    /// Shift every stitch hole whose `sourceShapeId` is in `ids` by `delta`.
+    /// Keep stitch holes following moved shapes.
+    /// - A line whose **every** source moved is shifted rigidly by `delta` (fast path).
+    /// - A line whose sources only **partially** moved is deformed, so it is regenerated
+    ///   from current geometry (and dropped if the run no longer welds into one path).
     private func translateStitchHoles(forShapeIds ids: Set<UUID>, by delta: CGPoint) {
         guard !ids.isEmpty, delta.x != 0 || delta.y != 0 else { return }
         for li in document.layers.indices {
-            for si in document.layers[li].stitchLines.indices
-            where document.layers[li].stitchLines[si].sourceShapeIds.contains(where: ids.contains) {
-                for hi in document.layers[li].stitchLines[si].holes.indices {
-                    document.layers[li].stitchLines[si].holes[hi].position.x += delta.x
-                    document.layers[li].stitchLines[si].holes[hi].position.y += delta.y
+            var si = 0
+            while si < document.layers[li].stitchLines.count {
+                let sources = document.layers[li].stitchLines[si].sourceShapeIds
+                guard sources.contains(where: ids.contains) else { si += 1; continue }
+
+                if sources.allSatisfy({ ids.contains($0) }) {
+                    for hi in document.layers[li].stitchLines[si].holes.indices {
+                        document.layers[li].stitchLines[si].holes[hi].position.x += delta.x
+                        document.layers[li].stitchLines[si].holes[hi].position.y += delta.y
+                    }
+                    si += 1
+                } else {
+                    let line = document.layers[li].stitchLines[si]
+                    if let walker = weldedWalker(forShapeIds: sources),
+                       let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
+                        document.layers[li].stitchLines[si].holes =
+                            AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode)
+                        si += 1
+                    } else {
+                        document.layers[li].stitchLines.remove(at: si)
+                    }
                 }
             }
         }
@@ -429,11 +448,27 @@ final class EditorViewModel {
     /// its segments. Returns nil when a source shape is gone or the segments no longer
     /// form a single connected run (the caller drops the line in that case).
     private func weldedWalker(forShapeIds ids: [UUID]) -> PathWalkable? {
-        let shapes = ids.compactMap { findShape(id: $0) }
+        let shapes = ids.compactMap { findShapeRecursive(id: $0) }
         guard shapes.count == ids.count else { return nil }
         let paths = StitchPathBuilder.build(from: shapes)
         guard paths.count == 1 else { return nil }
         return paths[0].walker
+    }
+
+    /// After an operation replaces a shape (e.g. bevel turns a corner into shortened
+    /// edges + a fillet arc), rewrite the `sourceShapeIds` of stitch lines that referenced
+    /// it: drop `removed` ids and add `added` ids, so the welded run can be rebuilt over
+    /// the new shapes. Caller follows up with `regenerateStitchLines`.
+    private func remapStitchLineSources(touching anchors: Set<UUID>, removing removed: Set<UUID>, adding added: [UUID]) {
+        for li in document.layers.indices {
+            for si in document.layers[li].stitchLines.indices {
+                var ids = document.layers[li].stitchLines[si].sourceShapeIds
+                guard ids.contains(where: anchors.contains) else { continue }
+                ids.removeAll { removed.contains($0) }
+                for newId in added where !ids.contains(newId) { ids.append(newId) }
+                document.layers[li].stitchLines[si].sourceShapeIds = ids
+            }
+        }
     }
 
     // MARK: - Stroke Property Editing
@@ -623,6 +658,23 @@ final class EditorViewModel {
             if let shape = layer.shapes.first(where: { $0.id == id }) {
                 return shape
             }
+        }
+        return nil
+    }
+
+    /// Find a shape by id, descending into groups. Stitch lines may reference leaf
+    /// shapes nested inside a group (auto-stitch flattens groups before generating),
+    /// so resolving sources for regeneration must recurse.
+    func findShapeRecursive(id: UUID) -> AnyShape? {
+        func search(_ shapes: [AnyShape]) -> AnyShape? {
+            for shape in shapes {
+                if shape.id == id { return shape }
+                if case .group(let group) = shape, let found = search(group.children) { return found }
+            }
+            return nil
+        }
+        for layer in document.layers {
+            if let shape = search(layer.shapes) { return shape }
         }
         return nil
     }
@@ -1164,8 +1216,11 @@ final class EditorViewModel {
         replacements.append(.arc(result.arc))
         document.layers[li].shapes.remove(at: si)
         document.layers[li].shapes.insert(contentsOf: replacements, at: si)
-        // The rectangle no longer exists → drop any stitch lines that tracked it.
-        regenerateStitchLines(forShapeIds: [rect.id])
+        // The rectangle is replaced by its filleted edges + arc; re-point stitch lines
+        // that tracked it so they re-weld over the new outline instead of being dropped.
+        let newIds = replacements.map { $0.id }
+        remapStitchLineSources(touching: [rect.id], removing: [rect.id], adding: newIds)
+        regenerateStitchLines(forShapeIds: Set(newIds))
         selectedShapeIds = []
         registerUndo(actionName: "Bevel Corner", oldDocument: old)
     }
@@ -1196,10 +1251,14 @@ final class EditorViewModel {
         // Drop any edge the fillet fully consumed (zero length, when radius == edge),
         // and drop its id from the selection so the panel/overlay don't dangle on it.
         var dropIndices: [Int] = []
-        if preservedLine1.length < 1e-6 { dropIndices.append(si); selectedShapeIds.remove(line1.id) }
-        if preservedLine2.length < 1e-6 { dropIndices.append(pick.index); selectedShapeIds.remove(pick.line.id) }
+        var removedIds: Set<UUID> = []
+        if preservedLine1.length < 1e-6 { dropIndices.append(si); selectedShapeIds.remove(line1.id); removedIds.insert(line1.id) }
+        if preservedLine2.length < 1e-6 { dropIndices.append(pick.index); selectedShapeIds.remove(pick.line.id); removedIds.insert(pick.line.id) }
         for idx in dropIndices.sorted(by: >) { document.layers[li].shapes.remove(at: idx) }
-        regenerateStitchLines(forShapeIds: [line1.id, pick.line.id])
+        // Weave the new fillet arc into stitch lines that follow these edges so a welded
+        // outline reconnects through the fillet instead of splitting and being dropped.
+        remapStitchLineSources(touching: [line1.id, pick.line.id], removing: removedIds, adding: [result.arc.id])
+        regenerateStitchLines(forShapeIds: [line1.id, pick.line.id, result.arc.id])
         registerUndo(actionName: "Bevel Corner", oldDocument: old)
     }
 

@@ -50,77 +50,71 @@ enum StitchPathBuilder {
 
         while !remaining.isEmpty {
             let seed = remaining.removeFirst()
-            var walkers: [PathWalkable] = [seed.walker]
-            var ids: [UUID] = [seed.id]
-            var startPoint = start(of: seed.walker)
-            var endPoint = end(of: seed.walker)
+            var chain = Chain(
+                walkers: [seed.walker],
+                ids: [seed.id],
+                start: start(of: seed.walker),
+                end: end(of: seed.walker)
+            )
 
-            // Grow the chain forward from its tail, then backward from its head.
-            extendForward(walkers: &walkers, ids: &ids, endPoint: &endPoint, remaining: &remaining)
-            extendBackward(walkers: &walkers, ids: &ids, startPoint: &startPoint, remaining: &remaining)
+            // Grow from the tail, then from the head. Growth stops as soon as the chain
+            // closes into a loop, so a stray segment touching the seam isn't pulled in
+            // (which would otherwise emit a closed outline as an open path).
+            grow(&chain, atTail: true, remaining: &remaining)
+            grow(&chain, atTail: false, remaining: &remaining)
 
-            let isLoop = walkers.count >= 2 && close(startPoint, endPoint)
-            let walker: PathWalkable = walkers.count == 1
-                ? walkers[0]
-                : CompositePathWalker(segments: walkers, isClosed: isLoop)
-            paths.append(StitchPath(walker: walker, sourceShapeIds: ids))
+            let isLoop = chain.walkers.count >= 2 && close(chain.start, chain.end)
+            let walker: PathWalkable = chain.walkers.count == 1
+                ? chain.walkers[0]
+                : CompositePathWalker(segments: chain.walkers, isClosed: isLoop)
+            paths.append(StitchPath(walker: walker, sourceShapeIds: chain.ids))
         }
 
         return paths
     }
 
-    private static func extendForward(
-        walkers: inout [PathWalkable],
-        ids: inout [UUID],
-        endPoint: inout CGPoint,
-        remaining: inout [(id: UUID, walker: PathWalkable)]
-    ) {
-        var matched = true
-        while matched {
-            matched = false
-            for (idx, seg) in remaining.enumerated() {
-                let segStart = start(of: seg.walker)
-                let segEnd = end(of: seg.walker)
-                if close(endPoint, segStart) {
-                    walkers.append(seg.walker)
-                    ids.append(seg.id)
-                    endPoint = segEnd
-                } else if close(endPoint, segEnd) {
-                    walkers.append(ReversedPathWalker(inner: seg.walker))
-                    ids.append(seg.id)
-                    endPoint = segStart
-                } else {
-                    continue
-                }
-                remaining.remove(at: idx)
-                matched = true
-                break
-            }
-        }
+    private struct Chain {
+        var walkers: [PathWalkable]
+        var ids: [UUID]
+        var start: CGPoint
+        var end: CGPoint
     }
 
-    private static func extendBackward(
-        walkers: inout [PathWalkable],
-        ids: inout [UUID],
-        startPoint: inout CGPoint,
+    /// Attach connecting segments to one end of the chain, reversing a segment's
+    /// direction when needed so the chain runs head-to-tail. Stops once the chain has
+    /// closed into a loop.
+    private static func grow(
+        _ chain: inout Chain,
+        atTail: Bool,
         remaining: inout [(id: UUID, walker: PathWalkable)]
     ) {
         var matched = true
         while matched {
             matched = false
+            if chain.walkers.count >= 2 && close(chain.start, chain.end) { return }
+
+            let anchor = atTail ? chain.end : chain.start
             for (idx, seg) in remaining.enumerated() {
                 let segStart = start(of: seg.walker)
                 let segEnd = end(of: seg.walker)
-                if close(startPoint, segEnd) {
-                    walkers.insert(seg.walker, at: 0)
-                    ids.insert(seg.id, at: 0)
-                    startPoint = segStart
-                } else if close(startPoint, segStart) {
-                    walkers.insert(ReversedPathWalker(inner: seg.walker), at: 0)
-                    ids.insert(seg.id, at: 0)
-                    startPoint = segEnd
+                let attached: PathWalkable
+                let freeEnd: CGPoint
+                if atTail {
+                    // Append so the new segment's start meets the chain's end.
+                    if close(anchor, segStart) { attached = seg.walker; freeEnd = segEnd }
+                    else if close(anchor, segEnd) { attached = ReversedPathWalker(inner: seg.walker); freeEnd = segStart }
+                    else { continue }
+                    chain.walkers.append(attached)
+                    chain.ids.append(seg.id)
+                    chain.end = freeEnd
                 } else {
-                    continue
+                    // Prepend so the new segment's end meets the chain's start.
+                    if close(anchor, segEnd) { attached = seg.walker; freeEnd = segStart }
+                    else if close(anchor, segStart) { attached = ReversedPathWalker(inner: seg.walker); freeEnd = segEnd }
+                    else { continue }
+                    chain.walkers.insert(attached, at: 0)
+                    chain.ids.insert(seg.id, at: 0)
+                    chain.start = freeEnd
                 }
                 remaining.remove(at: idx)
                 matched = true
