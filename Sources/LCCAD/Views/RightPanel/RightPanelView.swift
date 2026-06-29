@@ -48,6 +48,11 @@ struct RightPanelView: View {
                             StrokeSection(editor: editor, stroke: firstShape.stroke)
                         }
                     }
+
+                    // Auto Stitch runs over the whole selection (welded outlines / multiple
+                    // parts), so the stitch settings must be reachable here too — not only
+                    // for a single shape.
+                    StitchSection(editor: editor)
                 } else if editor.isSingleSelection,
                           let selectedId = editor.selectedShapeIds.first,
                           let shape = editor.findShape(id: selectedId) {

@@ -287,10 +287,142 @@ final class EditorViewModelMirrorTests: XCTestCase {
         editor.mirrorSelectedShapes(.vertical, copy: true)
 
         XCTAssertEqual(editor.document.layers[0].stitchLines.count, 2, "stitch lines should duplicate")
-        // The original stitch line keeps its sourceShapeId; the copy points to the new shape.
-        let copySourceIds = Set(editor.document.layers[0].stitchLines.map(\.sourceShapeId))
+        // The original stitch line keeps its source shape; the copy points to the new shape.
+        let copySourceIds = Set(editor.document.layers[0].stitchLines.flatMap(\.sourceShapeIds))
         let shapeIds = Set(editor.document.layers[0].shapes.map(\.id))
         XCTAssertEqual(copySourceIds, shapeIds, "every stitch line must reference an existing shape")
+    }
+
+    func testGroupedOutlineKeepsStitchAfterRegenerate() {
+        // Two connected lines grouped → auto-stitch welds them (sources = leaf ids).
+        // A regenerate (in-place mirror) must resolve the group-child sources via
+        // findShapeRecursive and keep the line, not drop it.
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let group = GroupShape(children: [.line(l1), .line(l2)])
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.group(group)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [group.id]
+
+        editor.autoStitchSelectedShape()
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1, "grouped outline should weld to one line")
+        XCTAssertEqual(editor.document.layers[0].stitchLines[0].sourceShapeIds.count, 2)
+
+        editor.mirrorSelectedShapes(.vertical, copy: false)
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1, "stitch must survive regenerating a grouped outline")
+        XCTAssertFalse(editor.document.layers[0].stitchLines[0].holes.isEmpty)
+    }
+
+    func testBevelingWeldedCornerKeepsStitch() {
+        // Two top-level connected lines welded into one run. Beveling the shared corner
+        // must weave the new fillet arc into the line's sources so it survives.
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(l1), .line(l2)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [l1.id, l2.id]
+        editor.autoStitchSelectedShape()
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1)
+
+        editor.bevelClickedCorner(shapeId: l1.id, near: CGPoint(x: 20, y: 0), radius: 5)
+
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1, "stitch must survive beveling a welded corner")
+        XCTAssertFalse(editor.document.layers[0].stitchLines[0].holes.isEmpty)
+        let arcIds = editor.document.layers[0].shapes.compactMap { shape -> UUID? in
+            if case .arc = shape { return shape.id } else { return nil }
+        }
+        XCTAssertFalse(arcIds.isEmpty, "bevel should add a fillet arc")
+        let sources = editor.document.layers[0].stitchLines[0].sourceShapeIds
+        XCTAssertTrue(arcIds.allSatisfy(sources.contains), "fillet arc must be woven into stitch sources")
+    }
+
+    func testBevelingCornerOfSeparatelyStitchedLinesDoesNotPullInArc() {
+        // line1 and line2 stitched as two SEPARATE runs. Beveling the shared corner must
+        // not weave the fillet arc into either single-edge line (which would double holes
+        // onto the arc); the arc only joins a run that threads through BOTH edges.
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(l1), .line(l2)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [l1.id]
+        editor.autoStitchSelectedShape()
+        editor.selectedShapeIds = [l2.id]
+        editor.autoStitchSelectedShape()
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 2)
+
+        editor.bevelClickedCorner(shapeId: l1.id, near: CGPoint(x: 20, y: 0), radius: 5)
+
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 2, "both single-edge stitch lines survive")
+        let arcIds = Set(editor.document.layers[0].shapes.compactMap { shape -> UUID? in
+            if case .arc = shape { return shape.id } else { return nil }
+        })
+        XCTAssertFalse(arcIds.isEmpty)
+        for line in editor.document.layers[0].stitchLines {
+            XCTAssertTrue(arcIds.isDisjoint(with: line.sourceShapeIds),
+                          "fillet arc must not be pulled into a single-edge stitch line")
+        }
+    }
+
+    func testWholeWeldedRunMoveShiftsHolesRigidly() {
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(l1), .line(l2)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [l1.id, l2.id]
+        editor.autoStitchSelectedShape()
+        let before = editor.document.layers[0].stitchLines[0].holes.map(\.position)
+
+        editor.moveSelectedShapes(by: CGPoint(x: 5, y: 7))
+
+        let after = editor.document.layers[0].stitchLines[0].holes.map(\.position)
+        XCTAssertEqual(before.count, after.count)
+        for (b, a) in zip(before, after) {
+            XCTAssertEqual(a.x - b.x, 5, accuracy: 1e-6)
+            XCTAssertEqual(a.y - b.y, 7, accuracy: 1e-6)
+        }
+    }
+
+    func testPartialMoveOfWeldedRunDoesNotShiftDetached() {
+        let l1 = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0))
+        let l2 = LineShape(start: CGPoint(x: 20, y: 0), end: CGPoint(x: 20, y: 20))
+        let iron = PrickingIron.defaultDiamond
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(l1), .line(l2)]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedIronId = iron.id
+        editor.selectedShapeIds = [l1.id, l2.id]
+        editor.autoStitchSelectedShape()
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 1)
+
+        // Drag ONLY l1 far away → weld breaks → the run is regenerated (dropped), never
+        // rigidly shifted onto empty space.
+        editor.selectedShapeIds = [l1.id]
+        editor.moveSelectedShapes(by: CGPoint(x: 0, y: -50))
+
+        XCTAssertTrue(editor.document.layers[0].stitchLines.isEmpty,
+                      "partially-moved welded run must regenerate, not rigid-shift")
     }
 
     // MARK: - Undo / Redo

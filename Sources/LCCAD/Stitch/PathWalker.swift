@@ -7,6 +7,22 @@ protocol PathWalkable {
     var pathLength: CGFloat { get }
     func pointAtDistance(_ distance: CGFloat) -> CGPoint
     func tangentAtDistance(_ distance: CGFloat) -> CGFloat // radians
+    /// True when the path forms a closed loop (start point coincides with end point),
+    /// e.g. a rectangle, ellipse, closed bezier, or a welded outline. The stitch engine
+    /// uses this to avoid placing a duplicate hole at the seam and to distribute holes
+    /// evenly around the loop.
+    var isClosed: Bool { get }
+    /// Arc-length positions of sharp corners (direction discontinuities) along the path.
+    /// The stitch engine anchors a hole on each corner so corners are never skipped.
+    /// Smooth paths (line, arc, ellipse, smooth curve) report none.
+    var cornerDistances: [CGFloat] { get }
+}
+
+extension PathWalkable {
+    /// Most walkers describe an open segment; closed walkers override this.
+    var isClosed: Bool { false }
+    /// Most walkers are smooth; only composites expose interior corners.
+    var cornerDistances: [CGFloat] { [] }
 }
 
 // MARK: - Line Path Walker
@@ -183,15 +199,57 @@ struct BezierSegmentPathWalker: PathWalkable {
 
 struct CompositePathWalker: PathWalkable {
     let segments: [PathWalkable]
+    let isClosed: Bool
+    let cornerDistances: [CGFloat]
     private let cumulativeLengths: [CGFloat]
 
-    init(segments: [PathWalkable]) {
+    /// Minimum tangent change at a joint for it to count as a corner. Tangentially
+    /// joined segments (line→arc, smooth curves) fall below this; real vertices exceed it.
+    private static let cornerThreshold: CGFloat = 5 * .pi / 180  // 5°
+
+    init(segments: [PathWalkable], isClosed: Bool = false) {
         self.segments = segments
+        self.isClosed = isClosed
         var cumulative: [CGFloat] = [0]
         for seg in segments {
             cumulative.append(cumulative.last! + seg.pathLength)
         }
         self.cumulativeLengths = cumulative
+        self.cornerDistances = Self.detectCorners(segments: segments, cumulative: cumulative, isClosed: isClosed)
+    }
+
+    /// Find joints whose incoming and outgoing tangents differ sharply. For a closed
+    /// path the seam (last segment → first segment) is also checked, reported at 0.
+    /// Corners *inside* a segment (e.g. a multi-segment bezier with a cusp) are also
+    /// surfaced by offsetting that segment's own `cornerDistances` to the parent path.
+    private static func detectCorners(segments: [PathWalkable], cumulative: [CGFloat], isClosed: Bool) -> [CGFloat] {
+        guard !segments.isEmpty else { return [] }
+        var corners: [CGFloat] = []
+        for i in segments.indices {
+            for inner in segments[i].cornerDistances {
+                corners.append(cumulative[i] + inner)
+            }
+        }
+        for i in 0..<(segments.count - 1) {
+            let incoming = segments[i].tangentAtDistance(segments[i].pathLength)
+            let outgoing = segments[i + 1].tangentAtDistance(0)
+            if angularDifference(incoming, outgoing) > cornerThreshold {
+                corners.append(cumulative[i + 1])
+            }
+        }
+        if isClosed {
+            let incoming = segments[segments.count - 1].tangentAtDistance(segments[segments.count - 1].pathLength)
+            let outgoing = segments[0].tangentAtDistance(0)
+            if angularDifference(incoming, outgoing) > cornerThreshold {
+                corners.append(0)
+            }
+        }
+        return corners
+    }
+
+    /// Smallest absolute angle between two directions, in [0, π].
+    private static func angularDifference(_ a: CGFloat, _ b: CGFloat) -> CGFloat {
+        abs(atan2(sin(a - b), cos(a - b)))
     }
 
     var pathLength: CGFloat {
@@ -220,6 +278,108 @@ struct CompositePathWalker: PathWalkable {
     }
 }
 
+// MARK: - Ellipse Path Walker (full ellipse / circle)
+
+/// Walks a full ellipse (or circle when radiusX == radiusY). For a circle the arc
+/// length is linear in the parametric angle, but for a general ellipse it is not, so
+/// an arc-length lookup table is built (mirroring `BezierSegmentPathWalker`). The
+/// ellipse's `rotation` is applied around its center.
+struct EllipsePathWalker: PathWalkable {
+    let center: CGPoint
+    let radiusX: CGFloat
+    let radiusY: CGFloat
+    let rotation: CGFloat
+
+    private let sampleCount = 180
+    private let lut: [(theta: CGFloat, arcLen: CGFloat)]
+
+    init(ellipse: EllipseShape) {
+        self.center = ellipse.center
+        self.radiusX = ellipse.radiusX
+        self.radiusY = ellipse.radiusY
+        self.rotation = ellipse.rotation
+
+        var table: [(theta: CGFloat, arcLen: CGFloat)] = [(0, 0)]
+        var prevPoint = Self.point(theta: 0, center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
+        var accumLen: CGFloat = 0
+        for i in 1...sampleCount {
+            let theta = 2 * .pi * CGFloat(i) / CGFloat(sampleCount)
+            let pt = Self.point(theta: theta, center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
+            accumLen += prevPoint.distance(to: pt)
+            table.append((theta, accumLen))
+            prevPoint = pt
+        }
+        self.lut = table
+    }
+
+    var isClosed: Bool { true }
+
+    var pathLength: CGFloat {
+        lut.last?.arcLen ?? 0
+    }
+
+    func pointAtDistance(_ distance: CGFloat) -> CGPoint {
+        Self.point(theta: thetaForDistance(distance), center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
+    }
+
+    func tangentAtDistance(_ distance: CGFloat) -> CGFloat {
+        // Numerical tangent: robust against rotation-direction sign mistakes and
+        // accurate enough for hole orientation.
+        let len = pathLength
+        guard len > 0 else { return 0 }
+        let delta = max(len * 1e-4, 1e-4)
+        let d0 = min(max(distance - delta, 0), len)
+        let d1 = min(max(distance + delta, 0), len)
+        let p0 = pointAtDistance(d0)
+        let p1 = pointAtDistance(d1)
+        return atan2(p1.y - p0.y, p1.x - p0.x)
+    }
+
+    private static func point(theta: CGFloat, center: CGPoint, radiusX: CGFloat, radiusY: CGFloat, rotation: CGFloat) -> CGPoint {
+        let local = CGPoint(x: center.x + radiusX * cos(theta), y: center.y + radiusY * sin(theta))
+        return rotation == 0 ? local : local.rotated(around: center, angle: rotation)
+    }
+
+    private func thetaForDistance(_ distance: CGFloat) -> CGFloat {
+        let len = pathLength
+        guard len > 0 else { return 0 }
+        let target = min(max(distance, 0), len)
+        // Binary search the LUT for the bracketing samples, then interpolate theta.
+        var lo = 0
+        var hi = lut.count - 1
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if lut[mid].arcLen < target { lo = mid + 1 } else { hi = mid }
+        }
+        if lo == 0 { return lut[0].theta }
+        let a = lut[lo - 1]
+        let b = lut[lo]
+        let span = b.arcLen - a.arcLen
+        let t = span > 0 ? (target - a.arcLen) / span : 0
+        return a.theta + (b.theta - a.theta) * t
+    }
+}
+
+// MARK: - Reversed Path Walker
+
+/// Walks any path in the opposite direction. Used when welding outline segments
+/// so they connect head-to-tail regardless of their drawn orientation.
+struct ReversedPathWalker: PathWalkable {
+    let inner: PathWalkable
+
+    var pathLength: CGFloat { inner.pathLength }
+    var isClosed: Bool { inner.isClosed }
+    var cornerDistances: [CGFloat] { inner.cornerDistances.map { inner.pathLength - $0 } }
+
+    func pointAtDistance(_ distance: CGFloat) -> CGPoint {
+        inner.pointAtDistance(inner.pathLength - distance)
+    }
+
+    func tangentAtDistance(_ distance: CGFloat) -> CGFloat {
+        inner.tangentAtDistance(inner.pathLength - distance) + .pi
+    }
+}
+
 // MARK: - Factory
 
 enum PathWalkerFactory {
@@ -244,7 +404,8 @@ enum PathWalkerFactory {
                     p3: bezier.points[j].point
                 ))
             }
-            return segments.count == 1 ? segments[0] : CompositePathWalker(segments: segments)
+            if segments.count == 1 { return segments[0] }
+            return CompositePathWalker(segments: segments, isClosed: bezier.isClosed)
 
         case .rectangle(let rect):
             let corners = rect.rotatedCorners  // [TL, TR, BR, BL] after rotation
@@ -254,10 +415,13 @@ enum PathWalkerFactory {
                 LinePathWalker(start: corners[2], end: corners[3]),
                 LinePathWalker(start: corners[3], end: corners[0]),
             ]
-            return CompositePathWalker(segments: segments)
+            return CompositePathWalker(segments: segments, isClosed: true)
+
+        case .ellipse(let ellipse):
+            return EllipsePathWalker(ellipse: ellipse)
 
         default:
-            return nil  // text, dot, ellipse not stitchable
+            return nil  // text, dot, dimension lines not stitchable
         }
     }
 }
