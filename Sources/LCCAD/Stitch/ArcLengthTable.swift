@@ -17,7 +17,9 @@ struct ArcLengthTable {
 
     /// Samples `point` at `sampleCount` uniform parameter steps over
     /// `[0, maxParameter]` and accumulates chord lengths.
+    /// `sampleCount` must be at least 1.
     init(sampleCount: Int, maxParameter: CGFloat = 1, point: (CGFloat) -> CGPoint) {
+        precondition(sampleCount >= 1, "ArcLengthTable requires at least one sample")
         var table: [(parameter: CGFloat, arcLength: CGFloat)] = [(0, 0)]
         var prevPoint = point(0)
         var accumLen: CGFloat = 0

@@ -262,16 +262,13 @@ struct EllipsePathWalker: PathWalkable {
     private let lut: ArcLengthTable
 
     init(ellipse: EllipseShape) {
-        let center = ellipse.center
-        let radiusX = ellipse.radiusX
-        let radiusY = ellipse.radiusY
-        let rotation = ellipse.rotation
-        self.center = center
-        self.radiusX = radiusX
-        self.radiusY = radiusY
-        self.rotation = rotation
+        self.center = ellipse.center
+        self.radiusX = ellipse.radiusX
+        self.radiusY = ellipse.radiusY
+        self.rotation = ellipse.rotation
         self.lut = ArcLengthTable(sampleCount: 180, maxParameter: 2 * .pi) { theta in
-            Self.point(theta: theta, center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
+            Self.point(theta: theta, center: ellipse.center, radiusX: ellipse.radiusX,
+                       radiusY: ellipse.radiusY, rotation: ellipse.rotation)
         }
     }
 
