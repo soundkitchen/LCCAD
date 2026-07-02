@@ -114,62 +114,31 @@ struct BezierSegmentPathWalker: PathWalkable {
     let p2: CGPoint  // control in of p3
     let p3: CGPoint
 
-    private let sampleCount = 100
-    private let lut: [(t: CGFloat, arcLen: CGFloat)]
+    private let lut: ArcLengthTable
 
     init(p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint) {
         self.p0 = p0
         self.p1 = p1
         self.p2 = p2
         self.p3 = p3
-
-        // Build arc-length lookup table
-        var table: [(t: CGFloat, arcLen: CGFloat)] = [(0, 0)]
-        var prevPoint = p0
-        var accumLen: CGFloat = 0
-        for i in 1...sampleCount {
-            let t = CGFloat(i) / CGFloat(sampleCount)
-            let pt = Self.evalCubic(t: t, p0: p0, p1: p1, p2: p2, p3: p3)
-            accumLen += prevPoint.distance(to: pt)
-            table.append((t, accumLen))
-            prevPoint = pt
+        self.lut = ArcLengthTable(sampleCount: 100) { t in
+            Self.evalCubic(t: t, p0: p0, p1: p1, p2: p2, p3: p3)
         }
-        self.lut = table
     }
 
     var pathLength: CGFloat {
-        lut.last?.arcLen ?? 0
+        lut.totalLength
     }
 
     func pointAtDistance(_ distance: CGFloat) -> CGPoint {
-        let t = tForDistance(distance)
+        let t = lut.parameter(atDistance: distance)
         return Self.evalCubic(t: t, p0: p0, p1: p1, p2: p2, p3: p3)
     }
 
     func tangentAtDistance(_ distance: CGFloat) -> CGFloat {
-        let t = tForDistance(distance)
+        let t = lut.parameter(atDistance: distance)
         let d = Self.evalCubicDerivative(t: t, p0: p0, p1: p1, p2: p2, p3: p3)
         return atan2(d.y, d.x)
-    }
-
-    private func tForDistance(_ distance: CGFloat) -> CGFloat {
-        let d = min(max(distance, 0), pathLength)
-        // Binary search in LUT
-        var lo = 0, hi = lut.count - 1
-        while lo < hi - 1 {
-            let mid = (lo + hi) / 2
-            if lut[mid].arcLen <= d {
-                lo = mid
-            } else {
-                hi = mid
-            }
-        }
-        let loEntry = lut[lo]
-        let hiEntry = lut[hi]
-        let segLen = hiEntry.arcLen - loEntry.arcLen
-        if segLen < 1e-10 { return loEntry.t }
-        let frac = (d - loEntry.arcLen) / segLen
-        return loEntry.t + (hiEntry.t - loEntry.t) * frac
     }
 
     static func evalCubic(t: CGFloat, p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint) -> CGPoint {
@@ -282,7 +251,7 @@ struct CompositePathWalker: PathWalkable {
 
 /// Walks a full ellipse (or circle when radiusX == radiusY). For a circle the arc
 /// length is linear in the parametric angle, but for a general ellipse it is not, so
-/// an arc-length lookup table is built (mirroring `BezierSegmentPathWalker`). The
+/// an `ArcLengthTable` is built (shared with `BezierSegmentPathWalker`). The
 /// ellipse's `rotation` is applied around its center.
 struct EllipsePathWalker: PathWalkable {
     let center: CGPoint
@@ -290,36 +259,30 @@ struct EllipsePathWalker: PathWalkable {
     let radiusY: CGFloat
     let rotation: CGFloat
 
-    private let sampleCount = 180
-    private let lut: [(theta: CGFloat, arcLen: CGFloat)]
+    private let lut: ArcLengthTable
 
     init(ellipse: EllipseShape) {
-        self.center = ellipse.center
-        self.radiusX = ellipse.radiusX
-        self.radiusY = ellipse.radiusY
-        self.rotation = ellipse.rotation
-
-        var table: [(theta: CGFloat, arcLen: CGFloat)] = [(0, 0)]
-        var prevPoint = Self.point(theta: 0, center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
-        var accumLen: CGFloat = 0
-        for i in 1...sampleCount {
-            let theta = 2 * .pi * CGFloat(i) / CGFloat(sampleCount)
-            let pt = Self.point(theta: theta, center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
-            accumLen += prevPoint.distance(to: pt)
-            table.append((theta, accumLen))
-            prevPoint = pt
+        let center = ellipse.center
+        let radiusX = ellipse.radiusX
+        let radiusY = ellipse.radiusY
+        let rotation = ellipse.rotation
+        self.center = center
+        self.radiusX = radiusX
+        self.radiusY = radiusY
+        self.rotation = rotation
+        self.lut = ArcLengthTable(sampleCount: 180, maxParameter: 2 * .pi) { theta in
+            Self.point(theta: theta, center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
         }
-        self.lut = table
     }
 
     var isClosed: Bool { true }
 
     var pathLength: CGFloat {
-        lut.last?.arcLen ?? 0
+        lut.totalLength
     }
 
     func pointAtDistance(_ distance: CGFloat) -> CGPoint {
-        Self.point(theta: thetaForDistance(distance), center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
+        Self.point(theta: lut.parameter(atDistance: distance), center: center, radiusX: radiusX, radiusY: radiusY, rotation: rotation)
     }
 
     func tangentAtDistance(_ distance: CGFloat) -> CGFloat {
@@ -338,25 +301,6 @@ struct EllipsePathWalker: PathWalkable {
     private static func point(theta: CGFloat, center: CGPoint, radiusX: CGFloat, radiusY: CGFloat, rotation: CGFloat) -> CGPoint {
         let local = CGPoint(x: center.x + radiusX * cos(theta), y: center.y + radiusY * sin(theta))
         return rotation == 0 ? local : local.rotated(around: center, angle: rotation)
-    }
-
-    private func thetaForDistance(_ distance: CGFloat) -> CGFloat {
-        let len = pathLength
-        guard len > 0 else { return 0 }
-        let target = min(max(distance, 0), len)
-        // Binary search the LUT for the bracketing samples, then interpolate theta.
-        var lo = 0
-        var hi = lut.count - 1
-        while lo < hi {
-            let mid = (lo + hi) / 2
-            if lut[mid].arcLen < target { lo = mid + 1 } else { hi = mid }
-        }
-        if lo == 0 { return lut[0].theta }
-        let a = lut[lo - 1]
-        let b = lut[lo]
-        let span = b.arcLen - a.arcLen
-        let t = span > 0 ? (target - a.arcLen) / span : 0
-        return a.theta + (b.theta - a.theta) * t
     }
 }
 
