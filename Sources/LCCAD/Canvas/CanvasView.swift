@@ -426,7 +426,8 @@ struct CanvasView: View {
             y: bestDelta.y - editor.moveAccumulatedDelta.y
         )
         if frameDelta.x != 0 || frameDelta.y != 0 {
-            editor.moveSelectedShapes(by: frameDelta)
+            // Live drag frame: park stitch welds (resolved at commit in commitMoveWithUndo).
+            editor.moveSelectedShapes(by: frameDelta, live: true)
         }
         editor.moveAccumulatedDelta = bestDelta
     }
