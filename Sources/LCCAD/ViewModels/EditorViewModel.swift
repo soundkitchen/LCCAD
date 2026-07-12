@@ -1749,6 +1749,20 @@ final class EditorViewModel {
 
     // MARK: - Auto Stitch
 
+    /// Whether the Fixed/Variable stitch mode choice changes the result for the current
+    /// selection. Corner-anchored paths (rectangles, welded outlines) and closed smooth
+    /// paths (circles) are always evenly spaced, so the mode only matters when at least
+    /// one resulting run is an open path without corners (single line, arc, open bezier).
+    /// With no stitchable selection the picker stays enabled as a plain default setting.
+    var stitchModeAffectsSelection: Bool {
+        let leaves = selectedShapeIds
+            .compactMap { findShape(id: $0) }
+            .flatMap { leafShapes(of: $0) }
+        let paths = StitchPathBuilder.build(from: leaves)
+        guard !paths.isEmpty else { return true }
+        return paths.contains { !$0.walker.isClosed && $0.walker.cornerDistances.isEmpty }
+    }
+
     func autoStitchSelectedShape() {
         guard let iron = activePrickingIron else { return }
 

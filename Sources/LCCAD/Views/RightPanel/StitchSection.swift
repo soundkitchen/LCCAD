@@ -42,7 +42,10 @@ struct StitchSection: View {
                 .help("Pricking Iron Settings")
             }
 
-            // Mode row
+            // Mode row. Fixed/Variable only differ on open paths without corners;
+            // for closed shapes and cornered outlines the engine always spaces evenly,
+            // so the picker is dimmed there to avoid suggesting a choice that does nothing.
+            let modeEnabled = editor.stitchModeAffectsSelection
             HStack(spacing: 8) {
                 Text("Mode")
                     .font(.system(size: 10))
@@ -58,6 +61,11 @@ struct StitchSection: View {
                 .labelsHidden()
                 .frame(height: 28)
             }
+            .opacity(modeEnabled ? 1 : 0.4)
+            .disabled(!modeEnabled)
+            .help(modeEnabled
+                ? "Hole spacing mode for open paths"
+                : "Closed shapes and corners are always evenly spaced — mode has no effect")
 
             // Pitch row
             HStack(spacing: 8) {
