@@ -67,17 +67,19 @@ final class StitchModeAvailabilityTests: XCTestCase {
         XCTAssertTrue(editor.stitchModeAffectsSelection)
     }
 
-    // MARK: - Mode has no effect: corners or closed paths
+    func testCircleEnablesMode() {
+        // Since Even Count (#23b), a closed smooth path honors the mode too: exactly
+        // N holes around the loop differs from the pitch-derived spacing.
+        let circle = EllipseShape(center: .zero, radiusX: 10, radiusY: 10)
+        let editor = makeEditor(shapes: [.ellipse(circle)], selecting: [circle.id])
+        XCTAssertTrue(editor.stitchModeAffectsSelection)
+    }
+
+    // MARK: - Mode has no effect: cornered paths
 
     func testRectangleDisablesMode() {
         let rect = RectangleShape(origin: .zero, size: CGSize(width: 10, height: 10))
         let editor = makeEditor(shapes: [.rectangle(rect)], selecting: [rect.id])
-        XCTAssertFalse(editor.stitchModeAffectsSelection)
-    }
-
-    func testCircleDisablesMode() {
-        let circle = EllipseShape(center: .zero, radiusX: 10, radiusY: 10)
-        let editor = makeEditor(shapes: [.ellipse(circle)], selecting: [circle.id])
         XCTAssertFalse(editor.stitchModeAffectsSelection)
     }
 
