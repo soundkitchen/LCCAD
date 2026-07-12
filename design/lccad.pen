@@ -4218,8 +4218,8 @@
                     {
                       "type": "rectangle",
                       "id": "Ilrmg",
-                      "x": 46,
-                      "y": 26,
+                      "x": 336,
+                      "y": 166,
                       "name": "selHandle1",
                       "fill": "$accent",
                       "width": 8,
@@ -4230,8 +4230,8 @@
                     {
                       "type": "rectangle",
                       "id": "c0SiX",
-                      "x": 446,
-                      "y": 26,
+                      "x": 396,
+                      "y": 166,
                       "name": "selHandle2",
                       "fill": "$accent",
                       "width": 8,
@@ -4242,8 +4242,8 @@
                     {
                       "type": "rectangle",
                       "id": "SgB9M",
-                      "x": 46,
-                      "y": 286,
+                      "x": 336,
+                      "y": 206,
                       "name": "selHandle3",
                       "fill": "$accent",
                       "width": 8,
@@ -4254,8 +4254,8 @@
                     {
                       "type": "rectangle",
                       "id": "ZZ6o4",
-                      "x": 446,
-                      "y": 286,
+                      "x": 396,
+                      "y": 206,
                       "name": "selHandle4",
                       "fill": "$accent",
                       "width": 8,
@@ -4289,6 +4289,56 @@
                       "height": 80,
                       "stroke": "#4A90D9",
                       "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "tRxip",
+                      "x": 337.5,
+                      "y": 167.5,
+                      "name": "arcDot1",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "r7sAM",
+                      "x": 360.5,
+                      "y": 170.5,
+                      "name": "arcDot2",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "yqFfJ",
+                      "x": 379.9,
+                      "y": 179.2,
+                      "name": "arcDot3",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "x0pk8",
+                      "x": 392.9,
+                      "y": 192.2,
+                      "name": "arcDot4",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "VpfC8",
+                      "x": 397.5,
+                      "y": 207.5,
+                      "name": "arcDot5",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
                     }
                   ]
                 },
@@ -5626,7 +5676,6 @@
                       "type": "frame",
                       "id": "Y0v35",
                       "name": "rpModeRow",
-                      "opacity": 0.4,
                       "width": "fill_container",
                       "gap": 8,
                       "alignItems": "center",
@@ -5670,7 +5719,7 @@
                               "id": "O838kb",
                               "name": "rpModeVT",
                               "fill": "$text-primary",
-                              "content": "Fixed Pitch",
+                              "content": "Even Count",
                               "fontFamily": "Inter",
                               "fontSize": 11,
                               "fontWeight": "normal"
@@ -5691,8 +5740,65 @@
                     },
                     {
                       "type": "frame",
+                      "id": "bVKek",
+                      "name": "rpCountRow",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "o4lal7",
+                          "name": "rpCountLabel",
+                          "fill": "$text-secondary",
+                          "content": "Count",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "lKKv3",
+                          "name": "rpCountSpacer",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "BqWJB",
+                          "name": "rpCountBox",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "l2qXn",
+                              "name": "rpCountV",
+                              "fill": "$text-primary",
+                              "content": "5",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
                       "id": "JctX1",
                       "name": "rpPitchRow",
+                      "opacity": 0.4,
                       "width": "fill_container",
                       "gap": 8,
                       "alignItems": "center",

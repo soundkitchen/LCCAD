@@ -67,7 +67,35 @@ struct StitchSection: View {
                 ? "Hole spacing mode for open paths"
                 : "Closed shapes and corners are always evenly spaced — mode has no effect")
 
-            // Pitch row
+            // Count row: only meaningful in Even Count mode. Shares the mode row's
+            // dimming — when corners force corner-anchored placement the count is
+            // ignored just like the mode.
+            let evenCountActive = editor.selectedStitchMode == .evenCount
+            if evenCountActive {
+                HStack(spacing: 8) {
+                    Text("Count")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.textSecondary(colorScheme))
+
+                    Spacer()
+
+                    NumberBoxField(
+                        value: CGFloat(editor.selectedStitchHoleCount),
+                        range: 2...999,
+                        fractionDigits: 0
+                    ) {
+                        editor.selectedStitchHoleCount = Int($0.rounded())
+                    }
+                    .frame(width: 64)
+                }
+                .opacity(modeEnabled ? 1 : 0.4)
+                .disabled(!modeEnabled)
+            }
+
+            // Pitch row. In Even Count mode the pitch is ignored (the count decides
+            // the spacing), so dim it — but only while the mode actually applies:
+            // a cornered selection falls back to pitch-driven corner-anchored holes.
+            let pitchUnused = evenCountActive && modeEnabled
             HStack(spacing: 8) {
                 Text("Pitch")
                     .font(.system(size: 10))
@@ -89,6 +117,8 @@ struct StitchSection: View {
                         .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
                 )
             }
+            .opacity(pitchUnused ? 0.4 : 1)
+            .help(pitchUnused ? "Even Count ignores the iron pitch — the count decides the spacing" : "")
         }
         .padding(12)
         .overlay(alignment: .bottom) {

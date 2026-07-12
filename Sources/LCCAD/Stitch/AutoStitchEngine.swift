@@ -12,11 +12,15 @@ enum AutoStitchEngine {
     /// - Closed smooth paths (circle, ellipse, smooth blob): holes are spread evenly around
     ///   the loop with no seam duplicate.
     /// - Open smooth paths (a single line or open curve): `Fixed` keeps an exact pitch from
-    ///   the start; `Variable` evens the spacing so holes land on both ends.
+    ///   the start; `Variable` evens the spacing so holes land on both ends; `Even Count`
+    ///   places exactly `holeCount` holes (both ends included), ignoring the pitch.
+    /// - Closed smooth paths also honor `Even Count` (exactly `holeCount` holes around the
+    ///   loop) — the foundation for matching hole counts across parts (駒合わせ).
     static func generateHoles(
         along walker: PathWalkable,
         iron: PrickingIron,
-        mode: StitchMode = .fixedPitch
+        mode: StitchMode = .fixedPitch,
+        holeCount: Int? = nil
     ) -> [StitchHole] {
         let total = walker.pathLength
         guard total > 0, iron.pitch > 0 else { return [] }
@@ -28,15 +32,21 @@ enum AutoStitchEngine {
             )
         }
 
-        // No corners: a smooth path. Closed loops are always evened (a fixed march would
-        // cluster at the seam); open runs honor the selected mode.
+        // No corners: a smooth path. Even Count applies to open and closed runs alike;
+        // without a count it degrades to Variable (evened spacing at ~pitch).
+        if mode == .evenCount, let count = holeCount {
+            return evenCountHoles(along: walker, count: count, holeAngle: iron.holeAngle)
+        }
+
+        // Closed loops are always evened (a fixed march would cluster at the seam);
+        // open runs honor the selected mode.
         if walker.isClosed {
             return variablePitchHoles(along: walker, targetPitch: iron.pitch, holeAngle: iron.holeAngle)
         }
         switch mode {
         case .fixedPitch:
             return fixedPitchHoles(along: walker, pitch: iron.pitch, holeAngle: iron.holeAngle)
-        case .variablePitch:
+        case .variablePitch, .evenCount:
             return variablePitchHoles(along: walker, targetPitch: iron.pitch, holeAngle: iron.holeAngle)
         }
     }
@@ -160,6 +170,30 @@ enum AutoStitchEngine {
             d += pitch
         }
         return holes
+    }
+
+    /// Even count: exactly `count` holes spread evenly over the whole run, pitch ignored.
+    /// Open path: both endpoints get a hole (count clamped to ≥ 2 so the ends exist).
+    /// Closed path: holes are spread around the loop with no seam duplicate (count ≥ 1).
+    private static func evenCountHoles(
+        along walker: PathWalkable,
+        count: Int,
+        holeAngle: CGFloat
+    ) -> [StitchHole] {
+        let total = walker.pathLength
+        guard total > 0 else { return [] }
+
+        if walker.isClosed {
+            let n = max(1, count)
+            let step = total / CGFloat(n)
+            return (0..<n).map { hole(along: walker, total: total, distance: CGFloat($0) * step, holeAngle: holeAngle) }
+        } else {
+            let n = max(2, count)
+            let step = total / CGFloat(n - 1)
+            return (0..<n).map {
+                hole(along: walker, total: total, distance: min(CGFloat($0) * step, total), holeAngle: holeAngle)
+            }
+        }
     }
 
     /// Variable pitch: evenly distributed holes.

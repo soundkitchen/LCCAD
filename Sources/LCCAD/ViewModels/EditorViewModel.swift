@@ -203,6 +203,8 @@ final class EditorViewModel {
     // Stitch state
     var selectedIronId: UUID?
     var selectedStitchMode: StitchMode = .fixedPitch
+    /// Hole count used by `.evenCount` mode (per run in the selection).
+    var selectedStitchHoleCount: Int = 10
     var showPrickingIronSheet: Bool = false
 
     // Array sheet state
@@ -461,7 +463,7 @@ final class EditorViewModel {
         if let walker = weldedWalker(forShapeIds: line.sourceShapeIds),
            let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
             document.layers[li].stitchLines[si].holes =
-                AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode)
+                AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode, holeCount: line.holeCount)
             return si + 1
         } else {
             document.layers[li].stitchLines.remove(at: si)
@@ -502,7 +504,7 @@ final class EditorViewModel {
             // Iron missing → keep the (stale) holes; preserve user data, recoverable later.
             if let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
                 document.layers[li].stitchLines[si].holes =
-                    AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode)
+                    AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode, holeCount: line.holeCount)
             }
             return si + 1
         }
@@ -1749,18 +1751,20 @@ final class EditorViewModel {
 
     // MARK: - Auto Stitch
 
-    /// Whether the Fixed/Variable stitch mode choice changes the result for the current
-    /// selection. Corner-anchored paths (rectangles, welded outlines) and closed smooth
-    /// paths (circles) are always evenly spaced, so the mode only matters when at least
-    /// one resulting run is an open path without corners (single line, arc, open bezier).
-    /// With no stitchable selection the picker stays enabled as a plain default setting.
+    /// Whether the stitch mode choice changes the result for the current selection.
+    /// Corner-anchored paths (rectangles, welded outlines) are always evenly spaced
+    /// per span regardless of mode, so the picker only matters when at least one
+    /// resulting run has no corners: on open smooth runs Fixed/Variable/Even Count
+    /// all differ, and on closed smooth runs (circles) Even Count still differs from
+    /// the pitch-derived spacing (#23b). With no stitchable selection the picker
+    /// stays enabled as a plain default setting.
     var stitchModeAffectsSelection: Bool {
         let leaves = selectedShapeIds
             .compactMap { findShape(id: $0) }
             .flatMap { leafShapes(of: $0) }
         let paths = StitchPathBuilder.build(from: leaves)
         guard !paths.isEmpty else { return true }
-        return paths.contains { !$0.walker.isClosed && $0.walker.cornerDistances.isEmpty }
+        return paths.contains { $0.walker.cornerDistances.isEmpty }
     }
 
     func autoStitchSelectedShape() {
@@ -1776,12 +1780,16 @@ final class EditorViewModel {
         guard !paths.isEmpty else { return }
 
         let old = document
+        let holeCount = selectedStitchMode == .evenCount ? selectedStitchHoleCount : nil
         var added = false
         for path in paths {
-            let holes = AutoStitchEngine.generateHoles(along: path.walker, iron: iron, mode: selectedStitchMode)
+            let holes = AutoStitchEngine.generateHoles(
+                along: path.walker, iron: iron, mode: selectedStitchMode, holeCount: holeCount
+            )
             guard !holes.isEmpty else { continue }
             activeLayer.stitchLines.append(
-                StitchLine(sourceShapeIds: path.sourceShapeIds, ironId: iron.id, mode: selectedStitchMode, holes: holes)
+                StitchLine(sourceShapeIds: path.sourceShapeIds, ironId: iron.id,
+                           mode: selectedStitchMode, holeCount: holeCount, holes: holes)
             )
             added = true
         }

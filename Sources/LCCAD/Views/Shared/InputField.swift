@@ -136,6 +136,8 @@ struct EditablePropertyField: View {
 struct NumberBoxField: View {
     let value: CGFloat
     var range: ClosedRange<CGFloat>? = nil
+    /// Decimal places shown when not editing (0 for integer fields like hole count).
+    var fractionDigits: Int = 1
     var onCommit: (CGFloat) -> Void
 
     @State private var editText: String = ""
@@ -177,7 +179,7 @@ struct NumberBoxField: View {
     }
 
     private func formatted(_ v: CGFloat) -> String {
-        String(format: "%.1f", v)
+        String(format: "%.\(fractionDigits)f", v)
     }
 
     private func commitEdit() {

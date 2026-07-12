@@ -4,12 +4,16 @@ import CoreGraphics
 enum StitchMode: String, Codable, Equatable, Sendable, CaseIterable {
     case fixedPitch
     case variablePitch
+    /// Exactly N holes spread evenly over the whole run, ignoring the iron pitch.
+    /// The count lives in `StitchLine.holeCount` (#23b).
+    case evenCount
 
     /// Human-readable label for the stitch mode picker.
     var displayName: String {
         switch self {
         case .fixedPitch: return "Fixed Pitch"
         case .variablePitch: return "Variable Pitch"
+        case .evenCount: return "Even Count"
         }
     }
 }
@@ -22,27 +26,32 @@ struct StitchLine: Identifiable, Codable, Equatable, Sendable {
     var sourceShapeIds: [UUID]
     var ironId: UUID          // which pricking iron was used
     var mode: StitchMode
+    /// Requested hole count for `.evenCount` mode; nil for pitch-driven modes.
+    /// Persisted so shape edits regenerate the run with the same count.
+    var holeCount: Int?
     var holes: [StitchHole]
 
     init(id: UUID = UUID(), sourceShapeIds: [UUID], ironId: UUID,
-         mode: StitchMode = .fixedPitch, holes: [StitchHole] = []) {
+         mode: StitchMode = .fixedPitch, holeCount: Int? = nil, holes: [StitchHole] = []) {
         self.id = id
         self.sourceShapeIds = sourceShapeIds
         self.ironId = ironId
         self.mode = mode
+        self.holeCount = holeCount
         self.holes = holes
     }
 
     /// Convenience for the common single-shape case.
     init(id: UUID = UUID(), sourceShapeId: UUID, ironId: UUID,
-         mode: StitchMode = .fixedPitch, holes: [StitchHole] = []) {
-        self.init(id: id, sourceShapeIds: [sourceShapeId], ironId: ironId, mode: mode, holes: holes)
+         mode: StitchMode = .fixedPitch, holeCount: Int? = nil, holes: [StitchHole] = []) {
+        self.init(id: id, sourceShapeIds: [sourceShapeId], ironId: ironId,
+                  mode: mode, holeCount: holeCount, holes: holes)
     }
 
     // Codable with backward compatibility: documents written before welded stitch
     // lines stored a single `sourceShapeId`; decode it into the array when present.
     enum CodingKeys: String, CodingKey {
-        case id, sourceShapeId, sourceShapeIds, ironId, mode, holes
+        case id, sourceShapeId, sourceShapeIds, ironId, mode, holeCount, holes
     }
 
     init(from decoder: Decoder) throws {
@@ -57,6 +66,7 @@ struct StitchLine: Identifiable, Codable, Equatable, Sendable {
         }
         ironId = try c.decode(UUID.self, forKey: .ironId)
         mode = try c.decodeIfPresent(StitchMode.self, forKey: .mode) ?? .fixedPitch
+        holeCount = try c.decodeIfPresent(Int.self, forKey: .holeCount)
         holes = try c.decodeIfPresent([StitchHole].self, forKey: .holes) ?? []
     }
 
@@ -66,6 +76,7 @@ struct StitchLine: Identifiable, Codable, Equatable, Sendable {
         try c.encode(sourceShapeIds, forKey: .sourceShapeIds)
         try c.encode(ironId, forKey: .ironId)
         try c.encode(mode, forKey: .mode)
+        try c.encodeIfPresent(holeCount, forKey: .holeCount)
         try c.encode(holes, forKey: .holes)
     }
 }
