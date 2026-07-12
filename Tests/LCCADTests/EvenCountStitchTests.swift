@@ -33,6 +33,37 @@ final class EvenCountStitchTests: XCTestCase {
                              "first and last hole must not coincide at the seam")
     }
 
+    func testClosedCircleEvenCountHasUniformSpacing() {
+        // On a circle, equal arc steps give equal chord lengths between neighbours
+        // (wrap-around pair included) — verifies the spacing, not just the count.
+        let circle = EllipseShape(center: .zero, radiusX: 10, radiusY: 10)
+        let walker = PathWalkerFactory.walker(for: .ellipse(circle))!
+        let holes = AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: .evenCount, holeCount: 12)
+
+        XCTAssertEqual(holes.count, 12)
+        let chords = (0..<holes.count).map {
+            holes[$0].position.distance(to: holes[($0 + 1) % holes.count].position)
+        }
+        for chord in chords {
+            XCTAssertEqual(chord, chords[0], accuracy: 1e-6)
+        }
+    }
+
+    func testTangentWeldedRunGetsExactCount() {
+        // A line welded into a tangent arc forms one smooth open run; Even Count
+        // spans the whole welded length (the #24 matched-stitching foundation).
+        let line = AnyShape.line(LineShape(start: .zero, end: CGPoint(x: 10, y: 0)))
+        let arc = AnyShape.arc(ArcShape(center: CGPoint(x: 10, y: 5), radius: 5,
+                                        startAngle: -.pi / 2, endAngle: 0, clockwise: false))
+        let paths = StitchPathBuilder.build(from: [line, arc])
+        XCTAssertEqual(paths.count, 1, "line + tangent arc must weld into one run")
+
+        let holes = AutoStitchEngine.generateHoles(along: paths[0].walker, iron: iron, mode: .evenCount, holeCount: 9)
+        XCTAssertEqual(holes.count, 9)
+        XCTAssertEqual(holes.first!.position.distance(to: .zero), 0, accuracy: 1e-6,
+                       "first hole sits on the welded run's start")
+    }
+
     func testCorneredPathIgnoresCount() {
         // Corner-anchored placement wins over the requested count: corners must
         // always carry a hole, so a rectangle keeps its pitch-driven layout.
