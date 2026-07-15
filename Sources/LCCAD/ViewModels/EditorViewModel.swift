@@ -101,6 +101,41 @@ enum DrawingPreview: Sendable {
     case dimensionPreview(DimensionLineShape)
 }
 
+/// Ghost-hole payload for the box stitch (駒合わせ) sheet: while the sheet is up the
+/// canvas renders these semi-transparent so the user can judge the layout before Apply.
+struct BoxStitchPreview: Sendable {
+    var holesA: [StitchHole]
+    var holesB: [StitchHole]
+    var holeType: HoleType
+    var holeSize: CGFloat
+}
+
+/// Non-mutating dry run of a box stitch: what both parts would receive for a given
+/// policy. Drives the sheet's labels, warnings, Apply gating, and the ghost preview.
+struct BoxStitchEstimate: Sendable {
+    struct Run: Sendable {
+        let length: CGFloat
+        let isClosed: Bool
+        let cornerCount: Int
+        let naturalCount: Int
+        let holes: [StitchHole]
+        let effectivePitch: CGFloat
+        let hasExistingStitchLine: Bool
+        let sourceShapeIds: [UUID]
+    }
+
+    let runA: Run
+    let runB: Run
+    /// The count the policy asked for, before clamping to the parts' anchor minimum.
+    let requestedCount: Int
+    /// The count actually placed on both parts.
+    let resolvedCount: Int
+    var wasClamped: Bool { resolvedCount != requestedCount }
+    var canApply: Bool {
+        !runA.holes.isEmpty && runA.holes.count == runB.holes.count
+    }
+}
+
 @Observable
 @MainActor
 final class EditorViewModel {
@@ -206,6 +241,11 @@ final class EditorViewModel {
     /// Hole count used by `.evenCount` mode (per run in the selection).
     var selectedStitchHoleCount: Int = 10
     var showPrickingIronSheet: Bool = false
+
+    // Box stitch (駒合わせ) state
+    var showBoxStitchSheet: Bool = false
+    /// Ghost holes rendered while the box stitch sheet is up; cleared on dismiss.
+    var boxStitchPreview: BoxStitchPreview?
 
     // Array sheet state
     var showArraySheet: Bool = false
@@ -1795,6 +1835,108 @@ final class EditorViewModel {
         }
         guard added else { return }
         registerUndo(actionName: "Auto Stitch", oldDocument: old)
+    }
+
+    // MARK: - Box Stitch (駒合わせ)
+
+    /// The current selection resolved into exactly two stitch runs, A = the longer part.
+    /// `selectedShapeIds` is an unordered set, so leaves are collected in document order
+    /// and the pair sorted by path length to keep the A/B assignment deterministic.
+    func boxStitchRuns() -> (a: StitchPathBuilder.StitchPath, b: StitchPathBuilder.StitchPath)? {
+        // Cheap bail-out: `canBoxStitch` is read from view bodies, so this runs on
+        // every document change — skip the layer scan + weld with nothing selected.
+        guard !selectedShapeIds.isEmpty else { return nil }
+        var leaves: [AnyShape] = []
+        for layer in document.layers {
+            for shape in layer.shapes where selectedShapeIds.contains(shape.id) {
+                leaves.append(contentsOf: leafShapes(of: shape))
+            }
+        }
+        let paths = StitchPathBuilder.build(from: leaves)
+        guard paths.count == 2 else { return nil }
+        let ordered = paths.sorted {
+            if $0.walker.pathLength != $1.walker.pathLength {
+                return $0.walker.pathLength > $1.walker.pathLength
+            }
+            return ($0.sourceShapeIds.first?.uuidString ?? "") < ($1.sourceShapeIds.first?.uuidString ?? "")
+        }
+        return (ordered[0], ordered[1])
+    }
+
+    var canBoxStitch: Bool { boxStitchRuns() != nil }
+
+    /// Dry-run a box stitch for the given policy: what both parts would receive.
+    /// Non-mutating; the sheet calls this on every input change to refresh its labels
+    /// and the canvas ghost preview.
+    func boxStitchEstimate(policy: BoxStitchPolicy) -> BoxStitchEstimate? {
+        guard let iron = activePrickingIron, let runs = boxStitchRuns(),
+              let proposal = BoxStitchMatcher.proposal(for: [runs.a, runs.b], iron: iron) else { return nil }
+
+        let requested = proposal.requestedCount(for: policy)
+        let resolved = proposal.resolvedCount(for: policy)
+
+        func makeRun(_ path: StitchPathBuilder.StitchPath, naturalCount: Int) -> BoxStitchEstimate.Run {
+            let holes = AutoStitchEngine.generateHoles(
+                along: path.walker, iron: iron, mode: .evenCount, holeCount: resolved
+            )
+            let length = path.walker.pathLength
+            let intervals = path.walker.isClosed ? holes.count : holes.count - 1
+            return BoxStitchEstimate.Run(
+                length: length,
+                isClosed: path.walker.isClosed,
+                cornerCount: AutoStitchEngine.normalizedCornerCount(along: path.walker),
+                naturalCount: naturalCount,
+                holes: holes,
+                effectivePitch: intervals > 0 ? length / CGFloat(intervals) : 0,
+                hasExistingStitchLine: hasStitchLine(forExactSources: path.sourceShapeIds),
+                sourceShapeIds: path.sourceShapeIds
+            )
+        }
+        return BoxStitchEstimate(
+            runA: makeRun(runs.a, naturalCount: proposal.naturalCountA),
+            runB: makeRun(runs.b, naturalCount: proposal.naturalCountB),
+            requestedCount: requested,
+            resolvedCount: resolved
+        )
+    }
+
+    /// Commit a box stitch: both parts get `.evenCount` stitch lines with the same
+    /// persisted count, so shape edits regenerate each side with the count intact.
+    /// Runs are re-derived here (not taken from the sheet) so an undo that slipped in
+    /// while the sheet was up can't commit stale geometry. Existing stitch lines on
+    /// the same runs are replaced; one undo restores everything.
+    /// Returns false when nothing was committed (runs no longer resolve, or the
+    /// re-derived pair can't take matching counts) so the sheet can surface it.
+    @discardableResult
+    func applyBoxStitch(count: Int) -> Bool {
+        guard let iron = activePrickingIron, let runs = boxStitchRuns() else { return false }
+        let holesA = AutoStitchEngine.generateHoles(along: runs.a.walker, iron: iron, mode: .evenCount, holeCount: count)
+        let holesB = AutoStitchEngine.generateHoles(along: runs.b.walker, iron: iron, mode: .evenCount, holeCount: count)
+        guard !holesA.isEmpty, holesA.count == holesB.count else { return false }
+
+        let old = document
+        let targets = [Set(runs.a.sourceShapeIds), Set(runs.b.sourceShapeIds)]
+        for li in document.layers.indices {
+            document.layers[li].stitchLines.removeAll { targets.contains(Set($0.sourceShapeIds)) }
+        }
+        activeLayer.stitchLines.append(
+            StitchLine(sourceShapeIds: runs.a.sourceShapeIds, ironId: iron.id,
+                       mode: .evenCount, holeCount: holesA.count, holes: holesA)
+        )
+        activeLayer.stitchLines.append(
+            StitchLine(sourceShapeIds: runs.b.sourceShapeIds, ironId: iron.id,
+                       mode: .evenCount, holeCount: holesB.count, holes: holesB)
+        )
+        registerUndo(actionName: "Box Stitch", oldDocument: old)
+        return true
+    }
+
+    /// Whether any layer holds a stitch line generated from exactly these source shapes.
+    private func hasStitchLine(forExactSources ids: [UUID]) -> Bool {
+        let idSet = Set(ids)
+        return document.layers.contains { layer in
+            layer.stitchLines.contains { Set($0.sourceShapeIds) == idSet }
+        }
     }
 
     // MARK: - Pricking Iron CRUD

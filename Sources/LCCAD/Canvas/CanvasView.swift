@@ -38,6 +38,22 @@ struct CanvasView: View {
                     }
                 }
 
+                // 2.6. Box stitch ghost preview (駒合わせ): semi-transparent holes on
+                // both parts while the sheet is up; the two tints match the sheet's
+                // Part A / Part B dots.
+                if let preview = editor.boxStitchPreview {
+                    var ghost = context
+                    ghost.opacity = 0.55
+                    for hole in preview.holesA {
+                        renderer.drawStitchHole(hole, holeType: preview.holeType, holeSize: preview.holeSize,
+                                                tint: DesignTokens.stitchColor, in: ghost)
+                    }
+                    for hole in preview.holesB {
+                        renderer.drawStitchHole(hole, holeType: preview.holeType, holeSize: preview.holeSize,
+                                                tint: DesignTokens.accent, in: ghost)
+                    }
+                }
+
                 // 3. Drawing preview (in-progress shape)
                 DrawingPreviewRenderer.draw(
                     preview: editor.drawingPreview,

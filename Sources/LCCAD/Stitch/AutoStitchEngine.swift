@@ -9,13 +9,17 @@ enum AutoStitchEngine {
     ///   on every corner and each corner-to-corner span is filled with evenly spaced holes
     ///   (~pitch). Even spacing avoids the cluster you'd get from marching a fixed pitch
     ///   into a corner whose span isn't a whole multiple of the pitch.
+    /// - Cornered paths with `Even Count`: exactly `holeCount` holes total (clamped up to
+    ///   the anchor count so every corner keeps its hole); the remaining holes go to the
+    ///   span with the widest current interval, one at a time, minimizing the largest gap.
     /// - Closed smooth paths (circle, ellipse, smooth blob): holes are spread evenly around
     ///   the loop with no seam duplicate.
     /// - Open smooth paths (a single line or open curve): `Fixed` keeps an exact pitch from
     ///   the start; `Variable` evens the spacing so holes land on both ends; `Even Count`
     ///   places exactly `holeCount` holes (both ends included), ignoring the pitch.
     /// - Closed smooth paths also honor `Even Count` (exactly `holeCount` holes around the
-    ///   loop) — the foundation for matching hole counts across parts (駒合わせ).
+    ///   loop). Exact counts on any path are the foundation for matching hole counts
+    ///   across parts (駒合わせ).
     static func generateHoles(
         along walker: PathWalkable,
         iron: PrickingIron,
@@ -27,6 +31,11 @@ enum AutoStitchEngine {
 
         let corners = normalizedCorners(walker.cornerDistances, total: total)
         if !corners.isEmpty {
+            if mode == .evenCount, let count = holeCount {
+                return cornerConstrainedEvenCountHoles(
+                    along: walker, total: total, count: count, holeAngle: iron.holeAngle, corners: corners
+                )
+            }
             return cornerAnchoredHoles(
                 along: walker, total: total, pitch: iron.pitch, holeAngle: iron.holeAngle, corners: corners
             )
@@ -49,6 +58,37 @@ enum AutoStitchEngine {
         case .variablePitch, .evenCount:
             return variablePitchHoles(along: walker, targetPitch: iron.pitch, holeAngle: iron.holeAngle)
         }
+    }
+
+    // MARK: - Count estimators (for matching hole counts across parts)
+
+    /// Hole count the default pitch-driven placement produces. Counting by generating
+    /// keeps the estimate from ever drifting out of sync with actual placement.
+    /// `.variablePitch` is the canonical estimate: cornered paths ignore the mode and
+    /// closed smooth paths are always evened, so this predicts an even layout at ~pitch.
+    static func naturalHoleCount(along walker: PathWalkable, iron: PrickingIron) -> Int {
+        generateHoles(along: walker, iron: iron, mode: .variablePitch).count
+    }
+
+    /// Corner count after normalization (wrap, sort, near-duplicate removal) — the
+    /// corners placement actually anchors. Raw `cornerDistances` may hold duplicates
+    /// on welded paths, so displays should use this rather than the raw count.
+    static func normalizedCornerCount(along walker: PathWalkable) -> Int {
+        let total = walker.pathLength
+        guard total > 0 else { return 0 }
+        return normalizedCorners(walker.cornerDistances, total: total).count
+    }
+
+    /// Smallest `holeCount` the engine honors without clamping: every corner anchor
+    /// (plus both endpoints on an open path) always keeps its hole.
+    static func minimumHoleCount(along walker: PathWalkable) -> Int {
+        let total = walker.pathLength
+        guard total > 0 else { return 0 }
+        let corners = normalizedCorners(walker.cornerDistances, total: total)
+        if corners.isEmpty { return walker.isClosed ? 1 : 2 }
+        if walker.isClosed { return corners.count }
+        let interior = corners.filter { $0 > 1e-6 && $0 < total - 1e-6 }
+        return interior.count + 2
     }
 
     // MARK: - Corner-anchored placement (even spacing per span)
@@ -109,6 +149,66 @@ enum AutoStitchEngine {
         return holes
     }
 
+    /// Place exactly `count` holes on a cornered path: every anchor (corner, plus both
+    /// endpoints on an open path) keeps its hole, and the remaining holes go to the span
+    /// with the widest current interval, one at a time. The greedy choice minimizes the
+    /// largest gap and is monotone in `count` — stepping N up by one re-divides a single
+    /// span and leaves every other span's holes untouched. Counts below the anchor count
+    /// are clamped up.
+    private static func cornerConstrainedEvenCountHoles(
+        along walker: PathWalkable,
+        total: CGFloat,
+        count: Int,
+        holeAngle: CGFloat,
+        corners: [CGFloat]
+    ) -> [StitchHole] {
+        var spans: [(start: CGFloat, length: CGFloat)] = []
+        let anchorCount: Int
+        if walker.isClosed {
+            let k = corners.count
+            anchorCount = k
+            for i in 0..<k {
+                let spanStart = corners[i]
+                let spanEnd = (i + 1 < k) ? corners[i + 1] : corners[0] + total
+                spans.append((spanStart, spanEnd - spanStart))
+            }
+        } else {
+            let interior = corners.filter { $0 > 1e-6 && $0 < total - 1e-6 }
+            let anchors = [0] + interior + [total]
+            anchorCount = anchors.count
+            for i in 0..<(anchors.count - 1) {
+                spans.append((anchors[i], anchors[i + 1] - anchors[i]))
+            }
+        }
+
+        var intervals = [Int](repeating: 1, count: spans.count)
+        var remaining = max(count, anchorCount) - anchorCount
+        while remaining > 0 {
+            var best = 0
+            var bestWidth = spans[0].length / CGFloat(intervals[0])
+            for i in 1..<spans.count {
+                let width = spans[i].length / CGFloat(intervals[i])
+                if width > bestWidth {
+                    best = i
+                    bestWidth = width
+                }
+            }
+            intervals[best] += 1
+            remaining -= 1
+        }
+
+        var holes: [StitchHole] = []
+        for (i, span) in spans.enumerated() {
+            let isLast = (i == spans.count - 1)
+            holes += fillSpan(
+                along: walker, total: total, spanStart: span.start, spanLength: span.length,
+                intervals: intervals[i], holeAngle: holeAngle,
+                includeStart: true, includeEnd: !walker.isClosed && isLast
+            )
+        }
+        return holes
+    }
+
     /// Place evenly spaced holes within a span: `round(spanLength / pitch)` intervals,
     /// so spacing stays close to `pitch` while landing exactly on both span ends.
     private static func fillSpanEvenly(
@@ -121,11 +221,29 @@ enum AutoStitchEngine {
         includeStart: Bool,
         includeEnd: Bool
     ) -> [StitchHole] {
+        fillSpan(
+            along: walker, total: total, spanStart: spanStart, spanLength: spanLength,
+            intervals: max(1, Int((spanLength / pitch).rounded())), holeAngle: holeAngle,
+            includeStart: includeStart, includeEnd: includeEnd
+        )
+    }
+
+    /// Split a span into `intervals` equal steps and emit holes on the step boundaries.
+    private static func fillSpan(
+        along walker: PathWalkable,
+        total: CGFloat,
+        spanStart: CGFloat,
+        spanLength: CGFloat,
+        intervals: Int,
+        holeAngle: CGFloat,
+        includeStart: Bool,
+        includeEnd: Bool
+    ) -> [StitchHole] {
         guard spanLength > 1e-9 else {
             return includeStart ? [hole(along: walker, total: total, distance: spanStart, holeAngle: holeAngle)] : []
         }
 
-        let n = max(1, Int((spanLength / pitch).rounded()))
+        let n = max(1, intervals)
         let step = spanLength / CGFloat(n)
         let lo = includeStart ? 0 : 1
         let hi = includeEnd ? n : n - 1

@@ -111,6 +111,12 @@ enum DesignTokens {
     static let stitchColor = Color(hex: 0xD4A574)
     static let textOnAccent = Color.white
 
+    // MARK: - Warning
+
+    static func warning(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(hex: 0xE8A33D) : Color(hex: 0xB45309)
+    }
+
     // MARK: - Dimension
 
     static func dimensionColor(_ scheme: ColorScheme) -> Color {

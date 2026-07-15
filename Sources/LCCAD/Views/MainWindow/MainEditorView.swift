@@ -59,6 +59,12 @@ struct MainEditorView: View {
         .sheet(isPresented: $editor.showBevelSheet) {
             BevelSheet(editor: editor)
         }
+        .sheet(isPresented: $editor.showBoxStitchSheet, onDismiss: {
+            // Covers Apply, Cancel, the xmark button, and Esc uniformly.
+            editor.boxStitchPreview = nil
+        }) {
+            BoxStitchSheet(editor: editor)
+        }
         .sheet(isPresented: $editor.showSaveTemplateSheet) {
             SaveTemplateSheet(editor: editor)
         }

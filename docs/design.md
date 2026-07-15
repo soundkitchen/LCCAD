@@ -18,6 +18,8 @@
   - `Settings - Calibration - Dark` — ダークモードのキャリブレーション設定
   - `Pricking Iron Sheet - Light` — ライトモードの目打ち管理シート
   - `Pricking Iron Sheet - Dark` — ダークモードの目打ち管理シート
+  - `Box Stitch Sheet - Light` — ライトモードの駒合わせシート
+  - `Box Stitch Sheet - Dark` — ダークモードの駒合わせシート
   - `Page Properties - Light` — ライトモードのページレイアウト右パネル
   - `Page Properties - Dark` — ダークモードのページレイアウト右パネル
 
@@ -97,6 +99,7 @@
 | `accent-hover` | #3A7BC8 | ホバー時 |
 | `stitch-color` | #D4A574 | ステッチ関連の暖色アクセント |
 | `text-on-accent` | #FFFFFF | アクセント上のテキスト |
+| `warning` | Light #B45309 / Dark #E8A33D | 警告文言（駒合わせのクランプ・ピッチ乖離など） |
 
 ### グリッド
 
