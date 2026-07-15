@@ -57,6 +57,10 @@ xcodebuild -project LCCAD.xcodeproj -scheme LCCAD test
 
 # リリースビルド
 xcodebuild -project LCCAD.xcodeproj -scheme LCCAD -configuration Release build
+
+# Makefile ショートカット（make help で一覧）
+make test      # xcodegen + テスト
+make install   # Release ビルドして /Applications/LCCAD.app を入れ替え
 ```
 
 ## Conventions
