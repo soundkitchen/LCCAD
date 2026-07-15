@@ -440,7 +440,7 @@
                   "name": "ic11",
                   "width": 16,
                   "height": 16,
-                  "icon": "grid-2x2",
+                  "icon": "target",
                   "library": "lucide",
                   "fill": "$stitch-color"
                 }
@@ -3535,7 +3535,7 @@
                   "name": "ic11",
                   "width": 16,
                   "height": 16,
-                  "icon": "grid-2x2",
+                  "icon": "target",
                   "library": "lucide",
                   "fill": "$stitch-color"
                 }
