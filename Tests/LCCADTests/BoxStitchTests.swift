@@ -227,6 +227,8 @@ final class BoxStitchTests: XCTestCase {
         XCTAssertEqual(larger.resolvedCount, 16)
         XCTAssertEqual(larger.runA.naturalCount, 16)
         XCTAssertEqual(larger.runB.naturalCount, 12)
+        XCTAssertEqual(larger.runA.cornerCount, 0, "circle is smooth")
+        XCTAssertEqual(larger.runB.cornerCount, 4, "normalized corner count for display")
         XCTAssertEqual(larger.runA.holes.count, 16)
         XCTAssertEqual(larger.runB.holes.count, 16)
         XCTAssertFalse(larger.wasClamped)
@@ -275,6 +277,19 @@ final class BoxStitchTests: XCTestCase {
         let lines = editor.document.layers[0].stitchLines
         XCTAssertEqual(lines.count, 2, "the old rect line is replaced, not duplicated")
         XCTAssertTrue(lines.allSatisfy { $0.holeCount == 16 })
+    }
+
+    @MainActor
+    func testApplyBoxStitchReportsWhetherItCommitted() {
+        let (editor, _, _) = makeCircleAndRectEditor()
+
+        XCTAssertTrue(editor.applyBoxStitch(count: 16))
+
+        // A selection change while the sheet was up (e.g. via undo) makes the
+        // re-derived runs unresolvable — the apply must report the failure.
+        editor.selectedShapeIds = []
+        XCTAssertFalse(editor.applyBoxStitch(count: 16))
+        XCTAssertEqual(editor.document.layers[0].stitchLines.count, 2, "failed apply must not mutate")
     }
 
     @MainActor

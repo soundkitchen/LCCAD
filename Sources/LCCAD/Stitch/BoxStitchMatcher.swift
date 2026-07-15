@@ -19,18 +19,21 @@ struct BoxStitchProposal: Equatable {
     let naturalCountB: Int
     let minimumCount: Int
 
-    /// The shared count a policy resolves to, clamped so both parts can honor it.
-    func resolvedCount(for policy: BoxStitchPolicy) -> Int {
-        let raw: Int
+    /// The count a policy asks for, before the shared-minimum clamp.
+    func requestedCount(for policy: BoxStitchPolicy) -> Int {
         switch policy {
         case .matchLarger:
-            raw = max(naturalCountA, naturalCountB)
+            return max(naturalCountA, naturalCountB)
         case .matchSmaller:
-            raw = min(naturalCountA, naturalCountB)
+            return min(naturalCountA, naturalCountB)
         case .custom(let n):
-            raw = n
+            return n
         }
-        return max(raw, minimumCount)
+    }
+
+    /// The shared count a policy resolves to, clamped so both parts can honor it.
+    func resolvedCount(for policy: BoxStitchPolicy) -> Int {
+        max(requestedCount(for: policy), minimumCount)
     }
 }
 

@@ -70,6 +70,15 @@ enum AutoStitchEngine {
         generateHoles(along: walker, iron: iron, mode: .variablePitch).count
     }
 
+    /// Corner count after normalization (wrap, sort, near-duplicate removal) — the
+    /// corners placement actually anchors. Raw `cornerDistances` may hold duplicates
+    /// on welded paths, so displays should use this rather than the raw count.
+    static func normalizedCornerCount(along walker: PathWalkable) -> Int {
+        let total = walker.pathLength
+        guard total > 0 else { return 0 }
+        return normalizedCorners(walker.cornerDistances, total: total).count
+    }
+
     /// Smallest `holeCount` the engine honors without clamping: every corner anchor
     /// (plus both endpoints on an open path) always keeps its hole.
     static func minimumHoleCount(along walker: PathWalkable) -> Int {
@@ -143,8 +152,9 @@ enum AutoStitchEngine {
     /// Place exactly `count` holes on a cornered path: every anchor (corner, plus both
     /// endpoints on an open path) keeps its hole, and the remaining holes go to the span
     /// with the widest current interval, one at a time. The greedy choice minimizes the
-    /// largest gap and is monotone in `count` — stepping N up by one adds a single hole
-    /// without reshuffling the others. Counts below the anchor count are clamped up.
+    /// largest gap and is monotone in `count` — stepping N up by one re-divides a single
+    /// span and leaves every other span's holes untouched. Counts below the anchor count
+    /// are clamped up.
     private static func cornerConstrainedEvenCountHoles(
         along walker: PathWalkable,
         total: CGFloat,

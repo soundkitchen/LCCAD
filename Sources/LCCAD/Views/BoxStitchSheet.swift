@@ -24,6 +24,10 @@ struct BoxStitchSheet: View {
     @State private var choice: PolicyChoice = .larger
     @State private var customCount: Int = 10
     @State private var estimate: BoxStitchEstimate?
+    /// Presented from within this sheet: a second `.sheet` on `MainEditorView` cannot
+    /// appear while this one is up (one sheet per presenting view), so the iron sheet
+    /// is nested here with its own flag to avoid fighting over the shared one.
+    @State private var showIronSheet: Bool = false
 
     private var policy: BoxStitchPolicy {
         switch choice {
@@ -53,6 +57,13 @@ struct BoxStitchSheet: View {
         .onChange(of: choice) { _, _ in refresh() }
         .onChange(of: customCount) { _, _ in refresh() }
         .onChange(of: editor.selectedIronId) { _, _ in refresh() }
+        .sheet(isPresented: $showIronSheet, onDismiss: {
+            // The selected iron's pitch may have been edited in place, which the
+            // selectedIronId onChange can't see — recompute unconditionally.
+            refresh()
+        }) {
+            PrickingIronSheet(editor: editor)
+        }
     }
 
     /// Recompute the dry run and push the ghost holes to the canvas.
@@ -163,7 +174,7 @@ struct BoxStitchSheet: View {
             .frame(height: 28)
 
             Button {
-                editor.showPrickingIronSheet = true
+                showIronSheet = true
             } label: {
                 Image(systemName: "gear")
                     .font(.system(size: 12))
@@ -303,10 +314,14 @@ struct BoxStitchSheet: View {
             Spacer()
 
             Button {
-                if let estimate {
-                    editor.applyBoxStitch(count: estimate.resolvedCount)
+                // Keep the sheet open if the commit fell through (e.g. an undo while
+                // the sheet was up changed the runs) so the failure isn't silent.
+                if let estimate, editor.applyBoxStitch(count: estimate.resolvedCount) {
+                    dismiss()
+                } else {
+                    NSSound.beep()
+                    refresh()
                 }
-                dismiss()
             } label: {
                 Text("Apply")
                     .font(.system(size: 11, weight: .semibold))

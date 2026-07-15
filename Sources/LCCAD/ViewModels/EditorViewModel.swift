@@ -1843,6 +1843,9 @@ final class EditorViewModel {
     /// `selectedShapeIds` is an unordered set, so leaves are collected in document order
     /// and the pair sorted by path length to keep the A/B assignment deterministic.
     func boxStitchRuns() -> (a: StitchPathBuilder.StitchPath, b: StitchPathBuilder.StitchPath)? {
+        // Cheap bail-out: `canBoxStitch` is read from view bodies, so this runs on
+        // every document change — skip the layer scan + weld with nothing selected.
+        guard !selectedShapeIds.isEmpty else { return nil }
         var leaves: [AnyShape] = []
         for layer in document.layers {
             for shape in layer.shapes where selectedShapeIds.contains(shape.id) {
@@ -1869,12 +1872,7 @@ final class EditorViewModel {
         guard let iron = activePrickingIron, let runs = boxStitchRuns(),
               let proposal = BoxStitchMatcher.proposal(for: [runs.a, runs.b], iron: iron) else { return nil }
 
-        let requested: Int
-        switch policy {
-        case .matchLarger: requested = max(proposal.naturalCountA, proposal.naturalCountB)
-        case .matchSmaller: requested = min(proposal.naturalCountA, proposal.naturalCountB)
-        case .custom(let n): requested = n
-        }
+        let requested = proposal.requestedCount(for: policy)
         let resolved = proposal.resolvedCount(for: policy)
 
         func makeRun(_ path: StitchPathBuilder.StitchPath, naturalCount: Int) -> BoxStitchEstimate.Run {
@@ -1886,7 +1884,7 @@ final class EditorViewModel {
             return BoxStitchEstimate.Run(
                 length: length,
                 isClosed: path.walker.isClosed,
-                cornerCount: path.walker.cornerDistances.count,
+                cornerCount: AutoStitchEngine.normalizedCornerCount(along: path.walker),
                 naturalCount: naturalCount,
                 holes: holes,
                 effectivePitch: intervals > 0 ? length / CGFloat(intervals) : 0,
@@ -1907,11 +1905,14 @@ final class EditorViewModel {
     /// Runs are re-derived here (not taken from the sheet) so an undo that slipped in
     /// while the sheet was up can't commit stale geometry. Existing stitch lines on
     /// the same runs are replaced; one undo restores everything.
-    func applyBoxStitch(count: Int) {
-        guard let iron = activePrickingIron, let runs = boxStitchRuns() else { return }
+    /// Returns false when nothing was committed (runs no longer resolve, or the
+    /// re-derived pair can't take matching counts) so the sheet can surface it.
+    @discardableResult
+    func applyBoxStitch(count: Int) -> Bool {
+        guard let iron = activePrickingIron, let runs = boxStitchRuns() else { return false }
         let holesA = AutoStitchEngine.generateHoles(along: runs.a.walker, iron: iron, mode: .evenCount, holeCount: count)
         let holesB = AutoStitchEngine.generateHoles(along: runs.b.walker, iron: iron, mode: .evenCount, holeCount: count)
-        guard !holesA.isEmpty, holesA.count == holesB.count else { return }
+        guard !holesA.isEmpty, holesA.count == holesB.count else { return false }
 
         let old = document
         let targets = [Set(runs.a.sourceShapeIds), Set(runs.b.sourceShapeIds)]
@@ -1927,6 +1928,7 @@ final class EditorViewModel {
                        mode: .evenCount, holeCount: holesB.count, holes: holesB)
         )
         registerUndo(actionName: "Box Stitch", oldDocument: old)
+        return true
     }
 
     /// Whether any layer holds a stitch line generated from exactly these source shapes.
