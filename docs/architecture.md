@@ -336,12 +336,23 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
 
    結果は `StitchPath { walker, sourceShapeIds }`。これにより線+円弧+…で描いた輪郭を **1 本の連続ステッチ**として扱える（#24 駒合わせの土台）。内・外を選べば各パーツが 1 本ずつになる。
 3. **穴生成** — `AutoStitchEngine.generateHoles(along:iron:mode:holeCount:)` が walker に沿って穴を配置:
-   - **コーナーアンカー**: `CompositePathWalker.cornerDistances`（接線不連続 > 5°、閉なら継ぎ目も判定）で角に必ず穴を置き、**各「角〜角」スパンを均等割り**（`round(spanLen/pitch)`）して間隔を ≈ピッチに保つ。端数による角付近の詰まりを避けるため、コーナーを含む図形ではモード・指定数に依らず均等配置になる。
+   - **コーナーアンカー**: `CompositePathWalker.cornerDistances`（接線不連続 > 5°、閉なら継ぎ目も判定）で角に必ず穴を置き、**各「角〜角」スパンを均等割り**（`round(spanLen/pitch)`）して間隔を ≈ピッチに保つ。端数による角付近の詰まりを避けるため、コーナーを含む図形では `Fixed`/`Variable` に依らず均等配置になる。
+   - **コーナー + `Even Count`（指定数あり）**: 合計ちょうど N 穴を配置（#24）。全アンカー（角、開パスは両端も）に穴を置き、残り R = N − アンカー数を「現在のスパン内間隔が最大のスパン」へ 1 穴ずつ貪欲に配分（`cornerConstrainedEvenCountHoles`）。最大間隔を最小化し、N に対して単調（N→N+1 で他スパンの穴が動かない）・決定的。N < アンカー数はアンカー数へクランプ。
    - **角の無い図形**: `Even Count`=指定数 N をパス全長に均等配置（ピッチ無視。開は両端含む・N≥2 にクランプ、閉は継ぎ目重複なし）。それ以外は、閉（円・楕円・滑らかな閉曲線）は均等ループ（継ぎ目重複なし）、開（単一の直線・開曲線）は `Fixed`=定ピッチ／`Variable`=両端揃え。
 
 `PathWalkable` は `pathLength` / `pointAtDistance` / `tangentAtDistance` に加え、`isClosed`・`cornerDistances`（既定は「開・角なし」）を持つ。具体 walker: `Line` / `Arc` / `Ellipse`（円=厳密・楕円=弧長LUT・回転対応）/ `BezierSegment` / `Composite`（連結・`isClosed`・角検出）/ `Reversed`。
 
-ステッチ設定 UI（`StitchSection`: Iron Type / Mode / Count / Pitch）は単一選択だけでなく**複数選択時も右パネルに表示**する（連結輪郭・複数パーツを選んで Auto Stitch するため）。Mode ピッカーは選択が「角を含むパスのみ」のとき無効化（#32。角なしパスを含めば `Even Count` が閉パスでも効くため有効）。Count 行は `Even Count` 選択時のみ表示し、そのとき効かない Pitch 行を減光する。`Even Count` の指定数は `StitchLine.holeCount` に永続化され、図形編集時の再生成でも同じ数を維持する（#23b）。
+ステッチ設定 UI（`StitchSection`: Iron Type / Mode / Count / Pitch）は単一選択だけでなく**複数選択時も右パネルに表示**する（連結輪郭・複数パーツを選んで Auto Stitch するため）。Mode ピッカーは選択が「角を含むパスのみ」のとき無効化（#32。角なしパスを含めば `Even Count` が閉パスでも効くため有効。駒合わせは専用シート経由なのでこのゲートの影響を受けない）。Count 行は `Even Count` 選択時のみ表示し、そのとき効かない Pitch 行を減光する。`Even Count` の指定数は `StitchLine.holeCount` に永続化され、図形編集時の再生成でも同じ数を維持する（#23b）。
+
+### 駒合わせ縫い（Box Stitch, #24）
+
+内外 2 パーツの縫い穴数を揃えるヘルパー。ちょうど 2 本のステッチランに解決される選択（Stitch メニュー / ツールバーの `circle.circle` ボタン、`canBoxStitch` でゲート）から `BoxStitchSheet` を開き、穴数の合わせ方を選んで両パーツへ同数の穴をコミットする。
+
+- **ラン解決** — `EditorViewModel.boxStitchRuns()`: 選択リーフを**ドキュメント順**で収集（`selectedShapeIds` は順序不定の Set）→ `StitchPathBuilder.build` → ちょうど 2 本のときパス長降順で A=長い方 / B=短い方（決定的）。
+- **穴数の合わせ方** — `BoxStitchMatcher`（`Stitch/BoxStitchMatcher.swift`、pure）: 各ランの自然穴数（`AutoStitchEngine.naturalHoleCount` = `.variablePitch` で生成した数）から `Larger`（多い方）/ `Smaller`（少ない方）/ `Custom`（指定数）を解決し、**両パーツのアンカー下限**（`minimumHoleCount`: 角閉=角数・角開=角+両端・滑開=2・滑閉=1 の大きい方）でクランプする。
+- **ドライラン + ゴーストプレビュー** — `boxStitchEstimate(policy:)` が非破壊で両パーツの穴・実効ピッチ・警告材料を計算。シートは入力変更のたびに `editor.boxStitchPreview` を更新し、`CanvasView` が半透明（0.55）のゴースト穴を Part A=`stitchColor` / Part B=`accent` で描画する（シート内のドットと同色対応）。プレビューはシート dismiss 時に一括クリア。
+- **コミット** — `applyBoxStitch(count:)`: Apply 時にランを再導出（シート中の ⌘Z 対策）→ 同一 `sourceShapeIds` 集合の既存ステッチラインを**置換** → `.evenCount` + 同一 `holeCount` の `StitchLine` を 2 本追加 → undo 1 回で全て戻る。`holeCount` 永続化により図形編集後の再生成でも両パーツの穴数が独立に維持される。
+- **既知の制限** — 編集でパーツの角数が N を超えるとクランプで穴数がずれ、ペアの対応が崩れる（v1 許容）。
 
 ### ステッチラインの図形追従
 

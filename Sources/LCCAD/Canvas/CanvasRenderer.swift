@@ -114,10 +114,11 @@ struct CanvasRenderer {
 
     // MARK: - Stitch Hole Rendering
 
-    func drawStitchHole(_ hole: StitchHole, holeType: HoleType, holeSize: CGFloat, in context: GraphicsContext) {
+    func drawStitchHole(_ hole: StitchHole, holeType: HoleType, holeSize: CGFloat,
+                        tint: Color? = nil, in context: GraphicsContext) {
         let center = transform.worldToScreen(hole.position)
         let screenSize = max(3, transform.worldToScreenDistance(holeSize))
-        let stitchColor = Color(red: 0.831, green: 0.647, blue: 0.455) // #D4A574
+        let stitchColor = tint ?? DesignTokens.stitchColor
 
         switch holeType {
         case .diamond:

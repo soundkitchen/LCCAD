@@ -32,6 +32,11 @@ struct ToolbarView: View {
             stitchToolButton(icon: "grid", label: "Auto Stitch") {
                 editor.autoStitchSelectedShape()
             }
+            stitchToolButton(icon: "circle.circle",
+                             label: "Box Stitch — match hole counts across two parts (駒合わせ)",
+                             enabled: editor.canBoxStitch) {
+                editor.showBoxStitchSheet = true
+            }
             // Stitch Simulator is a planned feature; shown disabled until implemented.
             stitchToolButton(icon: "eye", label: "Stitch Simulator (coming soon)", enabled: false) {}
 

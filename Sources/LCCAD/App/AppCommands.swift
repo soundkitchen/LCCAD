@@ -198,6 +198,11 @@ struct AppCommands: Commands {
                 editor?.autoStitchSelectedShape()
             }
 
+            Button("Box Stitch...") {
+                editor?.showBoxStitchSheet = true
+            }
+            .disabled(!(editor?.canBoxStitch ?? false))
+
             Button("Stitch Simulator") {
                 // Planned feature; not yet implemented.
             }

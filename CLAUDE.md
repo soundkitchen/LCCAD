@@ -88,6 +88,7 @@ xcodebuild -project LCCAD.xcodeproj -scheme LCCAD -configuration Release build
 | Bezier | spline | point.topleft.down.to.point.bottomright.curvepath |
 | Text | type | character |
 | Bevel | squircle | app |
+| Box Stitch | target | circle.circle |
 
 ## Key Design Decisions
 
