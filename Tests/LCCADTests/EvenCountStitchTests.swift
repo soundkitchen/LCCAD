@@ -64,16 +64,21 @@ final class EvenCountStitchTests: XCTestCase {
                        "first hole sits on the welded run's start")
     }
 
-    func testCorneredPathIgnoresCount() {
-        // Corner-anchored placement wins over the requested count: corners must
-        // always carry a hole, so a rectangle keeps its pitch-driven layout.
+    func testCorneredPathHonorsEvenCount() {
+        // Even Count on a cornered path (駒合わせ): exactly N holes total, with every
+        // corner still anchored. Counts below the anchor count are clamped up.
         let rect = RectangleShape(origin: .zero, size: CGSize(width: 10, height: 10))
         let walker = PathWalkerFactory.walker(for: .rectangle(rect))!
-        let withCount = AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: .evenCount, holeCount: 3)
-        let baseline = AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: .fixedPitch)
+        let holes = AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: .evenCount, holeCount: 12)
 
-        XCTAssertEqual(withCount.count, baseline.count)
-        XCTAssertNotEqual(withCount.count, 3)
+        XCTAssertEqual(holes.count, 12)
+        for corner in [CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 0), CGPoint(x: 10, y: 10), CGPoint(x: 0, y: 10)] {
+            XCTAssertTrue(holes.contains { $0.position.distance(to: corner) < 1e-6 },
+                          "corner \(corner) must keep its anchor hole")
+        }
+
+        let clamped = AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: .evenCount, holeCount: 3)
+        XCTAssertEqual(clamped.count, 4, "count below the 4 corner anchors clamps up")
     }
 
     func testMissingCountFallsBackToVariablePitch() {
