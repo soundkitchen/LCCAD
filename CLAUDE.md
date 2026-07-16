@@ -19,7 +19,7 @@ macOS に最適化した高速・安定なアプリケーションを目指す�
 
 ```
 LCCAD/
-├── AGENTS.md              # このファイル
+├── CLAUDE.md              # このファイル（AGENTS.md は CLAUDE.md へのシンボリックリンク）
 ├── docs/                  # ドキュメント
 │   ├── research.md        # 参考アプリ リサーチ結果
 │   ├── design.md          # UI デザイン方針
