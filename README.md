@@ -44,6 +44,14 @@ xcodebuild -project LCCAD.xcodeproj -scheme LCCAD -configuration Release \
 xcodebuild -project LCCAD.xcodeproj -scheme LCCAD test
 ```
 
+Makefile ショートカットも利用できます（一覧は `make help`）:
+
+```bash
+make run       # Debug ビルドして起動
+make test      # テスト実行
+make install   # Release ビルドして /Applications/LCCAD.app を入れ替え
+```
+
 `project.yml` 内の `DEVELOPMENT_TEAM` は作者の Apple Developer Team ID を指しています。フォークしてビルドする場合は、ご自身の Team ID に書き換えてください。
 
 ## プロジェクト構成

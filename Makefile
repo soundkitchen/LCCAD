@@ -2,17 +2,20 @@
 #
 # よく使うもの:
 #   make install   — Release ビルドして /Applications/LCCAD.app を入れ替え
+#   make run       — Debug ビルドして起動
 #   make test      — テスト実行
 
 APP_NAME     := LCCAD
 PROJECT      := LCCAD.xcodeproj
 SCHEME       := LCCAD
 DERIVED_DATA := build/DerivedData
+DEBUG_APP    := $(DERIVED_DATA)/Build/Products/Debug/$(APP_NAME).app
 RELEASE_APP  := $(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app
 INSTALL_DIR  := /Applications
+DESIGN_FILE  := design/lccad.pen
 
 .DEFAULT_GOAL := help
-.PHONY: help generate build test release install clean
+.PHONY: help generate build run test release install design xcode clean
 
 help: ## このヘルプを表示
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-10s %s\n", $$1, $$2}'
@@ -20,11 +23,16 @@ help: ## このヘルプを表示
 generate: ## XcodeGen で .xcodeproj を生成
 	xcodegen generate
 
-build: generate ## Debug ビルド
-	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug build
+build: generate ## Debug ビルド（成果物: build/DerivedData/Build/Products/Debug/LCCAD.app）
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Debug \
+		-derivedDataPath $(DERIVED_DATA) build
+
+run: build ## Debug ビルドして起動
+	open $(DEBUG_APP)
 
 test: generate ## テスト実行
-	xcodebuild -project $(PROJECT) -scheme $(SCHEME) test
+	xcodebuild -project $(PROJECT) -scheme $(SCHEME) \
+		-derivedDataPath $(DERIVED_DATA) test
 
 release: generate ## Release ビルド（成果物: build/DerivedData/Build/Products/Release/LCCAD.app）
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release \
@@ -39,6 +47,12 @@ install: release ## Release ビルドして /Applications に入れ替え
 	ditto $(RELEASE_APP) $(INSTALL_DIR)/$(APP_NAME).app
 	@echo "✅ $(INSTALL_DIR)/$(APP_NAME).app を更新しました" \
 		"(v$$(defaults read $(INSTALL_DIR)/$(APP_NAME).app/Contents/Info CFBundleShortVersionString))"
+
+design: ## Pencil でデザインファイル (design/lccad.pen) を開く
+	open -a Pencil $(DESIGN_FILE)
+
+xcode: generate ## Xcode でプロジェクトを開く
+	open $(PROJECT)
 
 clean: ## ビルド成果物 (build/) を削除
 	rm -rf $(DERIVED_DATA)
