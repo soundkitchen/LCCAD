@@ -110,6 +110,17 @@ struct BoxStitchPreview: Sendable {
     var holeSize: CGFloat
 }
 
+/// Ghost payload while a hybrid split-point pick (#23c) is pending: the holes a click
+/// at the current cursor would commit, plus the split marker geometry.
+struct HybridPickPreview: Sendable {
+    var holes: [StitchHole]
+    var splitPoint: CGPoint
+    /// Path tangent at the split point (radians) — the marker tick sits perpendicular.
+    var splitAngle: CGFloat
+    var holeType: HoleType
+    var holeSize: CGFloat
+}
+
 /// Non-mutating dry run of a box stitch: what both parts would receive for a given
 /// policy. Drives the sheet's labels, warnings, Apply gating, and the ghost preview.
 struct BoxStitchEstimate: Sendable {
@@ -246,6 +257,13 @@ final class EditorViewModel {
     var showBoxStitchSheet: Bool = false
     /// Ghost holes rendered while the box stitch sheet is up; cleared on dismiss.
     var boxStitchPreview: BoxStitchPreview?
+
+    // Hybrid stitch (#23c) state
+    /// Open smooth runs awaiting the hybrid split-point click; non-empty puts the
+    /// canvas into pick mode (click commits the nearest run, Escape cancels the rest).
+    var pendingHybridRuns: [StitchPathBuilder.StitchPath] = []
+    /// Ghost holes + split marker following the cursor while a pick is pending.
+    var hybridPickPreview: HybridPickPreview?
 
     // Array sheet state
     var showArraySheet: Bool = false
@@ -503,7 +521,8 @@ final class EditorViewModel {
         if let walker = weldedWalker(forShapeIds: line.sourceShapeIds),
            let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
             document.layers[li].stitchLines[si].holes =
-                AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode, holeCount: line.holeCount)
+                AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode,
+                                               holeCount: line.holeCount, fixedLength: line.fixedLength)
             return si + 1
         } else {
             document.layers[li].stitchLines.remove(at: si)
@@ -544,7 +563,8 @@ final class EditorViewModel {
             // Iron missing → keep the (stale) holes; preserve user data, recoverable later.
             if let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
                 document.layers[li].stitchLines[si].holes =
-                    AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode, holeCount: line.holeCount)
+                    AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode,
+                                               holeCount: line.holeCount, fixedLength: line.fixedLength)
             }
             return si + 1
         }
@@ -757,6 +777,8 @@ final class EditorViewModel {
         pageMoveUndoSnapshot = nil
         pageDragRawOrigin = nil
         pendingTemplate = nil
+        pendingHybridRuns = []
+        hybridPickPreview = nil
         currentTool = tool
         if tool != .select {
             selectedShapeIds = []
@@ -829,6 +851,14 @@ final class EditorViewModel {
             placeTemplate(pending, at: placePoint)
             pendingTemplate = nil
             activeSnapCandidate = nil
+            return
+        }
+
+        // Hybrid pick: a pending split-point pick intercepts the click regardless of
+        // tool. The raw cursor is projected onto the nearest pending run — snapping
+        // would pull the point off the path.
+        if !pendingHybridRuns.isEmpty {
+            commitHybridPick(at: transform.screenToWorld(screenPoint))
             return
         }
 
@@ -962,6 +992,12 @@ final class EditorViewModel {
 
         // While placing a template, the snapped cursor drives the ghost preview.
         if pendingTemplate != nil { return }
+
+        // While picking the hybrid split point, the raw cursor drives the ghost holes.
+        if !pendingHybridRuns.isEmpty {
+            updateHybridPickPreview(at: transform.screenToWorld(screenPoint))
+            return
+        }
 
         switch currentTool {
         case .line:
@@ -1142,6 +1178,13 @@ final class EditorViewModel {
         if pendingTemplate != nil {
             pendingTemplate = nil
             activeSnapCandidate = nil
+            return
+        }
+        // Cancel a pending hybrid split-point pick (Escape). Runs already committed
+        // by earlier clicks keep their stitch lines; only the rest are dropped.
+        if !pendingHybridRuns.isEmpty {
+            pendingHybridRuns = []
+            hybridPickPreview = nil
             return
         }
         // If bezier has 2+ points, commit what we have before cancelling
@@ -1819,21 +1862,126 @@ final class EditorViewModel {
         let paths = StitchPathBuilder.build(from: leaves)
         guard !paths.isEmpty else { return }
 
-        let old = document
-        let holeCount = selectedStitchMode == .evenCount ? selectedStitchHoleCount : nil
-        var added = false
+        // Hybrid needs a split point, so open smooth runs wait for a click on the
+        // path (pick mode) instead of committing now. Cornered/closed runs have no
+        // hybrid split and are stitched immediately like any other mode.
+        var immediate: [StitchPathBuilder.StitchPath] = []
+        var pickable: [StitchPathBuilder.StitchPath] = []
         for path in paths {
-            let holes = AutoStitchEngine.generateHoles(
-                along: path.walker, iron: iron, mode: selectedStitchMode, holeCount: holeCount
-            )
-            guard !holes.isEmpty else { continue }
-            activeLayer.stitchLines.append(
-                StitchLine(sourceShapeIds: path.sourceShapeIds, ironId: iron.id,
-                           mode: selectedStitchMode, holeCount: holeCount, holes: holes)
-            )
-            added = true
+            if selectedStitchMode == .hybrid,
+               path.walker.cornerDistances.isEmpty, !path.walker.isClosed {
+                pickable.append(path)
+            } else {
+                immediate.append(path)
+            }
         }
-        guard added else { return }
+
+        let holeCount = selectedStitchMode == .evenCount ? selectedStitchHoleCount : nil
+        if !immediate.isEmpty {
+            let old = document
+            var added = false
+            for path in immediate {
+                let holes = AutoStitchEngine.generateHoles(
+                    along: path.walker, iron: iron, mode: selectedStitchMode, holeCount: holeCount
+                )
+                guard !holes.isEmpty else { continue }
+                activeLayer.stitchLines.append(
+                    StitchLine(sourceShapeIds: path.sourceShapeIds, ironId: iron.id,
+                               mode: selectedStitchMode, holeCount: holeCount, holes: holes)
+                )
+                added = true
+            }
+            if added { registerUndo(actionName: "Auto Stitch", oldDocument: old) }
+        }
+
+        if !pickable.isEmpty {
+            pendingHybridRuns = pickable
+            hybridPickPreview = nil
+        }
+    }
+
+    // MARK: - Hybrid Stitch Pick (#23c)
+
+    /// Project `point` onto `walker`: the arc-length of the closest path point plus the
+    /// gap to it. Coarse sampling brackets the minimum, then a ternary search refines it
+    /// (the gap is locally unimodal at that resolution).
+    private func projectedDistance(of point: CGPoint, on walker: PathWalkable) -> (along: CGFloat, gap: CGFloat) {
+        let total = walker.pathLength
+        let samples = 256
+        var bestAlong: CGFloat = 0
+        var bestGap = CGFloat.greatestFiniteMagnitude
+        for i in 0...samples {
+            let d = total * CGFloat(i) / CGFloat(samples)
+            let gap = walker.pointAtDistance(d).distance(to: point)
+            if gap < bestGap {
+                bestGap = gap
+                bestAlong = d
+            }
+        }
+        let step = total / CGFloat(samples)
+        var lo = max(0, bestAlong - step)
+        var hi = min(total, bestAlong + step)
+        for _ in 0..<24 {
+            let m1 = lo + (hi - lo) / 3
+            let m2 = hi - (hi - lo) / 3
+            if walker.pointAtDistance(m1).distance(to: point) <= walker.pointAtDistance(m2).distance(to: point) {
+                hi = m2
+            } else {
+                lo = m1
+            }
+        }
+        let along = (lo + hi) / 2
+        return (along, walker.pointAtDistance(along).distance(to: point))
+    }
+
+    /// The pending run closest to `point`, with the projected arc-length on it.
+    private func nearestHybridRun(to point: CGPoint) -> (index: Int, along: CGFloat)? {
+        var best: (index: Int, along: CGFloat, gap: CGFloat)?
+        for (i, path) in pendingHybridRuns.enumerated() {
+            let projected = projectedDistance(of: point, on: path.walker)
+            if best == nil || projected.gap < best!.gap {
+                best = (i, projected.along, projected.gap)
+            }
+        }
+        return best.map { ($0.index, $0.along) }
+    }
+
+    /// Rebuild the ghost preview for the cursor at `point` (pick-mode mouse move).
+    private func updateHybridPickPreview(at point: CGPoint) {
+        guard let iron = activePrickingIron, let pick = nearestHybridRun(to: point) else {
+            hybridPickPreview = nil
+            return
+        }
+        let walker = pendingHybridRuns[pick.index].walker
+        let holes = AutoStitchEngine.generateHoles(
+            along: walker, iron: iron, mode: .hybrid, fixedLength: pick.along
+        )
+        hybridPickPreview = HybridPickPreview(
+            holes: holes,
+            splitPoint: walker.pointAtDistance(pick.along),
+            splitAngle: walker.tangentAtDistance(pick.along),
+            holeType: iron.holeType,
+            holeSize: iron.holeSize
+        )
+    }
+
+    /// Commit the pending run nearest the click: exact pitch up to the picked point,
+    /// evened spacing beyond it. Each pending run commits with its own click; Escape
+    /// cancels the rest (`cancelDrawing`).
+    private func commitHybridPick(at point: CGPoint) {
+        guard let iron = activePrickingIron, let pick = nearestHybridRun(to: point) else { return }
+        let path = pendingHybridRuns[pick.index]
+        let holes = AutoStitchEngine.generateHoles(
+            along: path.walker, iron: iron, mode: .hybrid, fixedLength: pick.along
+        )
+        guard !holes.isEmpty else { return }
+        let old = document
+        activeLayer.stitchLines.append(
+            StitchLine(sourceShapeIds: path.sourceShapeIds, ironId: iron.id,
+                       mode: .hybrid, fixedLength: pick.along, holes: holes)
+        )
+        pendingHybridRuns.remove(at: pick.index)
+        hybridPickPreview = nil
         registerUndo(actionName: "Auto Stitch", oldDocument: old)
     }
 
