@@ -172,6 +172,86 @@ final class HybridStitchTests: XCTestCase {
         XCTAssertFalse(stitch.holes.isEmpty)
     }
 
+    // MARK: - Pick-state invalidation (review #40)
+
+    @MainActor
+    func testDeleteDuringPickCancelsPick() {
+        var doc = DocumentData.empty()
+        let line = LineShape(start: .zero, end: CGPoint(x: 100, y: 0))
+        doc.layers[0].shapes = [.line(line)]
+        let editor = EditorViewModel(document: doc)
+        editor.selectedShapeIds = [line.id]
+        editor.selectedStitchMode = .hybrid
+        editor.autoStitchSelectedShape()
+        XCTAssertFalse(editor.pendingHybridRuns.isEmpty)
+
+        editor.deleteSelectedShapes()
+
+        XCTAssertTrue(editor.pendingHybridRuns.isEmpty, "delete must drop the pending pick")
+        editor.handleClick(at: editor.transform.worldToScreen(CGPoint(x: 50, y: 0)))
+        XCTAssertTrue(editor.document.layers.flatMap(\.stitchLines).isEmpty,
+                      "a click after delete must not commit orphan holes")
+    }
+
+    @MainActor
+    func testUndoDuringPickCancelsPick() {
+        var doc = DocumentData.empty()
+        let line = LineShape(start: .zero, end: CGPoint(x: 100, y: 0))
+        doc.layers[0].shapes = [.line(line)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [line.id]
+
+        editor.setSelectedShapePosition(x: 10, y: 0)   // undoable op before the pick
+        editor.selectedStitchMode = .hybrid
+        editor.autoStitchSelectedShape()
+        XCTAssertFalse(editor.pendingHybridRuns.isEmpty)
+
+        undo.undo()
+
+        XCTAssertTrue(editor.pendingHybridRuns.isEmpty,
+                      "undo restores geometry the parked walkers no longer match — pick must drop")
+    }
+
+    @MainActor
+    func testFarClickNeitherCommitsNorClearsPick() {
+        var doc = DocumentData.empty()
+        let line = LineShape(start: .zero, end: CGPoint(x: 100, y: 0))
+        doc.layers[0].shapes = [.line(line)]
+        let editor = EditorViewModel(document: doc)
+        editor.selectedShapeIds = [line.id]
+        editor.selectedStitchMode = .hybrid
+        editor.autoStitchSelectedShape()
+
+        // ~500mm from the path, far beyond the ~20px screen tolerance.
+        editor.handleMouseMove(screenPoint: editor.transform.worldToScreen(CGPoint(x: 52, y: 500)))
+        XCTAssertNil(editor.hybridPickPreview, "no ghost beyond the pick tolerance")
+
+        editor.handleClick(at: editor.transform.worldToScreen(CGPoint(x: 52, y: 500)))
+        XCTAssertTrue(editor.document.layers.flatMap(\.stitchLines).isEmpty,
+                      "a stray click must not commit")
+        XCTAssertFalse(editor.pendingHybridRuns.isEmpty, "the pick stays pending")
+    }
+
+    @MainActor
+    func testLayerSwitchCancelsPick() {
+        var doc = DocumentData.empty()
+        let line = LineShape(start: .zero, end: CGPoint(x: 100, y: 0))
+        doc.layers[0].shapes = [.line(line)]
+        doc.layers.append(Layer(name: "Layer 2"))
+        let editor = EditorViewModel(document: doc)
+        editor.selectedShapeIds = [line.id]
+        editor.selectedStitchMode = .hybrid
+        editor.autoStitchSelectedShape()
+        XCTAssertFalse(editor.pendingHybridRuns.isEmpty)
+
+        editor.activeLayerIndex = 1
+
+        XCTAssertTrue(editor.pendingHybridRuns.isEmpty,
+                      "switching the target layer mid-pick drops the pick")
+    }
+
     @MainActor
     func testRegenerationPreservesFixedLength() {
         // In-place mirror regenerates the holes from the mirrored geometry; the

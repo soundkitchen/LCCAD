@@ -157,7 +157,16 @@ final class EditorViewModel {
     var currentTool: DrawingTool = .select
     var selectedShapeIds: Set<UUID> = []
     var cursorWorldPosition: CGPoint = .zero
-    var activeLayerIndex: Int = 0
+    var activeLayerIndex: Int = 0 {
+        didSet {
+            // Switching the target layer mid-pick would commit the stitch to a layer
+            // the user wasn't looking at when they started Auto Stitch; drop the pick.
+            if oldValue != activeLayerIndex {
+                pendingHybridRuns = []
+                hybridPickPreview = nil
+            }
+        }
+    }
 
     // Marquee selection
     var marqueeStart: CGPoint?
@@ -381,6 +390,11 @@ final class EditorViewModel {
         undoManager.registerUndo(withTarget: self) { target in
             let redoDoc = target.document
             target.document = oldDocument
+            // Undo/redo swaps the document out from under a pending hybrid pick; the
+            // parked walkers would go stale against the restored geometry, so a later
+            // click could commit holes for shapes that no longer match. Drop the pick.
+            target.pendingHybridRuns = []
+            target.hybridPickPreview = nil
             target.registerUndo(actionName: actionName, oldDocument: redoDoc)
         }
         undoManager.setActionName(actionName)
@@ -564,7 +578,7 @@ final class EditorViewModel {
             if let iron = document.prickingIrons.first(where: { $0.id == line.ironId }) {
                 document.layers[li].stitchLines[si].holes =
                     AutoStitchEngine.generateHoles(along: walker, iron: iron, mode: line.mode,
-                                               holeCount: line.holeCount, fixedLength: line.fixedLength)
+                                                   holeCount: line.holeCount, fixedLength: line.fixedLength)
             }
             return si + 1
         }
@@ -1170,6 +1184,10 @@ final class EditorViewModel {
             document.layers[li].stitchLines = layer.stitchLines.filter { !$0.sourceShapeIds.contains(where: idsToDelete.contains) }
         }
         selectedShapeIds = []
+        // The deleted shapes may back a pending hybrid pick; a later click would then
+        // commit a stitch line whose sources no longer exist. Drop the pick wholesale.
+        pendingHybridRuns = []
+        hybridPickPreview = nil
         registerUndo(actionName: "Delete Shape", oldDocument: old)
     }
 
@@ -1935,7 +1953,11 @@ final class EditorViewModel {
     }
 
     /// The pending run closest to `point`, with the projected arc-length on it.
+    /// Cursors farther than ~20 screen px from every pending run return nil, so a
+    /// stray click neither commits nor shows a ghost (the preview and the commit
+    /// share this gate — what you see is what a click does).
     private func nearestHybridRun(to point: CGPoint) -> (index: Int, along: CGFloat)? {
+        let tolerance = transform.screenToWorldDistance(20)
         var best: (index: Int, along: CGFloat, gap: CGFloat)?
         for (i, path) in pendingHybridRuns.enumerated() {
             let projected = projectedDistance(of: point, on: path.walker)
@@ -1943,7 +1965,8 @@ final class EditorViewModel {
                 best = (i, projected.along, projected.gap)
             }
         }
-        return best.map { ($0.index, $0.along) }
+        guard let best, best.gap <= tolerance else { return nil }
+        return (best.index, best.along)
     }
 
     /// Rebuild the ghost preview for the cursor at `point` (pick-mode mouse move).

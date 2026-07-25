@@ -400,6 +400,13 @@ struct CanvasView: View {
                     editor.lastPanTranslation = nil
                     return
                 }
+                // Same for a pending hybrid pick: a rough click that drifted past the
+                // tap threshold still commits at the release point.
+                if !editor.pendingHybridRuns.isEmpty {
+                    editor.handleClick(at: value.location)
+                    editor.lastPanTranslation = nil
+                    return
+                }
                 editor.stopEdgeScroll()
                 if editor.currentTool == .page {
                     editor.commitPageMove()
