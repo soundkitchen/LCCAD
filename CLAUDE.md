@@ -25,7 +25,7 @@ LCCAD/
 │   ├── design.md          # UI デザイン方針
 │   └── architecture.md    # 技術アーキテクチャ
 ├── design/
-│   └── lccad.pen          # Pencil デザインファイル
+│   └── lccad.pen          # Pen デザインファイル
 ├── project.yml            # XcodeGen 設定
 ├── Sources/
 │   └── LCCAD/
@@ -62,7 +62,7 @@ xcodebuild -project LCCAD.xcodeproj -scheme LCCAD -configuration Release build
 make run       # Debug ビルドして起動
 make test      # xcodegen + テスト
 make install   # Release ビルドして /Applications/LCCAD.app を入れ替え
-make design    # Pencil でデザインファイルを開く
+make design    # Pen でデザインファイルを開く
 make xcode     # Xcode でプロジェクトを開く
 ```
 
@@ -79,13 +79,13 @@ make xcode     # Xcode でプロジェクトを開く
 
 ## Workflow Rules
 
-- **UI 変更は必ず Pencil デザインファイル (`design/lccad.pen`) の更新から始める。** デザインを先に更新し、スクリーンショットで確認した上でコードに反映する。コードだけ先に変えてデザインファイルと乖離させてはならない。
-- **Pencil デザインファイルの保存**: Pencil MCP でのデザイン作業が完了したら、必ずユーザーに保存を依頼する（Pencil MCP はエディタ内メモリ上で変更を保持しており、自動保存されない）。デザインファイルは `design/lccad.pen` で一元管理。Pencil エディタでもこのパスを直接開く。
-- **デザイントークンの管理**: Pencil デザインファイルの変数定義が信頼できる唯一の情報源 (Single Source of Truth)。コード側は `DesignTokens.swift` に転写して使用する。色を変更する場合は必ずデザイン変数を先に更新する。
+- **UI 変更は必ず Pen（旧 Pencil）デザインファイル (`design/lccad.pen`) の更新から始める。** デザインを先に更新し、スクリーンショットで確認した上でコードに反映する。コードだけ先に変えてデザインファイルと乖離させてはならない。
+- **Pen デザインファイルの保存**: Pen MCP でのデザイン作業が完了したら、必ずユーザーに保存を依頼する（Pen MCP はエディタ内メモリ上で変更を保持しており、自動保存されない）。デザインファイルは `design/lccad.pen` で一元管理。Pen エディタでもこのパスを直接開く。
+- **デザイントークンの管理**: Pen デザインファイルの変数定義が信頼できる唯一の情報源 (Single Source of Truth)。コード側は `DesignTokens.swift` に転写して使用する。色を変更する場合は必ずデザイン変数を先に更新する。
 - **Worktree ブランチのマージ禁止**: worktree で並行作業した場合、ブランチ上で必ずコミットし、main へのマージはユーザーの明示的な許可を得てから行う。worktree のファイルを main に直接コピーしてはならない。作業完了後はブランチ名と変更サマリーを報告し、ユーザーのレビューを待つ。
 - **アイコンの対応**: デザインファイルは lucide アイコン、コードは SF Symbols を使用。以下の対応表を維持すること:
 
-| ツール | Pencil (lucide) | Code (SF Symbols) |
+| ツール | Pen (lucide) | Code (SF Symbols) |
 |--------|----------------|-------------------|
 | Select | mouse-pointer | cursorarrow |
 | Line | minus | minus |

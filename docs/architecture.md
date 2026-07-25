@@ -109,7 +109,7 @@ Sources/LCCAD/
 │   │   └── PageSection.swift     # ページレイアウト編集 (Page ツール時)
 │   ├── Shared/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField, NumberBoxField
-│   │   ├── DesignTokens.swift   # Pencil デザイン変数の Swift 転写
+│   │   ├── DesignTokens.swift   # Pen デザイン変数の Swift 転写
 │   │   └── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
 │   ├── PrickingIronSheet.swift  # 目打ち管理シート
 │   ├── BevelSheet.swift         # 範囲選択の一括面取りシート (Arrange ▸ Bevel…)

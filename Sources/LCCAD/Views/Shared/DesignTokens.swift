@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Design tokens matching the Pencil design file (lccad.pen) variables.
+/// Design tokens matching the Pen design file (lccad.pen) variables.
 /// These adapt to Light / Dark mode via @Environment(\.colorScheme).
 enum DesignTokens {
     // MARK: - Backgrounds

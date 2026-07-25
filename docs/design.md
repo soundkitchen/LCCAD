@@ -9,7 +9,7 @@
 
 ## デザインファイル
 
-- `design/lccad.pen` — Pencil デザインファイル（Single Source of Truth）
+- `design/lccad.pen` — Pen デザインファイル（Single Source of Truth）
   - `Main Editor - Light` — ライトモードのメインエディタ
   - `Main Editor - Dark` — ダークモードのメインエディタ
   - `Settings - Light` — ライトモードの設定画面（General タブ）

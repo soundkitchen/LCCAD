@@ -48,8 +48,8 @@ install: release ## Release ビルドして /Applications に入れ替え
 	@echo "✅ $(INSTALL_DIR)/$(APP_NAME).app を更新しました" \
 		"(v$$(defaults read $(INSTALL_DIR)/$(APP_NAME).app/Contents/Info CFBundleShortVersionString))"
 
-design: ## Pencil でデザインファイル (design/lccad.pen) を開く
-	open -a Pencil $(DESIGN_FILE)
+design: ## Pen でデザインファイル (design/lccad.pen) を開く
+	open -a Pen $(DESIGN_FILE)
 
 xcode: generate ## Xcode でプロジェクトを開く
 	open $(PROJECT)
