@@ -16,7 +16,9 @@ enum AutoStitchEngine {
     ///   the loop with no seam duplicate.
     /// - Open smooth paths (a single line or open curve): `Fixed` keeps an exact pitch from
     ///   the start; `Variable` evens the spacing so holes land on both ends; `Even Count`
-    ///   places exactly `holeCount` holes (both ends included), ignoring the pitch.
+    ///   places exactly `holeCount` holes (both ends included), ignoring the pitch;
+    ///   `Hybrid` keeps an exact pitch up to `fixedLength` and evens only the leftover
+    ///   stretch so the last hole still lands on the end.
     /// - Closed smooth paths also honor `Even Count` (exactly `holeCount` holes around the
     ///   loop). Exact counts on any path are the foundation for matching hole counts
     ///   across parts (駒合わせ).
@@ -24,7 +26,8 @@ enum AutoStitchEngine {
         along walker: PathWalkable,
         iron: PrickingIron,
         mode: StitchMode = .fixedPitch,
-        holeCount: Int? = nil
+        holeCount: Int? = nil,
+        fixedLength: CGFloat? = nil
     ) -> [StitchHole] {
         let total = walker.pathLength
         guard total > 0, iron.pitch > 0 else { return [] }
@@ -47,14 +50,19 @@ enum AutoStitchEngine {
             return evenCountHoles(along: walker, count: count, holeAngle: iron.holeAngle)
         }
 
-        // Closed loops are always evened (a fixed march would cluster at the seam);
-        // open runs honor the selected mode.
+        // Closed loops are always evened (a fixed march would cluster at the seam,
+        // and a loop has no start for a hybrid split); open runs honor the selected mode.
         if walker.isClosed {
             return variablePitchHoles(along: walker, targetPitch: iron.pitch, holeAngle: iron.holeAngle)
         }
         switch mode {
         case .fixedPitch:
             return fixedPitchHoles(along: walker, pitch: iron.pitch, holeAngle: iron.holeAngle)
+        case .hybrid:
+            guard let fixedLength else {
+                return variablePitchHoles(along: walker, targetPitch: iron.pitch, holeAngle: iron.holeAngle)
+            }
+            return hybridHoles(along: walker, pitch: iron.pitch, fixedUntil: fixedLength, holeAngle: iron.holeAngle)
         case .variablePitch, .evenCount:
             return variablePitchHoles(along: walker, targetPitch: iron.pitch, holeAngle: iron.holeAngle)
         }
@@ -312,6 +320,43 @@ enum AutoStitchEngine {
                 hole(along: walker, total: total, distance: min(CGFloat($0) * step, total), holeAngle: holeAngle)
             }
         }
+    }
+
+    /// Hybrid (#23c): exact `pitch` marching from the start (0, p, 2p, … kp) up to the
+    /// last pitch multiple at or before `fixedUntil`, then the leftover stretch to the
+    /// path end is evened at ~pitch so the last hole lands exactly on the end. Used only
+    /// for open smooth runs. `fixedUntil ≤ 0` degrades to fully evened (variable);
+    /// `fixedUntil ≥ pathLength` keeps the exact pitch as far as it fits and lets the
+    /// final stretch absorb the remainder.
+    private static func hybridHoles(
+        along walker: PathWalkable,
+        pitch: CGFloat,
+        fixedUntil: CGFloat,
+        holeAngle: CGFloat
+    ) -> [StitchHole] {
+        let total = walker.pathLength
+        guard total > 0, pitch > 0 else { return [] }
+
+        // Distances are clamped to the open run — `hole()`'s seam wrap is for closed
+        // spans and would fold a float-epsilon overshoot of the end back to the start.
+        let fixedEnd = min(max(fixedUntil, 0), total)
+        let k = Int(fixedEnd / pitch + 1e-6)
+        var holes: [StitchHole] = []
+        for i in 0...k {
+            holes.append(hole(along: walker, total: total,
+                              distance: min(CGFloat(i) * pitch, total), holeAngle: holeAngle))
+        }
+
+        let tailStart = CGFloat(k) * pitch
+        let tail = total - tailStart
+        guard tail > 1e-6 else { return holes }
+        let n = max(1, Int((tail / pitch).rounded()))
+        let step = tail / CGFloat(n)
+        for j in 1...n {
+            holes.append(hole(along: walker, total: total,
+                              distance: min(tailStart + CGFloat(j) * step, total), holeAngle: holeAngle))
+        }
+        return holes
     }
 
     /// Variable pitch: evenly distributed holes.

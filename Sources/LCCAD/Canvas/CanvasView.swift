@@ -54,6 +54,34 @@ struct CanvasView: View {
                     }
                 }
 
+                // 2.7. Hybrid pick ghost (#23c): while a split-point pick is pending,
+                // the holes a click would commit follow the cursor, with a marker at
+                // the fixed→variable handover point.
+                if let preview = editor.hybridPickPreview {
+                    var ghost = context
+                    ghost.opacity = 0.55
+                    for hole in preview.holes {
+                        renderer.drawStitchHole(hole, holeType: preview.holeType, holeSize: preview.holeSize,
+                                                tint: DesignTokens.stitchColor, in: ghost)
+                    }
+                    let split = editor.transform.worldToScreen(preview.splitPoint)
+                    let ringRadius: CGFloat = 8
+                    context.stroke(
+                        Path(ellipseIn: CGRect(x: split.x - ringRadius, y: split.y - ringRadius,
+                                               width: ringRadius * 2, height: ringRadius * 2)),
+                        with: .color(DesignTokens.accent), lineWidth: 1.5
+                    )
+                    // Tick across the path: perpendicular to the tangent at the split.
+                    let tickHalf: CGFloat = 9
+                    let normal = preview.splitAngle + .pi / 2
+                    var tick = Path()
+                    tick.move(to: CGPoint(x: split.x + cos(normal) * tickHalf,
+                                          y: split.y + sin(normal) * tickHalf))
+                    tick.addLine(to: CGPoint(x: split.x - cos(normal) * tickHalf,
+                                             y: split.y - sin(normal) * tickHalf))
+                    context.stroke(tick, with: .color(DesignTokens.accent), lineWidth: 1)
+                }
+
                 // 3. Drawing preview (in-progress shape)
                 DrawingPreviewRenderer.draw(
                     preview: editor.drawingPreview,
@@ -153,6 +181,16 @@ struct CanvasView: View {
                         .clipShape(Capsule())
                         .padding(.top, 10)
                         .allowsHitTesting(false)
+                } else if !editor.pendingHybridRuns.isEmpty {
+                    Text("クリックで固定→可変の切替点を指定 ・ Esc でキャンセル")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(DesignTokens.textOnAccent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(DesignTokens.accent.opacity(0.92))
+                        .clipShape(Capsule())
+                        .padding(.top, 10)
+                        .allowsHitTesting(false)
                 }
             }
             .scrollZoom(editor: editor)
@@ -210,6 +248,13 @@ struct CanvasView: View {
                 // Click-to-place: while a template is pending, a drag must not start a
                 // marquee/move. Keep the ghost following the cursor and place on release.
                 if editor.pendingTemplate != nil {
+                    editor.handleMouseMove(screenPoint: value.location)
+                    return
+                }
+
+                // Same for a pending hybrid split-point pick: no marquee/move, the
+                // ghost keeps tracking the cursor until the click commits.
+                if !editor.pendingHybridRuns.isEmpty {
                     editor.handleMouseMove(screenPoint: value.location)
                     return
                 }
@@ -351,6 +396,13 @@ struct CanvasView: View {
             .onEnded { value in
                 // Place a pending template at the release point (drag-end also counts as a place).
                 if editor.pendingTemplate != nil {
+                    editor.handleClick(at: value.location)
+                    editor.lastPanTranslation = nil
+                    return
+                }
+                // Same for a pending hybrid pick: a rough click that drifted past the
+                // tap threshold still commits at the release point.
+                if !editor.pendingHybridRuns.isEmpty {
                     editor.handleClick(at: value.location)
                     editor.lastPanTranslation = nil
                     return

@@ -335,14 +335,16 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
    - 開いたセグメント（直線・円弧・開ベジェ）は端点近接（`weldTolerance` 0.1mm）で連結し、必要なら `ReversedPathWalker` で向きを揃える。両端が出会えば閉ループ化。
 
    結果は `StitchPath { walker, sourceShapeIds }`。これにより線+円弧+…で描いた輪郭を **1 本の連続ステッチ**として扱える（#24 駒合わせの土台）。内・外を選べば各パーツが 1 本ずつになる。
-3. **穴生成** — `AutoStitchEngine.generateHoles(along:iron:mode:holeCount:)` が walker に沿って穴を配置:
+3. **穴生成** — `AutoStitchEngine.generateHoles(along:iron:mode:holeCount:fixedLength:)` が walker に沿って穴を配置:
    - **コーナーアンカー**: `CompositePathWalker.cornerDistances`（接線不連続 > 5°、閉なら継ぎ目も判定）で角に必ず穴を置き、**各「角〜角」スパンを均等割り**（`round(spanLen/pitch)`）して間隔を ≈ピッチに保つ。端数による角付近の詰まりを避けるため、コーナーを含む図形では `Fixed`/`Variable` に依らず均等配置になる。
    - **コーナー + `Even Count`（指定数あり）**: 合計ちょうど N 穴を配置（#24）。全アンカー（角、開パスは両端も）に穴を置き、残り R = N − アンカー数を「現在のスパン内間隔が最大のスパン」へ 1 穴ずつ貪欲に配分（`cornerConstrainedEvenCountHoles`）。最大間隔を最小化し、N に対して単調（N→N+1 で他スパンの穴が動かない）・決定的。N < アンカー数はアンカー数へクランプ。
-   - **角の無い図形**: `Even Count`=指定数 N をパス全長に均等配置（ピッチ無視。開は両端含む・N≥2 にクランプ、閉は継ぎ目重複なし）。それ以外は、閉（円・楕円・滑らかな閉曲線）は均等ループ（継ぎ目重複なし）、開（単一の直線・開曲線）は `Fixed`=定ピッチ／`Variable`=両端揃え。
+   - **角の無い図形**: `Even Count`=指定数 N をパス全長に均等配置（ピッチ無視。開は両端含む・N≥2 にクランプ、閉は継ぎ目重複なし）。それ以外は、閉（円・楕円・滑らかな閉曲線）は均等ループ（継ぎ目重複なし）、開（単一の直線・開曲線）は `Fixed`=定ピッチ／`Variable`=両端揃え／`Hybrid`=始点から `fixedLength` まで定ピッチ・残りを均等割りして終点に着地（#23c、`hybridHoles`。`fixedLength ≤ 0` は Variable と同値、`≥ 全長` は定ピッチが届く範囲＋端数吸収）。閉パス・角ありパスでは `Hybrid` はそれぞれ均等ループ／コーナーアンカーへフォールバック。
 
 `PathWalkable` は `pathLength` / `pointAtDistance` / `tangentAtDistance` に加え、`isClosed`・`cornerDistances`（既定は「開・角なし」）を持つ。具体 walker: `Line` / `Arc` / `Ellipse`（円=厳密・楕円=弧長LUT・回転対応）/ `BezierSegment` / `Composite`（連結・`isClosed`・角検出）/ `Reversed`。
 
 ステッチ設定 UI（`StitchSection`: Iron Type / Mode / Count / Pitch）は単一選択だけでなく**複数選択時も右パネルに表示**する（連結輪郭・複数パーツを選んで Auto Stitch するため）。Mode ピッカーは選択が「角を含むパスのみ」のとき無効化（#32。角なしパスを含めば `Even Count` が閉パスでも効くため有効。駒合わせは専用シート経由なのでこのゲートの影響を受けない）。Count 行は `Even Count` 選択時のみ表示し、そのとき効かない Pitch 行を減光する。`Even Count` の指定数は `StitchLine.holeCount` に永続化され、図形編集時の再生成でも同じ数を維持する（#23b）。
+
+**ハイブリッドの切替点ピック（#23c）** — Mode=`Hybrid` で Auto Stitch を実行すると、角なし開パスのランは即コミットせず `EditorViewModel.pendingHybridRuns` に入り、キャンバスがピックモードになる（角あり・閉パスのランは従来どおり即生成）。マウス移動で `hybridPickPreview`（クリック時に置かれる穴のゴースト＋固定→可変の切替点マーカー）がカーソルに追従し、クリックで**最寄りランへの射影距離**（粗サンプリング 256 分割＋三分探索の `projectedDistance`）を `StitchLine.fixedLength` として確定・コミットする。ラン複数時はクリックごとに 1 本ずつ確定し、Escape で残りをキャンセル（`pendingTemplate` のクリック配置と同型のインターセプト構造。クリックはスナップせず生カーソルを射影する）。`fixedLength` は永続化され、図形編集時の再生成でも同じ切替点を維持する。
 
 ### 駒合わせ縫い（Box Stitch, #24）
 
@@ -367,7 +369,7 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
 | 整列・分布 (`alignSelectedShapes` / `distributeSelectedShapes`) | 図形ごとの delta でシフト |
 
 **変形（穴再生成）** — `regenerateStitchLines(forShapeIds:)`
-- 対象ラインの `sourceShapeIds` から `weldedWalker(forShapeIds:)`（`StitchPathBuilder` で再連結）を引き、`AutoStitchEngine.generateHoles(along:iron:mode:holeCount:)` で `holes` を差し替え。多セグメント輪郭は各セグメントの編集に追従して再生成される
+- 対象ラインの `sourceShapeIds` から `weldedWalker(forShapeIds:)`（`StitchPathBuilder` で再連結）を引き、`AutoStitchEngine.generateHoles(along:iron:mode:holeCount:fixedLength:)` で `holes` を差し替え。多セグメント輪郭は各セグメントの編集に追従して再生成される
 - 図形が消えた／walker 非対応／連結が崩れて 1 本にまとまらない場合はステッチラインごと削除
 - `PrickingIron` が見つからない場合は穴を維持（ユーザーデータを保全）
 

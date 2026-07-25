@@ -1666,6 +1666,333 @@
                       "fontWeight": "normal"
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "zVFj7",
+                  "x": 250,
+                  "y": 36,
+                  "name": "Hybrid Pick Banner",
+                  "fill": "$accent",
+                  "cornerRadius": 13,
+                  "padding": [
+                    6,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "VAlCN",
+                      "name": "bannerText",
+                      "fill": "$text-on-accent",
+                      "content": "クリックで固定→可変の切替点を指定 ・ Esc でキャンセル",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ki2ox",
+                  "x": 160,
+                  "y": 580,
+                  "name": "Hybrid Pick Sample",
+                  "width": 600,
+                  "height": 110,
+                  "fill": "#00000000",
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "line",
+                      "id": "J4Ha1",
+                      "x": 20,
+                      "y": 70,
+                      "name": "hybridPath",
+                      "width": 560,
+                      "height": 0,
+                      "stroke": "$pattern-stroke",
+                      "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "Ts1WE",
+                      "x": 17.5,
+                      "y": 67.5,
+                      "name": "fixedDot1",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "AxACN",
+                      "x": 41.5,
+                      "y": 67.5,
+                      "name": "fixedDot2",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "JuciB",
+                      "x": 65.5,
+                      "y": 67.5,
+                      "name": "fixedDot3",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "N8oFcV",
+                      "x": 89.5,
+                      "y": 67.5,
+                      "name": "fixedDot4",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "O9ECT",
+                      "x": 113.5,
+                      "y": 67.5,
+                      "name": "fixedDot5",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "XXEaV",
+                      "x": 137.5,
+                      "y": 67.5,
+                      "name": "fixedDot6",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "AacEu",
+                      "x": 161.5,
+                      "y": 67.5,
+                      "name": "fixedDot7",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "Dcj99",
+                      "x": 185.5,
+                      "y": 67.5,
+                      "name": "fixedDot8",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "OadLg",
+                      "x": 209.5,
+                      "y": 67.5,
+                      "name": "fixedDot9",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "Pk5Sb",
+                      "x": 233.5,
+                      "y": 67.5,
+                      "name": "fixedDot10",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "W1DUHe",
+                      "x": 257.5,
+                      "y": 67.5,
+                      "name": "fixedDot11",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "R9zFm",
+                      "x": 281.5,
+                      "y": 67.5,
+                      "name": "fixedDot12",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "RnSZ5",
+                      "x": 305.5,
+                      "y": 67.5,
+                      "name": "fixedDot13",
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "RR8PQ",
+                      "x": 339.5,
+                      "y": 67.5,
+                      "name": "varDot1",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "tsATP",
+                      "x": 373.5,
+                      "y": 67.5,
+                      "name": "varDot2",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "y8O0f2",
+                      "x": 407.5,
+                      "y": 67.5,
+                      "name": "varDot3",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "LxXIk",
+                      "x": 441.5,
+                      "y": 67.5,
+                      "name": "varDot4",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "GkirX",
+                      "x": 475.5,
+                      "y": 67.5,
+                      "name": "varDot5",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "O288ud",
+                      "x": 509.5,
+                      "y": 67.5,
+                      "name": "varDot6",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "j94hAb",
+                      "x": 543.5,
+                      "y": 67.5,
+                      "name": "varDot7",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "nMLU5",
+                      "x": 577.5,
+                      "y": 67.5,
+                      "name": "varDot8",
+                      "opacity": 0.55,
+                      "fill": "$stitch-color",
+                      "width": 5,
+                      "height": 5
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "hfxH3",
+                      "x": 302,
+                      "y": 62,
+                      "name": "splitRing",
+                      "fill": "#00000000",
+                      "width": 16,
+                      "height": 16,
+                      "stroke": "$accent",
+                      "strokeWidth": 1.5
+                    },
+                    {
+                      "type": "line",
+                      "id": "leyYI",
+                      "x": 310,
+                      "y": 52,
+                      "name": "splitTick",
+                      "width": 0,
+                      "height": 36,
+                      "stroke": "$accent",
+                      "strokeWidth": 1
+                    },
+                    {
+                      "type": "icon",
+                      "id": "HVOdF",
+                      "x": 316,
+                      "y": 78,
+                      "name": "pickCursor",
+                      "width": 13,
+                      "height": 13,
+                      "icon": "mouse-pointer",
+                      "library": "lucide",
+                      "fill": "$text-primary"
+                    },
+                    {
+                      "type": "text",
+                      "id": "nAulb",
+                      "x": 130,
+                      "y": 92,
+                      "name": "fixedLabel",
+                      "fill": "$text-muted",
+                      "content": "Fixed 4.0 mm",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "BDs2o",
+                      "x": 420,
+                      "y": 92,
+                      "name": "varLabel",
+                      "fill": "$text-muted",
+                      "content": "Variable",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 9,
+                      "fontWeight": "normal"
+                    }
+                  ]
                 }
               ]
             },
@@ -2575,7 +2902,6 @@
                       "type": "frame",
                       "id": "t8o8F",
                       "name": "rpModeRow",
-                      "opacity": 0.4,
                       "width": "fill_container",
                       "gap": 8,
                       "alignItems": "center",
@@ -2619,7 +2945,7 @@
                               "id": "CLbYw",
                               "name": "rpModeVT",
                               "fill": "$text-primary",
-                              "content": "Fixed Pitch",
+                              "content": "Hybrid",
                               "fontFamily": "Inter",
                               "fontSize": 11,
                               "fontWeight": "normal"
