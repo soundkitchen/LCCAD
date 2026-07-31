@@ -192,10 +192,27 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
 
     func hitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
         let (a, b) = dimEndpoints
-        // Grab targets: the dimension line and the two extension lines.
+        // Grab targets: the dimension line, the two extension lines, and the label.
         return distanceToSegment(point, a, b) <= tolerance
             || distanceToSegment(point, start, a) <= tolerance
             || distanceToSegment(point, end, b) <= tolerance
+            || labelHitTest(point: point, tolerance: tolerance)
+    }
+
+    /// ラベル矩形 (回転考慮) のヒットテスト。ラベルは線から離れて置かれるため、
+    /// 数値クリックでも寸法線を選択できるようにする。テキスト幅はフォント
+    /// メトリクスに依存しないよう等幅近似 (文字数 × 0.62 × 文字高) で見積もる。
+    private func labelHitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
+        let c = labelCenter()
+        let d = labelDirection
+        let n = labelUpNormal
+        let relX = point.x - c.x, relY = point.y - c.y
+        let u = relX * d.x + relY * d.y   // 文字進行方向の成分
+        let v = relX * n.x + relY * n.y   // 上下方向の成分
+        let text = displayLabel(unit: .millimeters)
+        let halfW = CGFloat(text.count) * Self.textHeight * 0.62 / 2
+        let halfH = Self.textHeight / 2
+        return abs(u) <= halfW + tolerance && abs(v) <= halfH + tolerance
     }
 
     mutating func translate(by delta: CGPoint) {

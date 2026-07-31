@@ -78,7 +78,8 @@ enum DrawingPreviewRenderer {
         let fontSize: CGFloat = 10
         let up = dim.labelUpNormal
         let midDim = transform.worldToScreen(dim.labelAnchor)
-        let clearance = fontSize * 0.5 + 3
+        // labelGap (mm) を描画フォントサイズ比に換算 (CanvasRenderer と同一規則)
+        let clearance = fontSize * (0.5 + DimensionLineShape.labelGap / DimensionLineShape.textHeight)
         var labelContext = context
         labelContext.translateBy(x: midDim.x + up.x * clearance, y: midDim.y + up.y * clearance)
         labelContext.rotate(by: Angle(radians: dim.labelRotation))

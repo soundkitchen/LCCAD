@@ -283,7 +283,8 @@ struct CanvasRenderer {
         let fontSize = max(9, min(transform.worldToScreenDistance(DimensionLineShape.textHeight), 40))
         let up = dim.labelUpNormal
         let midDim = transform.worldToScreen(dim.labelAnchor)
-        let clearance = fontSize * 0.5 + 3
+        // labelGap (mm) を描画フォントサイズ比に換算 (フォントがクランプされても隙間が追従する)
+        let clearance = fontSize * (0.5 + DimensionLineShape.labelGap / DimensionLineShape.textHeight)
         let labelPos = CGPoint(x: midDim.x + up.x * clearance,
                                y: midDim.y + up.y * clearance)
         var labelContext = context

@@ -173,4 +173,24 @@ final class DimensionLineShapeTests: XCTestCase {
         let expected = DimensionLineShape.textHeight / 2 + DimensionLineShape.labelGap
         XCTAssertEqual(d.labelAnchor.y - c.y, expected, accuracy: 1e-9)
     }
+
+    // MARK: - label hit test
+
+    func testHitTestOnLabelHorizontal() {
+        // ラベルは線から離れているが、数値クリックでも選択できる
+        let d = dim(CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0), offset: 10, kind: .horizontal)
+        let c = d.labelCenter()
+        XCTAssertTrue(d.hitTest(point: c, tolerance: 1))
+        // ラベルからも線・矢印からも離れた点はヒットしない
+        XCTAssertFalse(d.hitTest(point: CGPoint(x: c.x, y: c.y - 10), tolerance: 1))
+    }
+
+    func testHitTestOnLabelVertical() {
+        // 縦寸法: 線の左に回転して置かれたラベルもヒット対象
+        let d = dim(CGPoint(x: 10, y: 0), CGPoint(x: 10, y: 80), offset: 5, kind: .vertical)
+        let c = d.labelCenter()
+        XCTAssertTrue(d.hitTest(point: c, tolerance: 1))
+        // 回転後の文字進行方向 (Y 方向) にラベル半幅+tolerance を超えて離れるとヒットしない
+        XCTAssertFalse(d.hitTest(point: CGPoint(x: c.x, y: c.y + 8), tolerance: 1))
+    }
 }
