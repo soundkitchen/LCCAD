@@ -729,7 +729,7 @@ private class CalibrationTestPageView: NSView {
         // distance = path size + strokeWidth. To ensure the OUTER edges measure
         // exactly 150mm when measured with calipers, subtract the stroke width
         // from the path rectangle.
-        let strokeWidth: CGFloat = 0.75
+        let strokeWidth = mmToPoints(StrokeStyle.fixedWidth)
         let squareOriginX = mmToPoints(5) + strokeWidth / 2
         let squareOriginY = mmToPoints(48) + strokeWidth / 2
         let squareWidthPt = mmToPoints(squareSizeMM) * calScaleX - strokeWidth

@@ -132,6 +132,41 @@ final class DXFExporterTests: XCTestCase {
         XCTAssertEqual(textCount, 1)
     }
 
+    // MARK: - LTYPE elements (pins the 0.6mm dot threshold against
+    // LineStyle.dashPattern — see DXFExporter.ltypeDefinition)
+
+    private func exportSingleLine(style: LineStyle) -> String {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.line(
+            LineShape(start: .zero, end: CGPoint(x: 50, y: 0),
+                      stroke: StrokeStyle(color: .black, lineStyle: style))))
+        return DXFExporter.export(document: doc)
+    }
+
+    func testDashedLtypeKeepsDashElement() {
+        let dxf = exportSingleLine(style: .dashed)
+        // dashed [0.6, 0.4]: 0.6 sits exactly at the dot threshold and must
+        // survive as a dash element, not degrade to a dot (0)
+        XCTAssertTrue(dxf.contains("\n49\n0.6000\n"), "0.6mm dash element expected")
+        XCTAssertTrue(dxf.contains("\n49\n-0.4000\n"), "0.4mm gap element expected")
+    }
+
+    func testDottedLtypeEmitsDotElements() {
+        let dxf = exportSingleLine(style: .dotted)
+        // dotted [0.2, 0.35]: 0.2 < 0.6 becomes a DXF dot (length 0)
+        XCTAssertTrue(dxf.contains("\n49\n0.0000\n"), "dot element (0) expected")
+        XCTAssertTrue(dxf.contains("\n49\n-0.3500\n"), "0.35mm gap element expected")
+    }
+
+    func testDashDotLtypeMixesDashAndDot() {
+        let dxf = exportSingleLine(style: .dashDot)
+        // dashDot [1, 0.4, 0.2, 0.4]: 1mm stays a dash, 0.2mm becomes a dot
+        XCTAssertTrue(dxf.contains("\n49\n1.0000\n"), "1mm dash element expected")
+        XCTAssertTrue(dxf.contains("\n49\n0.0000\n"), "dot element (0) expected")
+        XCTAssertTrue(dxf.contains("\n49\n-0.4000\n"), "0.4mm gap element expected")
+    }
+
     func testDimensionLabelIsMillimetersEvenForInchDocument() {
         var doc = DocumentData()
         doc.settings.unit = .inches

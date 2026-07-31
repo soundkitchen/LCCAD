@@ -18,15 +18,11 @@ struct StrokeSection: View {
                             .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
                     )
 
-                EditablePropertyField(
-                    label: "W",
-                    value: stroke.width,
-                    suffix: "mm",
-                    range: 0.01...100,
-                    onCommit: { newWidth in
-                        editor.updateStroke { $0.width = newWidth }
-                    }
-                )
+                // Width is fixed app-wide (StrokeStyle.fixedWidth) so printed
+                // line thickness never shifts calibrated dimensions.
+                Text(verbatim: "\(StrokeStyle.fixedWidth) mm (fixed)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DesignTokens.textMuted(colorScheme))
             }
 
             HStack(spacing: 8) {
