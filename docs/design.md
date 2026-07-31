@@ -159,7 +159,7 @@
 ### 4. Arc / Curve セクション（弧図形）
 - **R（半径）**: `EditablePropertyField` で mm 単位入力（範囲 0.1〜10000）
 - **中心角**: R / Start / End から決まる導出値のため表示のみ（回転アイコン + 度数）
-- **S / E（開始角 / 終了角）**: `EditablePropertyField` で度数入力（`°` サフィックス）。表示は 0〜360° に正規化
+- **S / E（開始角 / 終了角）**: `EditablePropertyField` で度数入力（`°` サフィックス）。表示・入力とも 0〜360° に正規化（`angleSpan` は 2π 補正を 1 回しか行わないため、範囲外の生値を保存すると弧が退化する）
 - 編集は `EditorViewModel.updateArcProperty` 経由で Undo 対応
 
 ### 5. Stitch Settings セクション

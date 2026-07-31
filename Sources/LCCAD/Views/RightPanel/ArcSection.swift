@@ -48,19 +48,21 @@ struct ArcSection: View {
                 }
 
                 HStack(spacing: 8) {
+                    // コミット側も 0〜2π に正規化する。angleSpan は 2π 補正を 1 回しか
+                    // 行わないため、±360° 超の生値を保存すると弧が退化・破損する
                     EditablePropertyField(
                         label: "S",
                         value: degrees(arc.normalizeAngle(arc.startAngle)),
                         suffix: "°"
                     ) { newValue in
-                        editor.updateArcProperty { $0.startAngle = radians(newValue) }
+                        editor.updateArcProperty { $0.startAngle = $0.normalizeAngle(radians(newValue)) }
                     }
                     EditablePropertyField(
                         label: "E",
                         value: degrees(arc.normalizeAngle(arc.endAngle)),
                         suffix: "°"
                     ) { newValue in
-                        editor.updateArcProperty { $0.endAngle = radians(newValue) }
+                        editor.updateArcProperty { $0.endAngle = $0.normalizeAngle(radians(newValue)) }
                     }
                 }
             }
