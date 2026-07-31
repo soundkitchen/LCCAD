@@ -56,4 +56,36 @@ final class EditorViewModelUndoTests: XCTestCase {
         editor.updatePageLayout(actionName: "Change Paper Size") { $0.paperSize = currentSize }
         XCTAssertFalse(undo.canUndo)
     }
+
+    // MARK: - Arc Property Undo/Redo
+
+    func testUpdateArcPropertySupportsUndoAndRedo() {
+        let arc = ArcShape(center: .zero, radius: 25, startAngle: 0, endAngle: .pi / 2)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.arc(arc)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [arc.id]
+
+        editor.updateArcProperty { $0.radius = 40 }
+        guard case .arc(let changed) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected arc")
+        }
+        XCTAssertEqual(changed.radius, 40)
+        XCTAssertTrue(undo.canUndo)
+
+        undo.undo()
+        guard case .arc(let reverted) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected arc")
+        }
+        XCTAssertEqual(reverted.radius, 25)
+        XCTAssertTrue(undo.canRedo)
+
+        undo.redo()
+        guard case .arc(let redone) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected arc")
+        }
+        XCTAssertEqual(redone.radius, 40)
+    }
 }

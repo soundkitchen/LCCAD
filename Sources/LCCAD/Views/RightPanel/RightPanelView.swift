@@ -79,7 +79,7 @@ struct RightPanelView: View {
                     }
 
                     if case .arc = shape {
-                        ArcSection()
+                        ArcSection(editor: editor)
                     }
 
                     if case .dimensionLine = shape {
