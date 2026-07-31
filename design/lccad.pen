@@ -2389,61 +2389,14 @@
                           "strokeAlignment": "inner"
                         },
                         {
-                          "type": "frame",
-                          "id": "KTwqa",
-                          "name": "rpThickBox",
-                          "width": "fill_container",
-                          "height": 28,
-                          "fill": "$bg-input",
-                          "cornerRadius": 4,
-                          "stroke": "$border",
-                          "strokeWidth": 1,
-                          "strokeAlignment": "inner",
-                          "gap": 4,
-                          "padding": [
-                            0,
-                            8
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "ULQcg",
-                              "name": "rpThickL",
-                              "fill": "$text-muted",
-                              "content": "W",
-                              "fontFamily": "Inter",
-                              "fontSize": 10,
-                              "fontWeight": "600"
-                            },
-                            {
-                              "type": "text",
-                              "id": "oOrEY",
-                              "name": "rpThickV",
-                              "fill": "$text-primary",
-                              "content": "0.25",
-                              "fontFamily": "Inter",
-                              "fontSize": 11,
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "rqJFU",
-                              "name": "rpThickSpacer",
-                              "width": "fill_container",
-                              "height": 1
-                            },
-                            {
-                              "type": "text",
-                              "id": "cJcNB",
-                              "name": "rpThickSuffix",
-                              "fill": "$text-muted",
-                              "content": "mm",
-                              "fontFamily": "Inter",
-                              "fontSize": 9,
-                              "fontWeight": "normal"
-                            }
-                          ]
+                          "type": "text",
+                          "id": "fgoXy",
+                          "name": "rpFixedWidthL",
+                          "fill": "$text-muted",
+                          "content": "0.1 mm (fixed)",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -5533,61 +5486,14 @@
                           "strokeAlignment": "inner"
                         },
                         {
-                          "type": "frame",
-                          "id": "W4cCu",
-                          "name": "rpThickBox",
-                          "width": "fill_container",
-                          "height": 28,
-                          "fill": "$bg-input",
-                          "cornerRadius": 4,
-                          "stroke": "$border",
-                          "strokeWidth": 1,
-                          "strokeAlignment": "inner",
-                          "gap": 4,
-                          "padding": [
-                            0,
-                            8
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "0G088",
-                              "name": "rpThickL",
-                              "fill": "$text-muted",
-                              "content": "W",
-                              "fontFamily": "Inter",
-                              "fontSize": 10,
-                              "fontWeight": "600"
-                            },
-                            {
-                              "type": "text",
-                              "id": "URW5y",
-                              "name": "rpThickV",
-                              "fill": "$text-primary",
-                              "content": "0.25",
-                              "fontFamily": "Inter",
-                              "fontSize": 11,
-                              "fontWeight": "normal"
-                            },
-                            {
-                              "type": "frame",
-                              "id": "ALUTF",
-                              "name": "rpThickSpacer",
-                              "width": "fill_container",
-                              "height": 1
-                            },
-                            {
-                              "type": "text",
-                              "id": "msjky",
-                              "name": "rpThickSuffix",
-                              "fill": "$text-muted",
-                              "content": "mm",
-                              "fontFamily": "Inter",
-                              "fontSize": 9,
-                              "fontWeight": "normal"
-                            }
-                          ]
+                          "type": "text",
+                          "id": "yXczT",
+                          "name": "rpFixedWidthL",
+                          "fill": "$text-muted",
+                          "content": "0.1 mm (fixed)",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
                         }
                       ]
                     },

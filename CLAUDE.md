@@ -75,7 +75,8 @@ make xcode     # Xcode でプロジェクトを開く
 - ファイル形式は独自フォーマット (.lccad)、JSON ベース（prettified）
 - メニューバーは macOS システムメニューバーを使用（ウィンドウ内には配置しない）
 - Light / Dark モード両対応
-- デフォルトストローク幅は 0.25mm（デフォルトズームで約1px）
+- ストローク幅は 0.1mm 固定（`StrokeStyle.fixedWidth`）。印刷キャリブレーションを安定させるためユーザーは変更不可。古いファイルの幅は読込時に 0.1mm へ正規化される
+- 破線パターンは mm 単位で `LineStyle.dashPattern` に一元定義（dashed [0.6, 0.4] / dotted [0.2, 0.35] / dashDot [1, 0.4, 0.2, 0.4]）
 
 ## Workflow Rules
 

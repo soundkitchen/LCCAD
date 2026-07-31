@@ -13,8 +13,9 @@ struct LineStylePreview: View {
             }
             let dash: [CGFloat]
             if let pattern = style.dashPattern {
-                // Scale mm values for preview visibility (~3x)
-                dash = pattern.map { $0 * 3 }
+                // Scale mm values for preview visibility (~8x); real patterns
+                // are too fine to distinguish at menu-preview size
+                dash = pattern.map { $0 * 8 }
             } else {
                 dash = []
             }

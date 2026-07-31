@@ -13,9 +13,9 @@ enum LineStyle: String, Codable, Equatable, Sendable, CaseIterable {
     var dashPattern: [CGFloat]? {
         switch self {
         case .solid:   return nil
-        case .dashed:  return [3, 2]
-        case .dotted:  return [0.5, 1.5]
-        case .dashDot: return [3, 1.5, 0.5, 1.5]
+        case .dashed:  return [0.6, 0.4]
+        case .dotted:  return [0.2, 0.35]
+        case .dashDot: return [1, 0.4, 0.2, 0.4]
         }
     }
 
@@ -43,17 +43,21 @@ enum LineStyle: String, Codable, Equatable, Sendable, CaseIterable {
 
 struct StrokeStyle: Codable, Equatable, Sendable {
     var color: CodableColor
+    /// Always `StrokeStyle.fixedWidth`; kept as a stored property only for
+    /// file-format compatibility (encoded/decoded but never user-editable).
     var width: CGFloat
     var lineStyle: LineStyle
     var dashPattern: [CGFloat]?
 
-    /// Default stroke: thin line suitable for CAD patterns.
-    /// Width is in world units (mm). At default zoom (3x), 0.25mm ≈ 0.75px → clamped to 1px.
-    static let `default` = StrokeStyle(color: CodableColor(r: 0, g: 0, b: 0), width: 0.25)
+    /// Stroke width is fixed app-wide (world units, mm) so printed line
+    /// thickness never shifts the calibrated real-world dimensions.
+    static let fixedWidth: CGFloat = 0.1
 
-    init(color: CodableColor, width: CGFloat, lineStyle: LineStyle = .solid) {
+    static let `default` = StrokeStyle(color: CodableColor(r: 0, g: 0, b: 0))
+
+    init(color: CodableColor, lineStyle: LineStyle = .solid) {
         self.color = color
-        self.width = width
+        self.width = Self.fixedWidth
         self.lineStyle = lineStyle
         self.dashPattern = lineStyle.dashPattern
     }
@@ -66,7 +70,8 @@ struct StrokeStyle: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         color = try container.decode(CodableColor.self, forKey: .color)
-        width = try container.decode(CGFloat.self, forKey: .width)
+        // Ignore stored width: older files carry user-set values (e.g. 0.25)
+        width = Self.fixedWidth
         lineStyle = try container.decodeIfPresent(LineStyle.self, forKey: .lineStyle) ?? .solid
         dashPattern = try container.decodeIfPresent([CGFloat].self, forKey: .dashPattern)
         // If lineStyle was decoded as non-solid, derive dashPattern from it
