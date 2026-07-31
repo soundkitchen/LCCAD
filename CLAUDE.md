@@ -71,7 +71,7 @@ make xcode     # Xcode でプロジェクトを開く
 - SwiftUI を優先し、AppKit は SwiftUI でカバーできない箇所のみ使用
 - キャンバス描画は `Canvas` ビュー (SwiftUI) または `NSView` + Core Graphics
 - 座標系は左上原点、Y 軸下方向正（macOS 標準の flipped coordinate）
-- 単位系は内部的にミリメートル (mm)、表示時に mm/inch 切替
+- 単位系は内部的にミリメートル (mm)。表示単位は現状 mm 固定（`LengthUnit` は実装済みだが切替 UI は未実装、将来対応）
 - ファイル形式は独自フォーマット (.lccad)、JSON ベース（prettified）
 - メニューバーは macOS システムメニューバーを使用（ウィンドウ内には配置しない）
 - Light / Dark モード両対応
