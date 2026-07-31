@@ -125,8 +125,17 @@ enum SVGExporter {
             s += "\n  " + svgArrowhead(tip: b, toward: a, color: c)
             // Exported geometry is always in mm, so the auto label is mm too,
             // keeping the file self-consistent regardless of the document's unit.
+            // JIS 流配置: 線に沿って回転し、読み姿勢での上側に離す (キャンバスと同一)。
             let label = dim.displayLabel(unit: .millimeters)
-            s += "\n  <text x=\"\(fmt(dim.labelAnchor.x))\" y=\"\(fmt(dim.labelAnchor.y))\" font-size=\"\(fmt(DimensionLineShape.textHeight))\" fill=\"\(c)\" stroke=\"none\" text-anchor=\"middle\">\(escapeXML(label))</text>"
+            let center = dim.labelCenter()
+            // text-anchor は水平中央のみなので、ベースラインを回転前の座標系で
+            // 中心から 0.35 × 文字高だけ下げて垂直方向も中央合わせにする。
+            let baselineY = center.y + DimensionLineShape.textHeight * 0.35
+            let deg = dim.labelRotation * 180 / .pi
+            let rotAttr = abs(deg) > 1e-9
+                ? " transform=\"rotate(\(fmt(deg)) \(fmt(center.x)) \(fmt(center.y)))\""
+                : ""
+            s += "\n  <text x=\"\(fmt(center.x))\" y=\"\(fmt(baselineY))\" font-size=\"\(fmt(DimensionLineShape.textHeight))\" fill=\"\(c)\" stroke=\"none\" text-anchor=\"middle\"\(rotAttr)>\(escapeXML(label))</text>"
             s += "\n</g>"
             return s
 

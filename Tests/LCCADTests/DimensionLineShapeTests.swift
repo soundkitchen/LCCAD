@@ -119,4 +119,58 @@ final class DimensionLineShapeTests: XCTestCase {
         XCTAssertEqual(d.end.x, 13, accuracy: 1e-9); XCTAssertEqual(d.end.y, 7, accuracy: 1e-9)
         XCTAssertEqual(d.offset, 5, accuracy: 1e-9)
     }
+
+    // MARK: - label placement (JIS 流)
+
+    func testLabelPlacementHorizontal() {
+        // 横線: 文字は左→右、ラベルは線の上 (Y 下向き座標なので -Y 側)
+        let d = dim(CGPoint(x: 0, y: 10), CGPoint(x: 100, y: 10), offset: 5, kind: .horizontal)
+        XCTAssertEqual(d.labelDirection.x, 1, accuracy: 1e-9)
+        XCTAssertEqual(d.labelDirection.y, 0, accuracy: 1e-9)
+        XCTAssertEqual(d.labelUpNormal.x, 0, accuracy: 1e-9)
+        XCTAssertEqual(d.labelUpNormal.y, -1, accuracy: 1e-9)
+        XCTAssertEqual(d.labelRotation, 0, accuracy: 1e-9)
+        let c = d.labelCenter()
+        XCTAssertEqual(c.x, d.labelAnchor.x, accuracy: 1e-9)
+        XCTAssertLessThan(c.y, d.labelAnchor.y)  // 線より上
+    }
+
+    func testLabelPlacementVertical() {
+        // 縦線: 文字は下→上 (90° 回転)、ラベルは線の左 (-X 側)
+        let d = dim(CGPoint(x: 10, y: 0), CGPoint(x: 10, y: 80), offset: 5, kind: .vertical)
+        XCTAssertEqual(d.labelDirection.x, 0, accuracy: 1e-9)
+        XCTAssertEqual(d.labelDirection.y, -1, accuracy: 1e-9)
+        XCTAssertEqual(d.labelUpNormal.x, -1, accuracy: 1e-9)
+        XCTAssertEqual(d.labelUpNormal.y, 0, accuracy: 1e-9)
+        XCTAssertEqual(d.labelRotation, -CGFloat.pi / 2, accuracy: 1e-9)
+        let c = d.labelCenter()
+        XCTAssertLessThan(c.x, d.labelAnchor.x)  // 線より左
+        XCTAssertEqual(c.y, d.labelAnchor.y, accuracy: 1e-9)
+    }
+
+    func testLabelDirectionNeverUpsideDown() {
+        // 右→左に引いた横寸法でも文字方向は左→右に正規化される
+        let d = dim(CGPoint(x: 100, y: 10), CGPoint(x: 0, y: 10), offset: 5, kind: .horizontal)
+        XCTAssertEqual(d.labelDirection.x, 1, accuracy: 1e-9)
+        XCTAssertEqual(d.labelDirection.y, 0, accuracy: 1e-9)
+    }
+
+    func testLabelPlacementAligned45Degrees() {
+        // 45° の aligned 寸法: 文字方向は線に沿い、法線はその左 90°
+        let d = dim(CGPoint(x: 0, y: 0), CGPoint(x: 10, y: 10), offset: 2, kind: .aligned)
+        let inv = 1 / CGFloat(2).squareRoot()
+        XCTAssertEqual(d.labelDirection.x, inv, accuracy: 1e-9)
+        XCTAssertEqual(d.labelDirection.y, inv, accuracy: 1e-9)
+        XCTAssertEqual(d.labelRotation, CGFloat.pi / 4, accuracy: 1e-9)
+        XCTAssertEqual(d.labelUpNormal.x, inv, accuracy: 1e-9)
+        XCTAssertEqual(d.labelUpNormal.y, -inv, accuracy: 1e-9)
+    }
+
+    func testLabelCenterClearanceMagnitude() {
+        // 中心は labelAnchor から 文字高/2 + labelGap だけ離れる
+        let d = dim(CGPoint(x: 0, y: 0), CGPoint(x: 100, y: 0), offset: 5, kind: .horizontal)
+        let c = d.labelCenter()
+        let expected = DimensionLineShape.textHeight / 2 + DimensionLineShape.labelGap
+        XCTAssertEqual(d.labelAnchor.y - c.y, expected, accuracy: 1e-9)
+    }
 }

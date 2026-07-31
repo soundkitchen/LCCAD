@@ -125,6 +125,48 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
         return a.midpoint(to: b)
     }
 
+    // MARK: - Label placement (JIS 製図流)
+
+    /// 寸法線とラベルの間の隙間 (mm)。
+    static let labelGap: CGFloat = 0.8
+
+    /// ラベルの文字進行方向(単位ベクトル、Y 下方向正の座標系)。
+    /// 寸法線に沿わせ、上下逆さに読ませないよう正規化する:
+    /// 右向き成分を持つ向きを採用し、完全な縦線は下→上(JIS の縦寸法)とする。
+    var labelDirection: CGPoint {
+        let (a, b) = dimEndpoints
+        let dx = b.x - a.x, dy = b.y - a.y
+        let len = (dx * dx + dy * dy).squareRoot()
+        guard len > 1e-9 else { return CGPoint(x: 1, y: 0) }
+        var d = CGPoint(x: dx / len, y: dy / len)
+        if d.x < -1e-9 || (abs(d.x) <= 1e-9 && d.y > 0) {
+            d = CGPoint(x: -d.x, y: -d.y)
+        }
+        return d
+    }
+
+    /// ラベルを置く側(読み姿勢での「上」)の単位法線。
+    /// 横線なら画面上方向、縦線なら左方向になる。
+    var labelUpNormal: CGPoint {
+        let d = labelDirection
+        return CGPoint(x: d.y, y: -d.x)
+    }
+
+    /// ラベルの回転角(ラジアン、Y 下方向正の座標系で `labelDirection` の向き)。
+    var labelRotation: CGFloat {
+        let d = labelDirection
+        return atan2(d.y, d.x)
+    }
+
+    /// ラベル中心位置 (world mm)。寸法線の中点から `labelUpNormal` 側へ
+    /// 文字高の半分 + `labelGap` だけ離す。
+    func labelCenter(textHeight: CGFloat = DimensionLineShape.textHeight) -> CGPoint {
+        let n = labelUpNormal
+        let clearance = textHeight / 2 + Self.labelGap
+        return CGPoint(x: labelAnchor.x + n.x * clearance,
+                       y: labelAnchor.y + n.y * clearance)
+    }
+
     /// Auto label text formatted in the given unit (one decimal place).
     func autoLabel(unit: LengthUnit) -> String {
         String(format: "%.1f", unit.fromMillimeters(measuredValue))

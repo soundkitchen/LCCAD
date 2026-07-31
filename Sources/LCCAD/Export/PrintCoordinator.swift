@@ -500,6 +500,7 @@ private class PrintableDocumentView: NSView {
             context.strokePath()
             fillArrowhead(in: context, tip: a, toward: b)
             fillArrowhead(in: context, tip: b, toward: a)
+            // JIS 流配置: 線に沿って回転し、読み姿勢での上側に離す (キャンバスと同一)。
             let label = dim.displayLabel(unit: document.settings.unit)
             let font = NSFont.systemFont(ofSize: DimensionLineShape.textHeight)
             let para = NSMutableParagraphStyle()
@@ -509,8 +510,10 @@ private class PrintableDocumentView: NSView {
             ]
             let attrStr = NSAttributedString(string: label, attributes: attrs)
             let sz = attrStr.size()
-            let anchor = dim.labelAnchor
-            attrStr.draw(in: NSRect(x: anchor.x - sz.width / 2, y: anchor.y - sz.height / 2,
+            let center = dim.labelCenter()
+            context.translateBy(x: center.x, y: center.y)
+            context.rotate(by: dim.labelRotation)
+            attrStr.draw(in: NSRect(x: -sz.width / 2, y: -sz.height / 2,
                                     width: sz.width, height: sz.height))
             context.restoreGState()
 

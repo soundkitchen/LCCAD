@@ -72,14 +72,21 @@ enum DrawingPreviewRenderer {
         drawStartPoint(dim.start, transform: transform, in: context)
         drawStartPoint(dim.end, transform: transform, in: context)
 
-        // Measured value label (mm, consistent with other previews)
+        // Measured value label (mm, consistent with other previews).
+        // 確定後の描画 (CanvasRenderer) と同じ JIS 流配置: 線に沿って回転し上側へ。
         let label = String(format: "%.1f mm", dim.measuredValue)
+        let fontSize: CGFloat = 10
+        let up = dim.labelUpNormal
         let midDim = transform.worldToScreen(dim.labelAnchor)
-        context.draw(
+        let clearance = fontSize * 0.5 + 3
+        var labelContext = context
+        labelContext.translateBy(x: midDim.x + up.x * clearance, y: midDim.y + up.y * clearance)
+        labelContext.rotate(by: Angle(radians: dim.labelRotation))
+        labelContext.draw(
             Text(label)
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.system(size: fontSize, weight: .medium, design: .monospaced))
                 .foregroundColor(previewColor),
-            at: CGPoint(x: midDim.x, y: midDim.y - 12),
+            at: .zero,
             anchor: .center
         )
     }

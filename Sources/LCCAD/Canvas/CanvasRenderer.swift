@@ -277,20 +277,23 @@ struct CanvasRenderer {
             drawArrowhead(tip: sB, bodyDir: CGPoint(x: -dir.x, y: -dir.y), length: arrowLen, color: color, in: context)
         }
 
-        // Label: centered on the dimension line, nudged to the outward side.
+        // Label: JIS 流に寸法線に沿って回転し、読み姿勢での上側に離して置く。
+        // フォントは画面上でクランプされるため、隙間も画面座標で同期して計算する。
         let label = dim.displayLabel(unit: unit)
         let fontSize = max(9, min(transform.worldToScreenDistance(DimensionLineShape.textHeight), 40))
+        let up = dim.labelUpNormal
         let midDim = transform.worldToScreen(dim.labelAnchor)
-        let midMeasured = transform.worldToScreen(dim.start.midpoint(to: dim.end))
-        var outward = unitVector(from: midMeasured, to: midDim)
-        if outward == .zero { outward = CGPoint(x: 0, y: -1) }
-        let labelPos = CGPoint(x: midDim.x + outward.x * (fontSize * 0.8),
-                               y: midDim.y + outward.y * (fontSize * 0.8))
-        context.draw(
+        let clearance = fontSize * 0.5 + 3
+        let labelPos = CGPoint(x: midDim.x + up.x * clearance,
+                               y: midDim.y + up.y * clearance)
+        var labelContext = context
+        labelContext.translateBy(x: labelPos.x, y: labelPos.y)
+        labelContext.rotate(by: Angle(radians: dim.labelRotation))
+        labelContext.draw(
             Text(label)
                 .font(.system(size: fontSize, weight: .regular, design: .monospaced))
                 .foregroundColor(color),
-            at: labelPos,
+            at: .zero,
             anchor: .center
         )
     }
