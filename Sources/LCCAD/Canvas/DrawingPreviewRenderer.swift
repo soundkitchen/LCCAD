@@ -16,6 +16,7 @@ enum DrawingPreviewRenderer {
             drawStartPoint(start, transform: transform, in: context)
             drawPreviewLine(from: start, to: end, transform: transform, in: context)
             drawEndCrosshair(end, transform: transform, in: context)
+            drawLengthLabel(from: start, to: end, transform: transform, in: context)
 
         case .lineFromDrag(let start, let end):
             drawStartPoint(start, transform: transform, in: context)
