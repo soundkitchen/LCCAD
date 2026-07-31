@@ -20,7 +20,7 @@ struct StrokeSection: View {
 
                 // Width is fixed app-wide (StrokeStyle.fixedWidth) so printed
                 // line thickness never shifts calibrated dimensions.
-                Text("\(StrokeStyle.fixedWidth.formatted()) mm (fixed)")
+                Text(verbatim: "\(StrokeStyle.fixedWidth) mm (fixed)")
                     .font(.system(size: 10))
                     .foregroundStyle(DesignTokens.textMuted(colorScheme))
             }

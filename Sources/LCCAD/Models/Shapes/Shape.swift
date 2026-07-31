@@ -10,6 +10,8 @@ enum LineStyle: String, Codable, Equatable, Sendable, CaseIterable {
     case dashDot    // 一点鎖線
 
     /// Dash pattern in world units (mm). nil means solid line.
+    /// NOTE: DXFExporter emits dash elements < 0.6mm as LTYPE dots — keep
+    /// intentional dashes (dashed/dashDot leading elements) at ≥ 0.6.
     var dashPattern: [CGFloat]? {
         switch self {
         case .solid:   return nil
@@ -73,11 +75,9 @@ struct StrokeStyle: Codable, Equatable, Sendable {
         // Ignore stored width: older files carry user-set values (e.g. 0.25)
         width = Self.fixedWidth
         lineStyle = try container.decodeIfPresent(LineStyle.self, forKey: .lineStyle) ?? .solid
-        dashPattern = try container.decodeIfPresent([CGFloat].self, forKey: .dashPattern)
-        // If lineStyle was decoded as non-solid, derive dashPattern from it
-        if lineStyle != .solid {
-            dashPattern = lineStyle.dashPattern
-        }
+        // Always re-derive from lineStyle: normalizes stale stored patterns,
+        // including leftover non-nil patterns on solid strokes
+        dashPattern = lineStyle.dashPattern
     }
 }
 

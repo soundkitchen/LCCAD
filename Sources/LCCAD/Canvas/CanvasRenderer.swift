@@ -11,8 +11,16 @@ struct CanvasRenderer {
         // Ensure lines are always visible (min 0.75px) but scale with zoom
         let scaledWidth = transform.worldToScreenDistance(shape.stroke.width)
         let lineWidth = max(0.75, min(scaledWidth, 4.0))
-        let dash: [CGFloat] = (shape.stroke.dashPattern ?? [])
-            .map { max(1, transform.worldToScreenDistance($0)) }
+        // Scale the whole pattern uniformly so the smallest element stays
+        // visible (≥1.5px) while the duty ratio is preserved; per-element
+        // clamping collapsed all styles to the same 1px on/off at low zoom.
+        // Print/export use the raw mm pattern and are unaffected.
+        var dash: [CGFloat] = (shape.stroke.dashPattern ?? [])
+            .map { transform.worldToScreenDistance($0) }
+        if let minElement = dash.min(), minElement > 0, minElement < 1.5 {
+            let k = 1.5 / minElement
+            dash = dash.map { $0 * k }
+        }
         let strokeStyle = SwiftUI.StrokeStyle(lineWidth: lineWidth, dash: dash)
 
         switch shape {

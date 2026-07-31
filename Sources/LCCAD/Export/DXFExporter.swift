@@ -71,7 +71,9 @@ enum DXFExporter {
         var elements: [CGFloat] = []
         for (i, val) in pattern.enumerated() {
             if i % 2 == 0 {
-                // Dash segment: use 0 for dots (values < 0.6mm)
+                // Dash segment: use 0 for dots (values < 0.6mm).
+                // LineStyle.dashPattern relies on this threshold — dashed's
+                // 0.6mm element must stay a dash (pinned by DXFExporterTests)
                 elements.append(val < 0.6 ? 0 : val)
             } else {
                 // Gap segment: negative value
