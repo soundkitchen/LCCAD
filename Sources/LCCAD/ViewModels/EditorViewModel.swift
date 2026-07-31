@@ -656,6 +656,17 @@ final class EditorViewModel {
         registerUndo(actionName: "Edit Dimension", oldDocument: old)
     }
 
+    /// 選択中の弧をアンドゥ登録付きで編集する。
+    func updateArcProperty(_ update: (inout ArcShape) -> Void) {
+        guard let id = selectedShapeIds.first,
+              let (li, si) = findShapeLocation(id: id),
+              case .arc(var arc) = document.layers[li].shapes[si] else { return }
+        let old = document
+        update(&arc)
+        document.layers[li].shapes[si] = .arc(arc)
+        registerUndo(actionName: "Edit Arc", oldDocument: old)
+    }
+
     // MARK: - Bezier Point Editing
 
     func bezierPointHitTest(worldPoint: CGPoint, shape: BezierShape, tolerance: CGFloat) -> (pointIndex: Int, target: BezierDragTarget)? {

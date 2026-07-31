@@ -2791,65 +2791,124 @@
                     },
                     {
                       "type": "frame",
-                      "id": "4w2BZ",
+                      "id": "yLqRm",
                       "name": "arcRow2",
                       "width": "fill_container",
                       "gap": 8,
-                      "alignItems": "center",
                       "children": [
                         {
-                          "type": "text",
-                          "id": "1HAUc",
-                          "name": "arcStartL",
-                          "fill": "$text-secondary",
-                          "content": "Start",
-                          "fontFamily": "Inter",
-                          "fontSize": 10,
-                          "fontWeight": "normal"
-                        },
-                        {
                           "type": "frame",
-                          "id": "QP8FH",
-                          "name": "arcStartSp",
+                          "id": "KlbPe",
+                          "name": "arcStartBox",
                           "width": "fill_container",
-                          "height": 1
-                        },
-                        {
-                          "type": "text",
-                          "id": "kKq7f",
-                          "name": "arcStartV",
-                          "fill": "$text-primary",
-                          "content": "0°",
-                          "fontFamily": "Inter",
-                          "fontSize": 11,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "type": "text",
-                          "id": "GSrih",
-                          "name": "arcEndL",
-                          "fill": "$text-secondary",
-                          "content": "End",
-                          "fontFamily": "Inter",
-                          "fontSize": 10,
-                          "fontWeight": "normal"
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "F8hzoB",
+                              "name": "arcStartL",
+                              "fill": "$text-muted",
+                              "content": "S",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "DK7Du",
+                              "name": "arcStartV",
+                              "fill": "$text-primary",
+                              "content": "0.0",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "cQE5S",
+                              "name": "arcStartSp",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "text",
+                              "id": "yqoCg",
+                              "name": "arcStartU",
+                              "fill": "$text-muted",
+                              "content": "°",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
                         },
                         {
                           "type": "frame",
-                          "id": "35JW5",
-                          "name": "arcEndSp",
-                          "width": 8,
-                          "height": 1
-                        },
-                        {
-                          "type": "text",
-                          "id": "UiA4c",
-                          "name": "arcEndV",
-                          "fill": "$text-primary",
-                          "content": "90°",
-                          "fontFamily": "Inter",
-                          "fontSize": 11,
-                          "fontWeight": "normal"
+                          "id": "ER1Lw",
+                          "name": "arcEndBox",
+                          "width": "fill_container",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "V6M4Lp",
+                              "name": "arcEndL",
+                              "fill": "$text-muted",
+                              "content": "E",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "uKast",
+                              "name": "arcEndV",
+                              "fill": "$text-primary",
+                              "content": "90.0",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "tk2HN",
+                              "name": "arcEndSp",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "text",
+                              "id": "r1lnk",
+                              "name": "arcEndU",
+                              "fill": "$text-muted",
+                              "content": "°",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
                         }
                       ]
                     }
@@ -5983,65 +6042,124 @@
                     },
                     {
                       "type": "frame",
-                      "id": "q163y",
+                      "id": "V5Vir",
                       "name": "darcRow2",
                       "width": "fill_container",
                       "gap": 8,
-                      "alignItems": "center",
                       "children": [
                         {
-                          "type": "text",
-                          "id": "xwg1K",
-                          "name": "darcStartL",
-                          "fill": "$text-secondary",
-                          "content": "Start",
-                          "fontFamily": "Inter",
-                          "fontSize": 10,
-                          "fontWeight": "normal"
-                        },
-                        {
                           "type": "frame",
-                          "id": "joYZ5",
-                          "name": "darcStartSp",
+                          "id": "ZkakC",
+                          "name": "darcStartBox",
                           "width": "fill_container",
-                          "height": 1
-                        },
-                        {
-                          "type": "text",
-                          "id": "1k1Pu",
-                          "name": "darcStartV",
-                          "fill": "$text-primary",
-                          "content": "0°",
-                          "fontFamily": "Inter",
-                          "fontSize": 11,
-                          "fontWeight": "normal"
-                        },
-                        {
-                          "type": "text",
-                          "id": "s5pBQ",
-                          "name": "darcEndL",
-                          "fill": "$text-secondary",
-                          "content": "End",
-                          "fontFamily": "Inter",
-                          "fontSize": 10,
-                          "fontWeight": "normal"
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "v0RJi",
+                              "name": "darcStartL",
+                              "fill": "$text-muted",
+                              "content": "S",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Qzrvv",
+                              "name": "darcStartV",
+                              "fill": "$text-primary",
+                              "content": "0.0",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "jkBD7",
+                              "name": "darcStartSp",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "text",
+                              "id": "RI1cM",
+                              "name": "darcStartU",
+                              "fill": "$text-muted",
+                              "content": "°",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
                         },
                         {
                           "type": "frame",
-                          "id": "OLb94",
-                          "name": "darcEndSp",
-                          "width": 8,
-                          "height": 1
-                        },
-                        {
-                          "type": "text",
-                          "id": "BSBNq",
-                          "name": "darcEndV",
-                          "fill": "$text-primary",
-                          "content": "90°",
-                          "fontFamily": "Inter",
-                          "fontSize": 11,
-                          "fontWeight": "normal"
+                          "id": "f7pc4",
+                          "name": "darcEndBox",
+                          "width": "fill_container",
+                          "height": 28,
+                          "fill": "$bg-input",
+                          "cornerRadius": 4,
+                          "stroke": "$border",
+                          "strokeWidth": 1,
+                          "strokeAlignment": "inner",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            8
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "XGZdT",
+                              "name": "darcEndL",
+                              "fill": "$text-muted",
+                              "content": "E",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "iFBv3",
+                              "name": "darcEndV",
+                              "fill": "$text-primary",
+                              "content": "90.0",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Z3qp5q",
+                              "name": "darcEndSp",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "text",
+                              "id": "l6V8L",
+                              "name": "darcEndU",
+                              "fill": "$text-muted",
+                              "content": "°",
+                              "fontFamily": "Inter",
+                              "fontSize": 10,
+                              "fontWeight": "normal"
+                            }
+                          ]
                         }
                       ]
                     }
