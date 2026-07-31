@@ -125,6 +125,48 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
         return a.midpoint(to: b)
     }
 
+    // MARK: - Label placement (JIS 製図流)
+
+    /// 寸法線とラベルの間の隙間 (mm)。
+    static let labelGap: CGFloat = 0.8
+
+    /// ラベルの文字進行方向(単位ベクトル、Y 下方向正の座標系)。
+    /// 寸法線に沿わせ、上下逆さに読ませないよう正規化する:
+    /// 右向き成分を持つ向きを採用し、完全な縦線は下→上(JIS の縦寸法)とする。
+    var labelDirection: CGPoint {
+        let (a, b) = dimEndpoints
+        let dx = b.x - a.x, dy = b.y - a.y
+        let len = (dx * dx + dy * dy).squareRoot()
+        guard len > 1e-9 else { return CGPoint(x: 1, y: 0) }
+        var d = CGPoint(x: dx / len, y: dy / len)
+        if d.x < -1e-9 || (abs(d.x) <= 1e-9 && d.y > 0) {
+            d = CGPoint(x: -d.x, y: -d.y)
+        }
+        return d
+    }
+
+    /// ラベルを置く側(読み姿勢での「上」)の単位法線。
+    /// 横線なら画面上方向、縦線なら左方向になる。
+    var labelUpNormal: CGPoint {
+        let d = labelDirection
+        return CGPoint(x: d.y, y: -d.x)
+    }
+
+    /// ラベルの回転角(ラジアン、Y 下方向正の座標系で `labelDirection` の向き)。
+    var labelRotation: CGFloat {
+        let d = labelDirection
+        return atan2(d.y, d.x)
+    }
+
+    /// ラベル中心位置 (world mm)。寸法線の中点から `labelUpNormal` 側へ
+    /// 文字高の半分 + `labelGap` だけ離す。
+    func labelCenter(textHeight: CGFloat = DimensionLineShape.textHeight) -> CGPoint {
+        let n = labelUpNormal
+        let clearance = textHeight / 2 + Self.labelGap
+        return CGPoint(x: labelAnchor.x + n.x * clearance,
+                       y: labelAnchor.y + n.y * clearance)
+    }
+
     /// Auto label text formatted in the given unit (one decimal place).
     func autoLabel(unit: LengthUnit) -> String {
         String(format: "%.1f", unit.fromMillimeters(measuredValue))
@@ -150,10 +192,27 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
 
     func hitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
         let (a, b) = dimEndpoints
-        // Grab targets: the dimension line and the two extension lines.
+        // Grab targets: the dimension line, the two extension lines, and the label.
         return distanceToSegment(point, a, b) <= tolerance
             || distanceToSegment(point, start, a) <= tolerance
             || distanceToSegment(point, end, b) <= tolerance
+            || labelHitTest(point: point, tolerance: tolerance)
+    }
+
+    /// ラベル矩形 (回転考慮) のヒットテスト。ラベルは線から離れて置かれるため、
+    /// 数値クリックでも寸法線を選択できるようにする。テキスト幅はフォント
+    /// メトリクスに依存しないよう等幅近似 (文字数 × 0.62 × 文字高) で見積もる。
+    private func labelHitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
+        let c = labelCenter()
+        let d = labelDirection
+        let n = labelUpNormal
+        let relX = point.x - c.x, relY = point.y - c.y
+        let u = relX * d.x + relY * d.y   // 文字進行方向の成分
+        let v = relX * n.x + relY * n.y   // 上下方向の成分
+        let text = displayLabel(unit: .millimeters)
+        let halfW = CGFloat(text.count) * Self.textHeight * 0.62 / 2
+        let halfH = Self.textHeight / 2
+        return abs(u) <= halfW + tolerance && abs(v) <= halfH + tolerance
     }
 
     mutating func translate(by delta: CGPoint) {

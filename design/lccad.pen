@@ -1993,6 +1993,101 @@
                       "fontWeight": "normal"
                     }
                   ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XWxkJ",
+                  "x": 700,
+                  "y": 130,
+                  "name": "Dimension Sample V",
+                  "width": 44,
+                  "height": 208,
+                  "fill": "#00000000",
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "line",
+                      "id": "uVUuJ",
+                      "x": 7,
+                      "y": 0,
+                      "name": "extTop",
+                      "width": 33,
+                      "height": 0,
+                      "stroke": "$dimension-color",
+                      "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "line",
+                      "id": "vgzhF",
+                      "x": 7,
+                      "y": 200,
+                      "name": "extBottom",
+                      "width": 33,
+                      "height": 0,
+                      "stroke": "$dimension-color",
+                      "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "line",
+                      "id": "JMu2Q",
+                      "x": 32,
+                      "y": 0,
+                      "name": "dimLineV",
+                      "width": 0,
+                      "height": 200,
+                      "stroke": "$dimension-color",
+                      "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "path",
+                      "id": "O0gBk",
+                      "x": 35,
+                      "y": 0,
+                      "name": "arrowTop",
+                      "rotation": 270,
+                      "geometry": "M0 3l8-3 0 6z",
+                      "viewBox": [
+                        0,
+                        0,
+                        8,
+                        6
+                      ],
+                      "fill": "$dimension-color",
+                      "width": 8,
+                      "height": 6
+                    },
+                    {
+                      "type": "path",
+                      "id": "vKC2s",
+                      "x": 35,
+                      "y": 192,
+                      "name": "arrowBottom",
+                      "rotation": 270,
+                      "geometry": "M8 3l-8-3 0 6z",
+                      "viewBox": [
+                        0,
+                        0,
+                        8,
+                        6
+                      ],
+                      "fill": "$dimension-color",
+                      "width": 8,
+                      "height": 6
+                    },
+                    {
+                      "type": "text",
+                      "id": "ZfTIL",
+                      "x": 14,
+                      "y": 115,
+                      "name": "dimSampleLabelV",
+                      "rotation": 90,
+                      "fill": "$dimension-color",
+                      "content": "80.0",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
                 }
               ]
             },
@@ -5085,6 +5180,101 @@
                       "name": "dimSampleLabel",
                       "fill": "$dimension-color",
                       "content": "120.0",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "OKUpL",
+                  "x": 700,
+                  "y": 130,
+                  "name": "Dimension Sample V",
+                  "width": 44,
+                  "height": 208,
+                  "fill": "#00000000",
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "line",
+                      "id": "c4t4VG",
+                      "x": 7,
+                      "y": 0,
+                      "name": "extTop",
+                      "width": 33,
+                      "height": 0,
+                      "stroke": "$dimension-color",
+                      "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "line",
+                      "id": "W9Inmf",
+                      "x": 7,
+                      "y": 200,
+                      "name": "extBottom",
+                      "width": 33,
+                      "height": 0,
+                      "stroke": "$dimension-color",
+                      "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "line",
+                      "id": "UOjXx",
+                      "x": 32,
+                      "y": 0,
+                      "name": "dimLineV",
+                      "width": 0,
+                      "height": 200,
+                      "stroke": "$dimension-color",
+                      "strokeWidth": 0.75
+                    },
+                    {
+                      "type": "path",
+                      "id": "Sr5Jt",
+                      "x": 35,
+                      "y": 0,
+                      "name": "arrowTop",
+                      "rotation": 270,
+                      "geometry": "M0 3l8-3 0 6z",
+                      "viewBox": [
+                        0,
+                        0,
+                        8,
+                        6
+                      ],
+                      "fill": "$dimension-color",
+                      "width": 8,
+                      "height": 6
+                    },
+                    {
+                      "type": "path",
+                      "id": "ayYPi",
+                      "x": 35,
+                      "y": 192,
+                      "name": "arrowBottom",
+                      "rotation": 270,
+                      "geometry": "M8 3l-8-3 0 6z",
+                      "viewBox": [
+                        0,
+                        0,
+                        8,
+                        6
+                      ],
+                      "fill": "$dimension-color",
+                      "width": 8,
+                      "height": 6
+                    },
+                    {
+                      "type": "text",
+                      "id": "dSco0",
+                      "x": 14,
+                      "y": 115,
+                      "name": "dimSampleLabelV",
+                      "rotation": 90,
+                      "fill": "$dimension-color",
+                      "content": "80.0",
                       "fontFamily": "Geist Mono",
                       "fontSize": 11,
                       "fontWeight": "normal"

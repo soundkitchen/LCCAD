@@ -132,6 +132,38 @@ final class DXFExporterTests: XCTestCase {
         XCTAssertEqual(textCount, 1)
     }
 
+    func testDimensionLabelIsCenterAligned() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.dimensionLine(
+            DimensionLineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 20, y: 0),
+                               offset: 5, kind: .horizontal)))
+
+        let dxf = DXFExporter.export(document: doc)
+
+        // LTYPE テーブルも 72/73 コードを使うため、TEXT エンティティ部分に限定して検証する
+        let textEntity = dxf.components(separatedBy: "\n0\nTEXT\n").last ?? ""
+        // ラベルは第2整列点による中央揃え (72=1 center / 73=2 middle) で出力される
+        XCTAssertTrue(textEntity.contains("\n72\n1\n11\n"), "TEXT should carry horizontal center alignment (72=1) with a second alignment point")
+        XCTAssertTrue(textEntity.contains("\n73\n2\n"), "TEXT should carry vertical middle alignment (73=2)")
+        // 横寸法は回転コードなし
+        XCTAssertFalse(textEntity.contains("\n50\n"), "Horizontal dimension label must not carry a rotation code")
+    }
+
+    func testVerticalDimensionLabelIsRotated() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.dimensionLine(
+            DimensionLineShape(start: CGPoint(x: 10, y: 0), end: CGPoint(x: 10, y: 80),
+                               offset: 5, kind: .vertical)))
+
+        let dxf = DXFExporter.export(document: doc)
+
+        // 縦寸法のラベルは回転コード 50 = -90°(flipY なしの既定)で出力される
+        let textEntity = dxf.components(separatedBy: "\n0\nTEXT\n").last ?? ""
+        XCTAssertTrue(textEntity.contains("\n50\n-90.0000\n"), "Vertical dimension label should carry rotation code 50 = -90")
+    }
+
     // MARK: - LTYPE elements (pins the 0.6mm dot threshold against
     // LineStyle.dashPattern — see DXFExporter.ltypeDefinition)
 

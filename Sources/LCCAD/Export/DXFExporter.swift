@@ -231,9 +231,14 @@ enum DXFExporter {
             s += dxfArrowhead(tip: b, toward: a, options: options, layer: layer)
             // Exported coordinates are always in mm, so the auto label is mm too,
             // keeping the file self-consistent regardless of the document's unit.
+            // JIS 流配置: 線に沿って回転し、読み姿勢での上側に離す (キャンバスと同一)。
+            let labelCenter = dim.labelCenter()
+            let rotDeg = dim.labelRotation * 180 / .pi
             s += textEntity(
-                x: dim.labelAnchor.x, y: yVal(dim.labelAnchor.y, options),
+                x: labelCenter.x, y: yVal(labelCenter.y, options),
                 height: DimensionLineShape.textHeight, content: dim.displayLabel(unit: .millimeters),
+                rotationDeg: options.flipY ? -rotDeg : rotDeg,
+                centered: true,
                 layer: layer
             )
             return s
@@ -279,10 +284,14 @@ enum DXFExporter {
         "0\nPOINT\n8\n\(layer)\n10\n\(fmt(x))\n20\n\(fmt(y))\n"
     }
 
-    private static func textEntity(x: CGFloat, y: CGFloat, height: CGFloat, content: String, rotationDeg: CGFloat = 0, layer: String) -> String {
+    private static func textEntity(x: CGFloat, y: CGFloat, height: CGFloat, content: String, rotationDeg: CGFloat = 0, centered: Bool = false, layer: String) -> String {
         var s = "0\nTEXT\n8\n\(layer)\n10\n\(fmt(x))\n20\n\(fmt(y))\n40\n\(fmt(height))\n1\n\(sanitizeText(content))\n"
         if rotationDeg != 0 {
             s += "50\n\(fmt(rotationDeg))\n"
+        }
+        if centered {
+            // 72=1 (center) / 73=2 (middle): 第2整列点 (11/21) を中心とする配置
+            s += "72\n1\n11\n\(fmt(x))\n21\n\(fmt(y))\n73\n2\n"
         }
         return s
     }

@@ -106,5 +106,20 @@ final class SVGExporterTests: XCTestCase {
         // Label uses mm (matches the file's mm coordinates), not the inch display unit.
         XCTAssertTrue(svg.contains(">25.4</text>"), "Dimension label should be the mm value")
         XCTAssertFalse(svg.contains(">1.0</text>"), "Inch-converted label must not appear")
+        // 横寸法のラベルは回転しない
+        XCTAssertFalse(svg.contains("rotate("), "Horizontal dimension label must not be rotated")
+    }
+
+    func testVerticalDimensionLabelIsRotated() {
+        var doc = DocumentData()
+        doc.layers = [Layer(name: "L1")]
+        doc.layers[0].shapes.append(.dimensionLine(
+            DimensionLineShape(start: CGPoint(x: 10, y: 0), end: CGPoint(x: 10, y: 80),
+                               offset: 5, kind: .vertical)))
+
+        let svg = SVGExporter.export(document: doc)
+
+        // 縦寸法のラベルは -90°(反時計回り、下から上に読む)回転で出力される
+        XCTAssertTrue(svg.contains("rotate(-90"), "Vertical dimension label should carry a -90° rotate transform")
     }
 }
