@@ -31,10 +31,16 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("-")
 
+            // macOS 標準準拠: ⌘0 = Actual Size(100%)、⇧⌘0 = Zoom to Fit (#49)
+            Button("Actual Size") {
+                editor?.zoomToActualSize()
+            }
+            .keyboardShortcut("0")
+
             Button("Zoom to Fit") {
                 editor?.zoomToFit()
             }
-            .keyboardShortcut("0")
+            .keyboardShortcut("0", modifiers: [.command, .shift])
 
             Divider()
 

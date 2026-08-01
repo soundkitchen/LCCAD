@@ -1913,7 +1913,33 @@ final class EditorViewModel {
         transform.zoom(by: 1 / 1.2, center: c)
     }
 
+    /// 表示中レイヤーの全図形が収まるようにズーム・パンする（CAD の Zoom Extents 相当）。
+    /// 図形がひとつもなければ Actual Size（100% リセット）にフォールバックする。
     func zoomToFit() {
+        let shapes = document.layers.filter(\.isVisible).flatMap(\.shapes)
+        guard let box = shapes.combinedBoundingBox else {
+            zoomToActualSize()
+            return
+        }
+
+        // 余白は画面 px で確保（ズーム率に依存させない）
+        let padding: CGFloat = 24
+        let availW = canvasSize.width - padding * 2
+        let availH = canvasSize.height - padding * 2
+        guard availW > 0, availH > 0 else { return }
+
+        // 幅・高さがほぼゼロの軸は他軸に任せる。両軸とも退化（点状）なら
+        // 最大ズームに飛ばさず 100% で中心に置く
+        let sx = box.width > 0.0001 ? availW / box.width : .infinity
+        let sy = box.height > 0.0001 ? availH / box.height : .infinity
+        let fit = min(sx, sy)
+        transform.scale = fit.isFinite ? max(0.5, min(50, fit)) : 3.0
+        transform.offset.x = canvasSize.width / 2 - box.midX * transform.scale
+        transform.offset.y = canvasSize.height / 2 - box.midY * transform.scale
+    }
+
+    /// ズームを 100%（scale = 3.0）に戻し、原点をキャンバス中央に置く。
+    func zoomToActualSize() {
         transform.offset = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
         transform.scale = 3.0
     }
