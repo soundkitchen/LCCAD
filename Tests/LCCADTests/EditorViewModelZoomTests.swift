@@ -96,6 +96,19 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(screenPoint.y, 300, accuracy: 1e-9)
     }
 
+    func testZoomToFitTinyCanvasFallsBackToActualSize() {
+        // キャンバスが余白(24px * 2)より小さい: 無言 no-op にせず Actual Size に揃える
+        let rect = RectangleShape(origin: .zero, size: CGSize(width: 100, height: 50))
+        let editor = makeEditor(shapes: [.rectangle(rect)])
+        editor.canvasSize = CGSize(width: 40, height: 40)
+
+        editor.zoomToFit()
+
+        XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.x, 20, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 20, accuracy: 1e-9)
+    }
+
     func testZoomToFitClampsToMinimumScale() {
         // 巨大図形: (800 - 48) / 10000 = 0.0752 → 下限 0.5 にクランプ
         let rect = RectangleShape(origin: .zero, size: CGSize(width: 10000, height: 100))

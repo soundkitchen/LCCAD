@@ -1914,7 +1914,8 @@ final class EditorViewModel {
     }
 
     /// 表示中レイヤーの全図形が収まるようにズーム・パンする（CAD の Zoom Extents 相当）。
-    /// 図形がひとつもなければ Actual Size（100% リセット）にフォールバックする。
+    /// 図形がひとつもない、またはキャンバスが余白より小さいときは
+    /// Actual Size（100% リセット）にフォールバックする。
     func zoomToFit() {
         let shapes = document.layers.filter(\.isVisible).flatMap(\.shapes)
         guard let box = shapes.combinedBoundingBox else {
@@ -1926,7 +1927,10 @@ final class EditorViewModel {
         let padding: CGFloat = 24
         let availW = canvasSize.width - padding * 2
         let availH = canvasSize.height - padding * 2
-        guard availW > 0, availH > 0 else { return }
+        guard availW > 0, availH > 0 else {
+            zoomToActualSize()
+            return
+        }
 
         // 幅・高さがほぼゼロの軸は他軸に任せる。両軸とも退化（点状）なら
         // 最大ズームに飛ばさず 100% で中心に置く
