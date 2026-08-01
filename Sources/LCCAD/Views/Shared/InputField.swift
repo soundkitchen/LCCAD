@@ -66,6 +66,9 @@ struct EditablePropertyField: View {
     var onCommit: (CGFloat) -> Void
 
     @State private var editText: String = ""
+    /// 編集開始(フォーカス取得)時点の表示文字列。無編集のままの確定を
+    /// 検出するための基準 (#55)。
+    @State private var textAtEditStart: String = ""
     @State private var isEditing: Bool = false
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
@@ -85,6 +88,7 @@ struct EditablePropertyField: View {
                 .onChange(of: isFocused) { _, focused in
                     if focused {
                         isEditing = true
+                        textAtEditStart = editText
                     } else {
                         commitEdit()
                     }
@@ -107,7 +111,13 @@ struct EditablePropertyField: View {
         )
         .onAppear { editText = formatted(value) }
         .onChange(of: value) { _, newValue in
-            if !isEditing { editText = formatted(newValue) }
+            if !isEditing {
+                editText = formatted(newValue)
+                // Enter 確定後の正規化(例: Arc 角度 370°→10°)でフォーカス保持の
+                // まま表示が再同期されるケースで、続くフォーカスアウトが文字列
+                // 不一致となり再コミットされるのを防ぐ(レビュー #57 指摘)
+                textAtEditStart = editText
+            }
         }
     }
 
@@ -115,18 +125,35 @@ struct EditablePropertyField: View {
         String(format: "%.1f", v)
     }
 
-    private func commitEdit() {
-        isEditing = false
-        guard let parsed = Double(editText) else {
-            editText = formatted(value)
-            return
-        }
+    /// 確定時にコミットすべき値を判定する(テストのため切り出し)。
+    /// nil はコミットしない: 表示文字列が編集開始時から変わっていない
+    /// (無編集フォーカスアウト)か、数値としてパースできない場合。
+    /// 無編集ガードがないと %.1f 丸め表示がそのまま書き戻され、実値が
+    /// 無言で変化し no-op の Undo も積まれてしまう (#55)。
+    static func valueToCommit(editText: String, textAtEditStart: String, range: ClosedRange<CGFloat>?) -> CGFloat? {
+        guard editText != textAtEditStart else { return nil }
+        guard let parsed = Double(editText) else { return nil }
         var clamped = CGFloat(parsed)
         if let range {
             clamped = min(max(clamped, range.lowerBound), range.upperBound)
         }
-        onCommit(clamped)
-        editText = formatted(clamped)
+        return clamped
+    }
+
+    private func commitEdit() {
+        isEditing = false
+        guard let newValue = Self.valueToCommit(editText: editText, textAtEditStart: textAtEditStart, range: range) else {
+            // 値が外部から変わっていた場合に備えて表示を現在値へ再同期。
+            // 基準文字列も合わせ、続くフォーカスアウトでの再コミットを防ぐ
+            editText = formatted(value)
+            textAtEditStart = editText
+            return
+        }
+        onCommit(newValue)
+        editText = formatted(newValue)
+        // Enter 確定後にフォーカスアウトで commitEdit が再度呼ばれても
+        // 二重コミットにならないよう、基準文字列を確定後の表示に合わせる
+        textAtEditStart = editText
     }
 }
 
