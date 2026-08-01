@@ -1,16 +1,36 @@
 import SwiftUI
 
 struct SizeSection: View {
+    @Bindable var editor: EditorViewModel
     let boundingBox: CGRect
     let unit: LengthUnit
     var rotation: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Selections containing shapes that cannot scale non-uniformly
+    /// (Arc, Text, rotated Rect/Ellipse) always resize proportionally.
+    private var lockForced: Bool { editor.selectionRequiresUniformScale }
+    private var lockActive: Bool { lockForced || editor.isSizeAspectLocked }
+
     var body: some View {
         PropertySection(title: "Size") {
             HStack(spacing: 8) {
-                PropertyField(label: "W", value: unit.fromMillimeters(boundingBox.width))
-                PropertyField(label: "H", value: unit.fromMillimeters(boundingBox.height))
+                EditablePropertyField(
+                    label: "W",
+                    value: unit.fromMillimeters(boundingBox.width),
+                    range: 0.1...10000,
+                    onCommit: { newValue in
+                        editor.setSelectedShapeSize(width: unit.toMillimeters(newValue))
+                    }
+                )
+                EditablePropertyField(
+                    label: "H",
+                    value: unit.fromMillimeters(boundingBox.height),
+                    range: 0.1...10000,
+                    onCommit: { newValue in
+                        editor.setSelectedShapeSize(height: unit.toMillimeters(newValue))
+                    }
+                )
             }
 
             HStack(spacing: 8) {
@@ -35,15 +55,23 @@ struct SizeSection: View {
                         .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
                 )
 
-                // Lock aspect ratio button
-                Button(action: {}) {
-                    Image(systemName: "lock")
+                // Aspect-ratio lock toggle
+                Button(action: { editor.isSizeAspectLocked.toggle() }) {
+                    Image(systemName: lockActive ? "lock" : "lock.open")
                         .font(.system(size: 14))
-                        .foregroundStyle(DesignTokens.iconSecondary(colorScheme))
+                        .foregroundStyle(
+                            lockActive && !lockForced
+                                ? DesignTokens.accent
+                                : DesignTokens.iconSecondary(colorScheme)
+                        )
                 }
                 .buttonStyle(.plain)
+                .disabled(lockForced)
                 .frame(maxWidth: .infinity, maxHeight: 28)
                 .cornerRadius(4)
+                .help(lockForced
+                      ? "Selection resizes proportionally (contains arc, text, or rotated shape)"
+                      : (lockActive ? "Unlock aspect ratio" : "Lock aspect ratio"))
             }
         }
     }

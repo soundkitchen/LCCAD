@@ -76,6 +76,12 @@ extension CGPoint {
         return CGPoint(x: center.x + dx * c - dy * s,
                        y: center.y + dx * s + dy * c)
     }
+
+    /// Scale this point by (sx, sy) away from a fixed anchor point.
+    func scaled(around anchor: CGPoint, sx: CGFloat, sy: CGFloat) -> CGPoint {
+        CGPoint(x: anchor.x + (x - anchor.x) * sx,
+                y: anchor.y + (y - anchor.y) * sy)
+    }
 }
 
 // MARK: - CGRect extensions

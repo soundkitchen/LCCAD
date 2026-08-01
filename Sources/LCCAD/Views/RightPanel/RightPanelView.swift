@@ -37,7 +37,7 @@ struct RightPanelView: View {
 
                     if let bbox = editor.selectionBoundingBox {
                         PositionSection(editor: editor, boundingBox: bbox, unit: editor.document.settings.unit)
-                        SizeSection(boundingBox: bbox, unit: editor.document.settings.unit)
+                        SizeSection(editor: editor, boundingBox: bbox, unit: editor.document.settings.unit)
                     }
 
                     // Show stroke section for batch editing (uses first selected shape's stroke)
@@ -58,6 +58,7 @@ struct RightPanelView: View {
                           let shape = editor.findShape(id: selectedId) {
                     PositionSection(editor: editor, boundingBox: shape.boundingBox, unit: editor.document.settings.unit)
                     SizeSection(
+                        editor: editor,
                         boundingBox: shape.boundingBox,
                         unit: editor.document.settings.unit,
                         rotation: rotationDegrees(for: shape)

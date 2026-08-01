@@ -240,6 +240,24 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
         // dimension annotations are not normally rotated).
     }
 
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        // Transform the offset so the dimension line lands exactly where the
+        // affine scale would put it: project the old offset vector (along the
+        // old left-normal), scaled per axis, onto the new left-normal.
+        let oldNormal = leftNormal
+        start = start.scaled(around: anchor, sx: sx, sy: sy)
+        end = end.scaled(around: anchor, sx: sx, sy: sy)
+        switch kind {
+        case .horizontal:
+            offset *= sy
+        case .vertical:
+            offset *= sx
+        case .aligned:
+            let newNormal = leftNormal
+            offset *= oldNormal.x * sx * newNormal.x + oldNormal.y * sy * newNormal.y
+        }
+    }
+
     // MARK: - Helpers
 
     private func distanceToSegment(_ p: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
