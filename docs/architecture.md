@@ -421,7 +421,7 @@ CanvasView (SwiftUI Canvas + GeometryReader)
 
 1. **1-2-5 系列** (`0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100 mm...`) からスクリーン間隔 >= 8px の最小 tier を選択
 2. **major = minor × 10** 固定（1-2-5 系列で 3 tier 上 = 常に 10 倍）
-3. **minor 線フェード**: スクリーン間隔が閾値付近のとき opacity を 0→1 にスムーズ遷移（fadeRange: 16px）
+3. **minor 線は常にトークン色そのまま**: ズーム率によるフェードは行わない。tier 切替で画面上の密度が抑えられるため、どのズーム率でも同じ濃さで見える（#61 でフェード撤廃 — フェードの上限 24px に tier の実レンジ 8〜20px が届かず、細線が常に薄く描かれていた）
 4. **色はデザイントークン**: `DesignTokens.gridLine` / `gridLineMajor` で Light/Dark 対応
 5. **スナップ連動**: `SnapEngine` が `adaptiveSpacings()` を共有し、表示グリッドとスナップ位置が一致
 
