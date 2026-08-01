@@ -2,8 +2,25 @@ import Foundation
 import CoreGraphics
 
 struct CanvasTransform: Sendable {
-    var offset: CGPoint = .zero   // pan offset in screen pixels
-    var scale: CGFloat = 3.0      // zoom level (pixels per mm, ~1mm = 3px at default)
+    /// ズーム下限・上限（pt/mm）。全ズーム経路で共通のクランプ範囲 (#60)
+    static let minScale: CGFloat = 0.5
+    static let maxScale: CGFloat = 50
+
+    /// ディスプレイの物理密度が判明するまでの暫定基準（1mm = 3pt、#62 以前の固定値）
+    static let fallbackBaselineScale: CGFloat = 3.0
+
+    var offset: CGPoint = .zero   // pan offset in screen points
+    var scale: CGFloat = CanvasTransform.fallbackBaselineScale  // zoom level (points per mm)
+
+    /// 100% と定義する scale 値（pt/mm）。ウィンドウのあるディスプレイの
+    /// 物理解像度から算出され、「100% = 画面上の 1mm が実物の 1mm」を意味する (#62)。
+    /// ディスプレイ未判明時は fallbackBaselineScale
+    var baselineScale: CGFloat = CanvasTransform.fallbackBaselineScale
+
+    /// scale をズーム範囲 [minScale, maxScale] に収める
+    static func clampScale(_ value: CGFloat) -> CGFloat {
+        max(minScale, min(maxScale, value))
+    }
 
     /// Convert world coordinates (mm) to screen coordinates (pixels)
     func worldToScreen(_ point: CGPoint) -> CGPoint {
@@ -45,8 +62,7 @@ struct CanvasTransform: Sendable {
     /// Zoom towards a specific screen point
     mutating func zoom(by factor: CGFloat, center: CGPoint) {
         let worldCenter = screenToWorld(center)
-        scale *= factor
-        scale = max(0.5, min(50, scale))  // clamp zoom
+        scale = CanvasTransform.clampScale(scale * factor)
         offset.x = center.x - worldCenter.x * scale
         offset.y = center.y - worldCenter.y * scale
     }
@@ -58,6 +74,6 @@ struct CanvasTransform: Sendable {
     }
 
     var zoomPercentage: Int {
-        Int(round(scale / 3.0 * 100))
+        Int(round(scale / baselineScale * 100))
     }
 }

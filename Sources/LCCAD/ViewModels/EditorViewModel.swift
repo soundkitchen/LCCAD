@@ -154,6 +154,9 @@ final class EditorViewModel {
         didSet { fileDocument?.data = document }
     }
     var transform: CanvasTransform = CanvasTransform()
+
+    /// 起動時の実寸 100% 適用を一度だけ行うためのフラグ（updateDisplayBaseline 参照）
+    private var hasAppliedInitialActualSize = false
     var currentTool: DrawingTool = .select
     var selectedShapeIds: Set<UUID> = []
     var cursorWorldPosition: CGPoint = .zero
@@ -1915,7 +1918,7 @@ final class EditorViewModel {
 
     /// 表示中レイヤーの全図形が収まるようにズーム・パンする（CAD の Zoom Extents 相当）。
     /// 図形がひとつもない、またはキャンバスが余白より小さいときは
-    /// Actual Size（100% リセット）にフォールバックする。
+    /// Actual Size（実寸 100%）にフォールバックする。
     func zoomToFit() {
         let shapes = document.layers.filter(\.isVisible).flatMap(\.shapes)
         guard let box = shapes.combinedBoundingBox else {
@@ -1937,23 +1940,36 @@ final class EditorViewModel {
         let sx = box.width > 0.0001 ? availW / box.width : .infinity
         let sy = box.height > 0.0001 ? availH / box.height : .infinity
         let fit = min(sx, sy)
-        transform.scale = fit.isFinite ? max(0.5, min(50, fit)) : 3.0
+        transform.scale = fit.isFinite ? CanvasTransform.clampScale(fit) : transform.baselineScale
         transform.offset.x = canvasSize.width / 2 - box.midX * transform.scale
         transform.offset.y = canvasSize.height / 2 - box.midY * transform.scale
     }
 
-    /// ズームを 100%（scale = 3.0）に戻し、原点をキャンバス中央に置く。
+    /// ズームを実寸 100%（画面上の 1mm = 実物の 1mm）に戻し、原点をキャンバス中央に置く。
+    /// 基準 scale は updateDisplayBaseline(pointsPerMm:) で供給される（未供給時は 1mm = 3pt）。
     func zoomToActualSize() {
         transform.offset = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
-        transform.scale = 3.0
+        transform.scale = transform.baselineScale
     }
 
     func setZoomPercentage(_ percentage: CGFloat) {
         let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
         let worldCenter = transform.screenToWorld(center)
-        transform.scale = max(0.5, min(50, percentage / 100.0 * 3.0))
+        transform.scale = CanvasTransform.clampScale(percentage / 100.0 * transform.baselineScale)
         transform.offset.x = center.x - worldCenter.x * transform.scale
         transform.offset.y = center.y - worldCenter.y * transform.scale
+    }
+
+    /// ウィンドウのあるディスプレイの物理密度（pt/mm）を 100% の基準として反映する (#62)。
+    /// 初回は起動時表示として実寸 100% を適用する。以降の呼び出し（別ディスプレイへの
+    /// 移動など）では % 表記の基準だけ更新し、見た目の scale は変えない。
+    func updateDisplayBaseline(pointsPerMm: CGFloat) {
+        guard pointsPerMm.isFinite, pointsPerMm > 0 else { return }
+        transform.baselineScale = pointsPerMm
+        if !hasAppliedInitialActualSize {
+            hasAppliedInitialActualSize = true
+            zoomToActualSize()
+        }
     }
 
     // MARK: - Auto Stitch
