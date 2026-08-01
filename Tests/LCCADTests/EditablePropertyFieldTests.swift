@@ -3,7 +3,6 @@ import XCTest
 
 /// `EditablePropertyField.valueToCommit` の確定判定ロジックのテスト (#55)。
 /// 無編集フォーカスアウトで丸め表示値が書き戻されないことを保証する。
-@MainActor
 final class EditablePropertyFieldTests: XCTestCase {
 
     // MARK: - 無編集ガード (#55)

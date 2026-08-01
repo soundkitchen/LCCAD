@@ -111,7 +111,13 @@ struct EditablePropertyField: View {
         )
         .onAppear { editText = formatted(value) }
         .onChange(of: value) { _, newValue in
-            if !isEditing { editText = formatted(newValue) }
+            if !isEditing {
+                editText = formatted(newValue)
+                // Enter 確定後の正規化(例: Arc 角度 370°→10°)でフォーカス保持の
+                // まま表示が再同期されるケースで、続くフォーカスアウトが文字列
+                // 不一致となり再コミットされるのを防ぐ(レビュー #57 指摘)
+                textAtEditStart = editText
+            }
         }
     }
 
@@ -137,8 +143,10 @@ struct EditablePropertyField: View {
     private func commitEdit() {
         isEditing = false
         guard let newValue = Self.valueToCommit(editText: editText, textAtEditStart: textAtEditStart, range: range) else {
-            // 値が外部から変わっていた場合に備えて表示を現在値へ再同期
+            // 値が外部から変わっていた場合に備えて表示を現在値へ再同期。
+            // 基準文字列も合わせ、続くフォーカスアウトでの再コミットを防ぐ
             editText = formatted(value)
+            textAtEditStart = editText
             return
         }
         onCommit(newValue)
