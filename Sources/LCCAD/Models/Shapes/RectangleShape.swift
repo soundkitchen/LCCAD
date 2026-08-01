@@ -99,4 +99,15 @@ struct RectangleShape: Shape, Codable, Equatable, Sendable {
         origin = CGPoint(x: newCenter.x - size.width / 2, y: newCenter.y - size.height / 2)
         rotation += angle
     }
+
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        // Scaling via the unrotated center keeps the pivot consistent for
+        // rotated rectangles (uniform factors only there — a non-uniform scale
+        // would shear the rectangle into a parallelogram, which this model
+        // cannot represent).
+        let newCenter = unrotatedCenter.scaled(around: anchor, sx: sx, sy: sy)
+        size = CGSize(width: size.width * sx, height: size.height * sy)
+        origin = CGPoint(x: newCenter.x - size.width / 2, y: newCenter.y - size.height / 2)
+        cornerRadius *= min(sx, sy)
+    }
 }

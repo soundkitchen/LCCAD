@@ -51,4 +51,10 @@ struct GroupShape: Shape, Codable, Equatable, Sendable {
             children[i].rotate(around: center, angle: angle)
         }
     }
+
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        for i in children.indices {
+            children[i].scale(sx: sx, sy: sy, around: anchor)
+        }
+    }
 }

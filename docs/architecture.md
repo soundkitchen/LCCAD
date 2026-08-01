@@ -325,6 +325,22 @@ Polar Array で `polarRotateItems = true` のときに各複製を回転させ�
 
 `SnapEngine` と `PathWalker` の更新は重要で、これを忘れると回転矩形のスナップ端点が回転前の位置に取り残されたり、ステッチが回転しないラインに沿って生成されて穴の位置がずれる。
 
+#### Shape プロトコルの `scale(sx:sy:around:)`（Size セクション W/H 編集）
+
+右パネル Size セクションの W/H 直接入力（Issue #48）のために追加した必須メソッド:
+
+```swift
+mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint)  // 係数は正、anchor は world 座標
+```
+
+`CGPoint.scaled(around:sx:sy:)` ヘルパー（`GeometryUtils.swift`）を全シェイプで利用する。`LineShape` / `BezierShape` は座標を直接スケール、`RectangleShape` は `unrotatedCenter` 経由でスケール（+ `cornerRadius *= min(sx, sy)`）、`EllipseShape` は `radiusX/Y` に係数適用、`ArcShape` は `radius *= sx`、`TextShape` は `fontSize *= sx`、`DotShape` は **位置のみ**（半径は物理的な目打ちマーク径として不変）、`DimensionLineShape` は `offset` を旧法線→新法線への射影で変換、`GroupShape` は子に再帰。
+
+**非等倍スケールを表現できない図形**（Arc=真円のみ、Text=fontSize 一次元、回転済み Rect/Ellipse=シアーになる）へは呼び出し側が `sx == sy` を保証する:
+
+- `EditorViewModel.selectionRequiresUniformScale` — 選択（Group は再帰）に該当図形が含まれるか判定
+- `EditorViewModel.setSelectedShapeSize(width:height:)` — 選択 bbox の**左上を固定アンカー**に各図形を `scale`。アスペクト比ロック ON または強制時は編集軸の係数を両軸へ適用。0 寸法軸の編集と係数 1 の no-op は Undo を積まず無視。実行後は `regenerateStitchLines` で穴をピッチ維持のまま再生成し、`registerUndo("Resize Shape")`
+- `EditorViewModel.isSizeAspectLocked` — セッション限りのロック状態（デフォルト OFF）。UI は `SizeSection.swift`（強制時は `lock` アイコン + disabled）
+
 ### 自動ステッチ生成（PathWalker / StitchPathBuilder / AutoStitchEngine）
 
 選択図形からステッチ穴を生成するパイプライン:

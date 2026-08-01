@@ -34,4 +34,10 @@ struct DotShape: Shape, Codable, Equatable, Sendable {
     mutating func rotate(around center: CGPoint, angle: CGFloat) {
         position = position.rotated(around: center, angle: angle)
     }
+
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        // Only the position scales — the radius is a physical punch-mark size
+        // (like the fixed stroke width), not part of the pattern geometry.
+        position = position.scaled(around: anchor, sx: sx, sy: sy)
+    }
 }

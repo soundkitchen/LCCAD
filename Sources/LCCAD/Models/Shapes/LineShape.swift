@@ -43,6 +43,11 @@ struct LineShape: Shape, Codable, Equatable, Sendable {
         endPoint = endPoint.rotated(around: center, angle: angle)
     }
 
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        startPoint = startPoint.scaled(around: anchor, sx: sx, sy: sy)
+        endPoint = endPoint.scaled(around: anchor, sx: sx, sy: sy)
+    }
+
     private func distanceFromPointToLineSegment(point: CGPoint, start: CGPoint, end: CGPoint) -> CGFloat {
         let dx = end.x - start.x
         let dy = end.y - start.y

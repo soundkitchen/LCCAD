@@ -172,6 +172,11 @@ final class EditorViewModel {
     var marqueeStart: CGPoint?
     var marqueeRect: CGRect?
 
+    /// Aspect-ratio lock for the Size section W/H fields (session state, not
+    /// persisted). Selections containing shapes that cannot scale non-uniformly
+    /// are forced uniform regardless — see `selectionRequiresUniformScale`.
+    var isSizeAspectLocked = false
+
     // MARK: - Selection Helpers
 
     /// Convenience: the single selected shape ID when exactly one shape is selected.
@@ -449,6 +454,66 @@ final class EditorViewModel {
         }
         translateStitchHoles(forShapeIds: movedIds, by: delta)
         registerUndo(actionName: "Move Shape", oldDocument: old)
+    }
+
+    // MARK: - Size Editing
+
+    /// True when the selection contains a shape that cannot represent a
+    /// non-uniform scale: Arc (circular only), Text (single fontSize), or a
+    /// rotated Rectangle/Ellipse (a world-axis stretch would shear them).
+    /// The Size section forces the aspect lock on for such selections.
+    var selectionRequiresUniformScale: Bool {
+        selectedShapes.contains { requiresUniformScale($0) }
+    }
+
+    private func requiresUniformScale(_ shape: AnyShape) -> Bool {
+        switch shape {
+        case .arc, .text:
+            return true
+        case .rectangle(let r):
+            return r.rotation != 0
+        case .ellipse(let e):
+            return e.rotation != 0
+        case .group(let g):
+            return g.children.contains { requiresUniformScale($0) }
+        default:
+            return false
+        }
+    }
+
+    /// Resize the selection so its bounding box takes the given width/height
+    /// (mm). Pass the edited dimension only; with the aspect lock on (or forced
+    /// by the selection) the other dimension follows proportionally, otherwise
+    /// it stays. The bounding box origin (top-left) is the fixed anchor, so the
+    /// Position X/Y values are unaffected. Stitch holes are regenerated from
+    /// the scaled geometry (pitch preserved, hole count adapts).
+    func setSelectedShapeSize(width: CGFloat? = nil, height: CGFloat? = nil) {
+        guard let bbox = selectionBoundingBox else { return }
+        let uniform = isSizeAspectLocked || selectionRequiresUniformScale
+        var sx: CGFloat = 1
+        var sy: CGFloat = 1
+        if let width {
+            guard bbox.width > 0 else { return }
+            sx = width / bbox.width
+            if uniform { sy = sx }
+        }
+        if let height {
+            guard bbox.height > 0 else { return }
+            sy = height / bbox.height
+            if uniform { sx = sy }
+        }
+        guard sx > 0, sy > 0, sx != 1 || sy != 1 else { return }
+        let old = document
+        let anchor = bbox.origin
+        var scaledIds: Set<UUID> = []
+        for id in selectedShapeIds {
+            if let (li, si) = findShapeLocation(id: id) {
+                scaledIds.formUnion(collectShapeIds(in: document.layers[li].shapes[si]))
+                document.layers[li].shapes[si].scale(sx: sx, sy: sy, around: anchor)
+            }
+        }
+        regenerateStitchLines(forShapeIds: scaledIds)
+        registerUndo(actionName: "Resize Shape", oldDocument: old)
     }
 
     // MARK: - Stitch Hole Follow-Through

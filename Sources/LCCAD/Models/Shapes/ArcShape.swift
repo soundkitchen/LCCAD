@@ -86,6 +86,13 @@ struct ArcShape: Shape, Codable, Equatable, Sendable {
         endAngle += angle
     }
 
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        // A circular arc can only scale uniformly (sx == sy, guaranteed by the
+        // caller) — a non-uniform factor would make it elliptical.
+        center = center.scaled(around: anchor, sx: sx, sy: sy)
+        radius *= sx
+    }
+
     // MARK: - Parameterization
 
     var angleSpan: CGFloat {

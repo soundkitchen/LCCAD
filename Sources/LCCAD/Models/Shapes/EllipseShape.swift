@@ -60,4 +60,13 @@ struct EllipseShape: Shape, Codable, Equatable, Sendable {
         center = center.rotated(around: pivot, angle: angle)
         rotation += angle
     }
+
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        // Non-uniform factors are only valid while unrotated; a rotated ellipse
+        // receives uniform factors (the axis-aligned radii would otherwise no
+        // longer describe the stretched shape).
+        center = center.scaled(around: anchor, sx: sx, sy: sy)
+        radiusX *= sx
+        radiusY *= sy
+    }
 }

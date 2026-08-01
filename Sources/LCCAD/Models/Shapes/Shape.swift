@@ -135,6 +135,13 @@ protocol Shape: Identifiable, Codable, Sendable {
 
     /// Rotate the shape around the given world-space point by `angle` radians (CCW positive).
     mutating func rotate(around center: CGPoint, angle: CGFloat)
+
+    /// Scale the shape by (sx, sy) away from a fixed world-space anchor point.
+    /// Factors must be positive. Shapes that cannot represent a non-uniform
+    /// scale (Arc, Text, rotated Rectangle/Ellipse) are only ever called with
+    /// sx == sy — `EditorViewModel.selectionRequiresUniformScale` forces the
+    /// aspect lock for selections containing them.
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint)
 }
 
 extension Shape {
@@ -307,6 +314,20 @@ enum AnyShape: Codable, Identifiable, Equatable, Sendable {
         case .text(var s): s.rotate(around: center, angle: angle); self = .text(s)
         case .dimensionLine(var s): s.rotate(around: center, angle: angle); self = .dimensionLine(s)
         case .group(var s): s.rotate(around: center, angle: angle); self = .group(s)
+        }
+    }
+
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        switch self {
+        case .line(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .line(s)
+        case .rectangle(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .rectangle(s)
+        case .ellipse(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .ellipse(s)
+        case .arc(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .arc(s)
+        case .dot(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .dot(s)
+        case .bezier(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .bezier(s)
+        case .text(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .text(s)
+        case .dimensionLine(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .dimensionLine(s)
+        case .group(var s): s.scale(sx: sx, sy: sy, around: anchor); self = .group(s)
         }
     }
 }

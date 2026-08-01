@@ -115,6 +115,16 @@ struct BezierShape: Shape, Codable, Equatable, Sendable {
         }
     }
 
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        points = points.map { bp in
+            BezierPoint(
+                point: bp.point.scaled(around: anchor, sx: sx, sy: sy),
+                controlIn: bp.controlIn.scaled(around: anchor, sx: sx, sy: sy),
+                controlOut: bp.controlOut.scaled(around: anchor, sx: sx, sy: sy)
+            )
+        }
+    }
+
     private func distanceToCubicBezier(point: CGPoint, p0: CGPoint, p1: CGPoint, p2: CGPoint, p3: CGPoint, steps: Int = 24) -> CGFloat {
         // Sample the curve and measure distance to the polyline between samples,
         // not to the discrete sample points. Point-to-point sampling underestimates

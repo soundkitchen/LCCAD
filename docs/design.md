@@ -142,8 +142,15 @@
 - 入力確定時に `boundingBox.origin` との差分で図形全体を移動
 
 ### 2. Size セクション
-- **W / H**: 表示のみ（将来的に編集対応予定）
-- **Rotation / Lock**: 回転角度、アスペクト比固定
+- **W / H**: `EditablePropertyField` で直接入力可能（範囲 0.1〜10000）
+  - 選択範囲のバウンディングボックスを指定サイズにスケール。**左上（origin）が固定アンカー**で、Position X/Y は変化しない
+  - 複数選択にも対応（各図形の位置ごと相似スケール）
+  - スケール時、ステッチ穴は元のピッチを保って再生成される（穴数が変わる）
+- **Rotation**: 回転角度（表示のみ）
+- **Lock（アスペクト比ロック）**: トグルボタン。デフォルト OFF（W / H 独立編集）
+  - ON（`lock` アイコン + accent 色）: 片方を編集するともう片方も比率維持でスケール
+  - OFF（`lock-open` アイコン）: 編集した軸だけ変化
+  - **強制 ON**: 非等倍スケールを表現できない図形（Arc・Text・回転済み Rect/Ellipse。Group は再帰判定）を含む選択では、ロックが強制され解除ボタンは無効化される（`lock` アイコン + muted 色）
 
 ### 3. Stroke セクション（非テキスト図形）
 - **ColorPicker**: 線色を直接変更（Undo 対応）
@@ -248,7 +255,7 @@ Position / Zoom / Stroke 幅で共通利用する編集可能な数値入力フ�
 
 ### PropertyField（表示専用）
 
-Size セクション等で使用する読み取り専用フィールド。`EditablePropertyField` と同じ見た目。
+読み取り専用フィールド。`EditablePropertyField` と同じ見た目。
 
 ## フォント
 

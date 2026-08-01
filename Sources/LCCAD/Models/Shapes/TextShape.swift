@@ -125,4 +125,11 @@ struct TextShape: Shape, Codable, Equatable, Sendable {
         position = CGPoint(x: newCenter.x - s.width / 2, y: newCenter.y - s.height / 2)
         rotation += angle
     }
+
+    mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint) {
+        // Text only scales uniformly (sx == sy, guaranteed by the caller):
+        // the glyph size lives in fontSize, which has a single dimension.
+        position = position.scaled(around: anchor, sx: sx, sy: sy)
+        fontSize *= sx
+    }
 }
