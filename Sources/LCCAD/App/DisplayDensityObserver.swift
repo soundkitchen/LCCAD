@@ -5,8 +5,11 @@ import SwiftUI
 //
 // ウィンドウのあるディスプレイの物理密度（pt/mm）を EditorViewModel に供給する (#62)。
 // これにより「ズーム 100% = 画面上の 1mm が実物の 1mm」が成立する。
-// ウィンドウが別ディスプレイへ移動したときは NSWindow.didChangeScreenNotification で
-// 再計算・再供給する（% 表記の基準が変わるだけで、見た目の scale は維持される）。
+// 再計算・再供給のトリガーは 2 つ（% 表記の基準が変わるだけで、見た目の scale は維持される）:
+//  • NSWindow.didChangeScreenNotification — ウィンドウが別ディスプレイへ移動したとき
+//  • NSApplication.didChangeScreenParametersNotification — 同一ディスプレイのまま
+//    スケーリング（解像度）が変わったときや、attach 時点で screen 未確定だった場合の
+//    後追い (review #64)
 
 struct DisplayDensityObserver: NSViewRepresentable {
     let editor: EditorViewModel
@@ -44,12 +47,20 @@ struct DisplayDensityObserver: NSViewRepresentable {
             super.viewDidMoveToWindow()
             NotificationCenter.default.removeObserver(
                 self, name: NSWindow.didChangeScreenNotification, object: nil)
+            NotificationCenter.default.removeObserver(
+                self, name: NSApplication.didChangeScreenParametersNotification, object: nil)
             guard let window else { return }
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(screenChanged),
                 name: NSWindow.didChangeScreenNotification,
                 object: window
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(screenChanged),
+                name: NSApplication.didChangeScreenParametersNotification,
+                object: nil
             )
             onScreenChange?(window.screen)
         }

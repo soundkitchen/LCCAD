@@ -189,6 +189,35 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
     }
 
+    func testUpdateDisplayBaselineWaitsForCanvasSize() {
+        // canvasSize 未供給の状態で密度だけ届いた場合、初回適用はサイズ確定まで保留
+        let editor = EditorViewModel(document: DocumentData.empty())
+
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        XCTAssertEqual(editor.transform.baselineScale, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9, "サイズ確定前に適用しない")
+
+        editor.canvasSize = CGSize(width: 1000, height: 800)
+
+        // サイズ確定と同時に実寸 100% を適用し、実サイズの中心に原点を置く
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.x, 500, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 400, accuracy: 1e-9)
+    }
+
+    func testUpdateDisplayBaselineRejectsImplausibleDensity() {
+        let editor = makeEditor(shapes: [])
+
+        // EDID 不明時の 72dpi 推定値(2x 仮想ディスプレイで約 1.4pt/mm)や
+        // 極端な高密度は誤推定として無視する
+        editor.updateDisplayBaseline(pointsPerMm: 1.4)
+        editor.updateDisplayBaseline(pointsPerMm: 15.1)
+
+        XCTAssertEqual(editor.transform.baselineScale, 3.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9)
+    }
+
     func testZoomToActualSizeUsesBaseline() {
         let editor = makeEditor(shapes: [])
         editor.updateDisplayBaseline(pointsPerMm: 4.85)

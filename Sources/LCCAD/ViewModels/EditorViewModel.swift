@@ -155,8 +155,14 @@ final class EditorViewModel {
     }
     var transform: CanvasTransform = CanvasTransform()
 
-    /// 起動時の実寸 100% 適用を一度だけ行うためのフラグ（updateDisplayBaseline 参照）
+    /// 起動時の実寸 100% 適用を一度だけ行うためのフラグ（applyInitialActualSizeIfNeeded 参照）
     private var hasAppliedInitialActualSize = false
+
+    /// ディスプレイの物理密度が一度でも供給されたか
+    private var isDisplayBaselineKnown = false
+
+    /// canvasSize がビュー側から一度でも供給されたか（初期値 800×600 のままかの区別）
+    private var isCanvasSizeKnown = false
     var currentTool: DrawingTool = .select
     var selectedShapeIds: Set<UUID> = []
     var cursorWorldPosition: CGPoint = .zero
@@ -256,7 +262,12 @@ final class EditorViewModel {
     var activeSnapCandidate: SnapCandidate?
 
     // Canvas size (updated by CanvasView via GeometryReader)
-    var canvasSize: CGSize = CGSize(width: 800, height: 600)
+    var canvasSize: CGSize = CGSize(width: 800, height: 600) {
+        didSet {
+            isCanvasSizeKnown = true
+            applyInitialActualSizeIfNeeded()
+        }
+    }
 
     // Page layout state
     var selectedPageId: UUID?
@@ -1960,16 +1971,29 @@ final class EditorViewModel {
         transform.offset.y = center.y - worldCenter.y * transform.scale
     }
 
+    /// 実在ディスプレイとして妥当な物理密度レンジ（pt/mm、約 51〜381 論理 ppi）。
+    /// EDID から物理サイズが取れないディスプレイで CGDisplayScreenSize が返す
+    /// 72dpi 仮定の推定値（2x 仮想ディスプレイで約 1.4pt/mm）を弾く (review #64)
+    private static let plausibleDensityRange: ClosedRange<CGFloat> = 2.0...15.0
+
     /// ウィンドウのあるディスプレイの物理密度（pt/mm）を 100% の基準として反映する (#62)。
-    /// 初回は起動時表示として実寸 100% を適用する。以降の呼び出し（別ディスプレイへの
-    /// 移動など）では % 表記の基準だけ更新し、見た目の scale は変えない。
+    /// 初回はキャンバス実サイズの確定と両待ちで起動時の実寸 100% を適用する。以降の
+    /// 呼び出し（別ディスプレイへの移動やスケーリング変更）では % 表記の基準だけ更新し、
+    /// 見た目の scale は変えない。妥当レンジ外の値は誤推定とみなして無視する。
     func updateDisplayBaseline(pointsPerMm: CGFloat) {
-        guard pointsPerMm.isFinite, pointsPerMm > 0 else { return }
+        guard Self.plausibleDensityRange.contains(pointsPerMm) else { return }
         transform.baselineScale = pointsPerMm
-        if !hasAppliedInitialActualSize {
-            hasAppliedInitialActualSize = true
-            zoomToActualSize()
-        }
+        isDisplayBaselineKnown = true
+        applyInitialActualSizeIfNeeded()
+    }
+
+    /// 起動時の実寸 100% 適用。ディスプレイ密度とキャンバス実サイズの到着順序は
+    /// ウィンドウ生成タイミングに依存するため、両方が揃った時点で一度だけ実行する
+    /// (review #64)。
+    private func applyInitialActualSizeIfNeeded() {
+        guard !hasAppliedInitialActualSize, isDisplayBaselineKnown, isCanvasSizeKnown else { return }
+        hasAppliedInitialActualSize = true
+        zoomToActualSize()
     }
 
     // MARK: - Auto Stitch
