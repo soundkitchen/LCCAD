@@ -36,9 +36,9 @@ struct GridRenderer {
             )
         }
 
-        // Draw minor (fine) grid — always at full token color so the grid stays
-        // equally legible at every zoom level (#61). Tier switching alone bounds
-        // the on-screen density, so no fade is needed.
+        // 細グリッド線 — どのズーム率でも同じ濃さで見えるよう、常にトークン色
+        // そのままで描画する (#61)。画面上の密度は tier 切替 (>= 8px) が抑える
+        // ためフェードは不要。
         drawGridLines(
             spacing: fineSpacing,
             size: size,
