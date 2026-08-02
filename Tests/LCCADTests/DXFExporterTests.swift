@@ -4,6 +4,24 @@ import CoreGraphics
 
 final class DXFExporterTests: XCTestCase {
 
+    // MARK: - Header
+
+    func testHeaderDeclaresInsunitsMillimeters() {
+        let dxf = DXFExporter.export(document: DocumentData())
+
+        XCTAssertTrue(dxf.contains("9\n$INSUNITS\n70\n4\n"),
+                      "HEADER must declare $INSUNITS = 4 (millimeters)")
+
+        // $INSUNITS は HEADER セクション内(最初の ENDSEC より前)にあること
+        guard let insunits = dxf.range(of: "$INSUNITS"),
+              let endsec = dxf.range(of: "ENDSEC") else {
+            XCTFail("$INSUNITS or ENDSEC missing from output")
+            return
+        }
+        XCTAssertLessThan(insunits.lowerBound, endsec.lowerBound,
+                          "$INSUNITS must be inside the HEADER section")
+    }
+
     // MARK: - Layer name sanitization
 
     func testLayerNameWithNewlineDoesNotInjectEntity() {

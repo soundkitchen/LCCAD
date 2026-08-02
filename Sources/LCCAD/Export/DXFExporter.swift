@@ -18,6 +18,9 @@ enum DXFExporter {
     // MARK: - Sections
 
     private static func headerSection() -> String {
+        // $INSUNITS = 4 (ミリメートル) で受け側 CAD に単位を伝える。
+        // R13 以降の変数だが多くの CAD は R12 (AC1009) ファイルでも解釈し、
+        // 未対応のリーダは未知のヘッダ変数として無視するため AC1009 のまま出力する。
         """
         0
         SECTION
@@ -27,6 +30,10 @@ enum DXFExporter {
         $ACADVER
         1
         AC1009
+        9
+        $INSUNITS
+        70
+        4
         0
         ENDSEC
 
