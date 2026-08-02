@@ -9,10 +9,6 @@ struct GridRenderer {
     /// Below this, the tier is bumped up to the next coarser level.
     private static let minScreenSpacing: CGFloat = 8
 
-    /// Screen-pixel range over which minor lines fade in (from 0 to full opacity).
-    /// At minScreenSpacing the minor lines are invisible; at minScreenSpacing + fadeRange they are fully opaque.
-    private static let fadeRange: CGFloat = 16
-
     /// The 1-2-5 series: ..., 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, ...
     /// Each group of 3 consecutive entries spans one decade (×10).
     private static let tiers: [CGFloat] = {
@@ -29,11 +25,7 @@ struct GridRenderer {
 
         let (fineSpacing, coarseSpacing) = adaptiveSpacings()
 
-        // Minor line fade: smoothly transition from invisible to full opacity
-        let fineScreenPx = transform.worldToScreenDistance(fineSpacing)
-        let fadeAlpha = min(1.0, max(0.0, (fineScreenPx - GridRenderer.minScreenSpacing) / GridRenderer.fadeRange))
-
-        // Draw major (coarse) grid — always full opacity
+        // Draw major (coarse) grid
         if coarseSpacing > 0 {
             drawGridLines(
                 spacing: coarseSpacing,
@@ -44,17 +36,17 @@ struct GridRenderer {
             )
         }
 
-        // Draw minor (fine) grid — with fade
-        if fadeAlpha > 0.01 {
-            drawGridLines(
-                spacing: fineSpacing,
-                size: size,
-                color: DesignTokens.gridLine(colorScheme).opacity(fadeAlpha),
-                lineWidth: 0.5,
-                in: context,
-                skipMultiplesOf: coarseSpacing
-            )
-        }
+        // 細グリッド線 — どのズーム率でも同じ濃さで見えるよう、常にトークン色
+        // そのままで描画する (#61)。画面上の密度は tier 切替 (>= 8px) が抑える
+        // ためフェードは不要。
+        drawGridLines(
+            spacing: fineSpacing,
+            size: size,
+            color: DesignTokens.gridLine(colorScheme),
+            lineWidth: 0.5,
+            in: context,
+            skipMultiplesOf: coarseSpacing
+        )
 
         // Draw origin crosshair
         drawOrigin(size: size, in: context)
