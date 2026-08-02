@@ -88,4 +88,63 @@ final class EditorViewModelUndoTests: XCTestCase {
         }
         XCTAssertEqual(redone.radius, 40)
     }
+
+    func testUpdateArcPropertyNoOpDoesNotRegisterUndo() {
+        let arc = ArcShape(center: .zero, radius: 25, startAngle: 0, endAngle: .pi / 2)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.arc(arc)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [arc.id]
+
+        // 数値的に等価な打ち直し(例: "30.0" → "30")に相当する同値代入
+        editor.updateArcProperty { $0.radius = 25 }
+        XCTAssertFalse(undo.canUndo, "No-op arc edit must not register an undo entry")
+    }
+
+    // MARK: - Dimension Property Undo/Redo
+
+    func testUpdateDimensionPropertySupportsUndoAndRedo() {
+        let dim = DimensionLineShape(start: .zero, end: CGPoint(x: 50, y: 0), offset: 8)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.dimensionLine(dim)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [dim.id]
+
+        editor.updateDimensionProperty { $0.offset = 12 }
+        guard case .dimensionLine(let changed) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected dimension line")
+        }
+        XCTAssertEqual(changed.offset, 12)
+        XCTAssertTrue(undo.canUndo)
+
+        undo.undo()
+        guard case .dimensionLine(let reverted) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected dimension line")
+        }
+        XCTAssertEqual(reverted.offset, 8)
+        XCTAssertTrue(undo.canRedo)
+
+        undo.redo()
+        guard case .dimensionLine(let redone) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected dimension line")
+        }
+        XCTAssertEqual(redone.offset, 12)
+    }
+
+    func testUpdateDimensionPropertyNoOpDoesNotRegisterUndo() {
+        let dim = DimensionLineShape(start: .zero, end: CGPoint(x: 50, y: 0), offset: 8)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.dimensionLine(dim)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [dim.id]
+
+        editor.updateDimensionProperty { $0.offset = 8 }
+        XCTAssertFalse(undo.canUndo, "No-op dimension edit must not register an undo entry")
+    }
 }
