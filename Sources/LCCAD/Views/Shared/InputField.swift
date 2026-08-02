@@ -165,9 +165,17 @@ struct NumberBoxField: View {
     var range: ClosedRange<CGFloat>? = nil
     /// Decimal places shown when not editing (0 for integer fields like hole count).
     var fractionDigits: Int = 1
+    /// タイプ中に毎キーストロークでコミットするか(Apply ボタン付きシートが
+    /// stale 値を読まないためのライブコミット)。コミットごとに Undo が積まれる
+    /// ドキュメント編集(例: Text サイズ #50)では false にして、Enter /
+    /// フォーカスアウト時のみコミットする。
+    var liveCommit: Bool = true
     var onCommit: (CGFloat) -> Void
 
     @State private var editText: String = ""
+    /// 編集開始(フォーカス取得)時点の表示文字列。無編集フォーカスアウトで
+    /// 丸め表示値が書き戻されるのを防ぐ基準 (#55 と同じ仕組み)。
+    @State private var textAtEditStart: String = ""
     @State private var isEditing: Bool = false
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
@@ -179,13 +187,18 @@ struct NumberBoxField: View {
             .focused($isFocused)
             .onSubmit { commitEdit() }
             .onChange(of: isFocused) { _, focused in
-                if focused { isEditing = true } else { commitEdit() }
+                if focused {
+                    isEditing = true
+                    textAtEditStart = editText
+                } else {
+                    commitEdit()
+                }
             }
             .onChange(of: editText) { _, newText in
                 // Live-commit: push every parseable value to the binding right away
                 // so an Apply button (e.g. the Bevel sheet) never reads a stale value
                 // while the field still has focus.
-                guard isEditing, let parsed = Double(newText) else { return }
+                guard liveCommit, isEditing, let parsed = Double(newText) else { return }
                 var next = CGFloat(parsed)
                 if let range { next = min(max(next, range.lowerBound), range.upperBound) }
                 if next != value { onCommit(next) }
@@ -201,7 +214,12 @@ struct NumberBoxField: View {
             )
             .onAppear { editText = formatted(value) }
             .onChange(of: value) { _, newValue in
-                if !isEditing { editText = formatted(newValue) }
+                if !isEditing {
+                    editText = formatted(newValue)
+                    // 外部からの値変更で表示が再同期された場合も基準文字列を
+                    // 合わせ、続くフォーカスアウトでの誤コミットを防ぐ
+                    textAtEditStart = editText
+                }
             }
     }
 
@@ -211,15 +229,15 @@ struct NumberBoxField: View {
 
     private func commitEdit() {
         isEditing = false
-        guard let parsed = Double(editText) else {
+        // 確定判定(無編集ガード + クランプ)は EditablePropertyField と共通
+        guard let clamped = EditablePropertyField.valueToCommit(
+            editText: editText, textAtEditStart: textAtEditStart, range: range) else {
             editText = formatted(value)
+            textAtEditStart = editText
             return
-        }
-        var clamped = CGFloat(parsed)
-        if let range {
-            clamped = min(max(clamped, range.lowerBound), range.upperBound)
         }
         onCommit(clamped)
         editText = formatted(clamped)
+        textAtEditStart = editText
     }
 }

@@ -16,6 +16,9 @@ struct TextSection: View {
         NSFontManager.shared.availableFontFamilies.sorted()
     }()
 
+    /// サイズの許容範囲。ステッパーと直接入力の両方がこれを参照する (#50)
+    private static let fontSizeRange: ClosedRange<CGFloat> = 1...200
+
     var body: some View {
         if let text = textShape {
             PropertySection(title: "Text") {
@@ -62,25 +65,29 @@ struct TextSection: View {
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
                         .frame(width: 26, alignment: .leading)
 
-                    TextField("", value: fontSizeDoubleBinding(current: text.fontSize), format: .number)
-                        .font(.system(size: 11))
-                        .textFieldStyle(.plain)
-                        .frame(width: 44)
-                        .padding(.horizontal, 6)
-                        .frame(height: 28)
-                        .background(DesignTokens.bgInput(colorScheme))
-                        .cornerRadius(4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
-                        )
+                    // 直接入力もステッパーと同じ範囲にクランプする (#50)。
+                    // Undo がコミットごとに積まれるため liveCommit は無効化
+                    NumberBoxField(
+                        value: text.fontSize,
+                        range: Self.fontSizeRange,
+                        liveCommit: false
+                    ) { newValue in
+                        guard newValue != text.fontSize else { return }
+                        editor.updateTextProperty { $0.fontSize = newValue }
+                    }
+                    .frame(width: 44)
 
                     Text("mm")
                         .font(.system(size: 10))
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
 
-                    Stepper("", value: fontSizeDoubleBinding(current: text.fontSize), in: 1...200, step: 1)
-                        .labelsHidden()
+                    Stepper(
+                        "",
+                        value: fontSizeDoubleBinding(current: text.fontSize),
+                        in: Double(Self.fontSizeRange.lowerBound)...Double(Self.fontSizeRange.upperBound),
+                        step: 1
+                    )
+                    .labelsHidden()
                 }
 
                 // Style: Bold / Italic
@@ -163,12 +170,15 @@ struct TextSection: View {
         )
     }
 
+    /// ステッパー用バインディング。範囲は Stepper(in:) が保証するが、
+    /// 念のためここでも fontSizeRange にクランプする
     private func fontSizeDoubleBinding(current: CGFloat) -> Binding<Double> {
         Binding(
             get: { Double(current) },
             set: { newValue in
-                guard newValue >= 1 else { return }
-                editor.updateTextProperty { $0.fontSize = CGFloat(newValue) }
+                let clamped = min(max(CGFloat(newValue), Self.fontSizeRange.lowerBound), Self.fontSizeRange.upperBound)
+                guard clamped != current else { return }
+                editor.updateTextProperty { $0.fontSize = clamped }
             }
         )
     }
