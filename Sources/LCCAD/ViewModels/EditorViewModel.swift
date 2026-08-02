@@ -1387,8 +1387,9 @@ final class EditorViewModel {
     // MARK: - Editing Tools
 
     /// 選択図形を距離 (mm) 分オフセットしたコピーを追加する。
-    /// 正の距離で閉図形(矩形・楕円・弧)は内側(中心側)へ縮み、負で外側へ広がる。
-    /// 線・ベジェは進行方向の垂線 (-dy, dx) 側(Y 下向き座標で時計回り側)へ平行移動する(`OffsetTool` 参照)。
+    /// 正の距離で矩形・楕円・弧は内側(中心側)へ縮み、負で外側へ広がる
+    /// (弧は結果の半径が 0 以下になる場合コピーを追加しない)。
+    /// 線・ベジェは進行方向の垂線 (-dy, dx) 側(Y 下向き座標で時計回り側)へオフセットする(`OffsetTool` 参照)。
     func offsetSelectedShape(distance: CGFloat) {
         guard let id = selectedShapeIds.first,
               let shape = findShape(id: id) else { return }
