@@ -143,4 +143,116 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.offset.x, 400, accuracy: 1e-9)
         XCTAssertEqual(editor.transform.offset.y, 300, accuracy: 1e-9)
     }
+
+    // MARK: - Display Baseline (実寸 100%)
+
+    func testUpdateDisplayBaselineFirstCallAppliesActualSizeStartup() {
+        let editor = makeEditor(shapes: [])
+
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        // 初回は起動時表示として実寸 100% を適用
+        XCTAssertEqual(editor.transform.baselineScale, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.zoomPercentage, 100)
+        XCTAssertEqual(editor.transform.offset.x, 400, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 300, accuracy: 1e-9)
+    }
+
+    func testUpdateDisplayBaselineLaterCallKeepsScaleAndRelabels() {
+        let editor = makeEditor(shapes: [])
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+        editor.setZoomPercentage(200)  // scale = 10
+
+        // 別ディスプレイへ移動: 見た目の scale は維持し % 表記だけ変わる
+        editor.updateDisplayBaseline(pointsPerMm: 4.0)
+
+        XCTAssertEqual(editor.transform.scale, 10.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.baselineScale, 4.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.zoomPercentage, 250)
+    }
+
+    func testUpdateDisplayBaselineRejectsInvalidValues() {
+        let editor = makeEditor(shapes: [])
+
+        editor.updateDisplayBaseline(pointsPerMm: 0)
+        editor.updateDisplayBaseline(pointsPerMm: -3)
+        editor.updateDisplayBaseline(pointsPerMm: .infinity)
+        editor.updateDisplayBaseline(pointsPerMm: .nan)
+
+        // 無効値では基準もズームも変わらない
+        XCTAssertEqual(editor.transform.baselineScale, 3.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9)
+
+        // 無効値で初回適用フラグが消費されていないこと
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
+    }
+
+    func testUpdateDisplayBaselineWaitsForCanvasSize() {
+        // canvasSize 未供給の状態で密度だけ届いた場合、初回適用はサイズ確定まで保留
+        let editor = EditorViewModel(document: DocumentData.empty())
+
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        XCTAssertEqual(editor.transform.baselineScale, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9, "サイズ確定前に適用しない")
+
+        editor.canvasSize = CGSize(width: 1000, height: 800)
+
+        // サイズ確定と同時に実寸 100% を適用し、実サイズの中心に原点を置く
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.x, 500, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 400, accuracy: 1e-9)
+    }
+
+    func testUpdateDisplayBaselineRejectsImplausibleDensity() {
+        let editor = makeEditor(shapes: [])
+
+        // EDID 不明時の 72dpi 推定値(2x 仮想ディスプレイで約 1.4pt/mm)や
+        // 極端な高密度は誤推定として無視する
+        editor.updateDisplayBaseline(pointsPerMm: 1.4)
+        editor.updateDisplayBaseline(pointsPerMm: 15.1)
+
+        XCTAssertEqual(editor.transform.baselineScale, 3.0, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9)
+    }
+
+    func testZoomToActualSizeUsesBaseline() {
+        let editor = makeEditor(shapes: [])
+        editor.updateDisplayBaseline(pointsPerMm: 4.85)
+        editor.transform.scale = 12.0
+        editor.transform.offset = CGPoint(x: -500, y: 700)
+
+        editor.zoomToActualSize()
+
+        XCTAssertEqual(editor.transform.scale, 4.85, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.zoomPercentage, 100)
+    }
+
+    func testSetZoomPercentageUsesBaseline() {
+        let editor = makeEditor(shapes: [])
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        editor.setZoomPercentage(200)
+        XCTAssertEqual(editor.transform.scale, 10.0, accuracy: 1e-9)
+
+        // クランプは scale 単位（CanvasTransform.maxScale = 50）
+        editor.setZoomPercentage(100_000)
+        XCTAssertEqual(editor.transform.scale, 50.0, accuracy: 1e-9)
+    }
+
+    func testZoomToFitDegenerateFallbackUsesBaseline() {
+        let line = LineShape(start: CGPoint(x: 30, y: 40), end: CGPoint(x: 30, y: 40))
+        let editor = makeEditor(shapes: [.line(line)])
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        editor.zoomToFit()
+
+        // 点状の退化 bbox は実寸 100% で中心配置
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
+        let screenPoint = editor.transform.worldToScreen(CGPoint(x: 30, y: 40))
+        XCTAssertEqual(screenPoint.x, 400, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 300, accuracy: 1e-9)
+    }
 }

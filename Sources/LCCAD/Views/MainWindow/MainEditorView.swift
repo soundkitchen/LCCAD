@@ -28,6 +28,7 @@ struct MainEditorView: View {
             StatusBarView(editor: editor)
         }
         .background(WindowConfigurator(fileDocument: fileDocument))
+        .background(DisplayDensityObserver(editor: editor))
         .onAppear {
             editor.fileDocument = fileDocument
             editor.undoManager = undoManager

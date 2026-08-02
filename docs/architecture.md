@@ -63,7 +63,8 @@ Sources/LCCAD/
 ├── App/
 │   ├── LCCADApp.swift           # @main エントリポイント、Settings シーン
 │   ├── AppCommands.swift        # macOS メニューバー定義 (File/Edit/View/Arrange/Draw/Stitch)
-│   └── AppearanceMode.swift     # カラーモード (System/Light/Dark) 管理
+│   ├── AppearanceMode.swift     # カラーモード (System/Light/Dark) 管理
+│   └── DisplayDensityObserver.swift # ディスプレイ物理密度 (pt/mm) を EditorViewModel へ供給（実寸 100% 基準、#62）
 │
 ├── Models/
 │   ├── Document/
@@ -191,7 +192,8 @@ Sources/LCCAD/
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
 | **ズーム** | `zoomToFit()` | 表示中の全図形の外接矩形がビューに収まるようにズーム・パン（図形がなければ Actual Size にフォールバック） |
-| **ズーム** | `zoomToActualSize()` | 100%（scale=3.0）に戻し、原点をキャンバス中央に配置 |
+| **ズーム** | `zoomToActualSize()` | 実寸 100%（`transform.baselineScale`）に戻し、原点をキャンバス中央に配置 |
+| **ズーム** | `updateDisplayBaseline(pointsPerMm:)` | ディスプレイの物理密度を 100% の基準として反映。妥当レンジ（2〜15 pt/mm）外は誤推定（EDID 不明時の 72dpi 仮定値）として無視。初回はキャンバス実サイズの確定と両待ちで起動時の実寸 100% を適用、以降は % 表記の基準のみ更新（`DisplayDensityObserver` から供給。ディスプレイ移動とスケーリング変更に追従、#62） |
 | **整列** | `alignSelectedShapes(_:)` | 左/右/上/下/水平中央/垂直中央揃え（Undo 対応） |
 | **分布** | `distributeSelectedShapes(_:)` | 水平/垂直等間隔分布（3個以上必要、Undo 対応） |
 | **反転** | `mirrorSelectedShapes(_:copy:)` | 縦軸/横軸で反転。in-place（中心軸）または copy（端軸で複製＋反転）（Undo 対応） |

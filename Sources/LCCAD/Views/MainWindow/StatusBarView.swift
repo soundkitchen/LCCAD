@@ -112,8 +112,9 @@ struct StatusBarView: View {
             zoomText = "\(editor.transform.zoomPercentage)"
             return
         }
-        let clamped = max(1, min(1600, value))
-        editor.setZoomPercentage(CGFloat(clamped))
+        // 範囲制限は setZoomPercentage 内の scale クランプ（CanvasTransform.clampScale）に
+        // 一任し、確定後の実効値を読み戻して表示する
+        editor.setZoomPercentage(CGFloat(value))
         zoomText = "\(editor.transform.zoomPercentage)"
     }
 }
