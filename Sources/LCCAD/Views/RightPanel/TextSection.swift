@@ -75,7 +75,10 @@ struct TextSection: View {
                         guard newValue != text.fontSize else { return }
                         editor.updateTextProperty { $0.fontSize = newValue }
                     }
-                    .frame(width: 44)
+                    // 旧実装の可視ボックス幅(TextField 44px + 水平 padding 12px)に
+                    // 合わせる。NumberBoxField は外側 frame が background ごと制約
+                    // するため 56px を指定 (レビュー #66 指摘)
+                    .frame(width: 56)
 
                     Text("mm")
                         .font(.system(size: 10))
