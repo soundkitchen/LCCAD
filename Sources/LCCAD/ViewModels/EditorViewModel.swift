@@ -732,6 +732,7 @@ final class EditorViewModel {
         let old = document
         update(&dim)
         document.layers[li].shapes[si] = .dimensionLine(dim)
+        guard old != document else { return }
         registerUndo(actionName: "Edit Dimension", oldDocument: old)
     }
 
@@ -743,6 +744,7 @@ final class EditorViewModel {
         let old = document
         update(&arc)
         document.layers[li].shapes[si] = .arc(arc)
+        guard old != document else { return }
         registerUndo(actionName: "Edit Arc", oldDocument: old)
     }
 
