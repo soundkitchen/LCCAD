@@ -67,7 +67,8 @@ Sources/LCCAD/
 │   ├── MainWindow/
 │   │   ├── MainEditorView.swift # メインエディタ (3カラム HSplitView)
 │   │   ├── ToolbarView.swift    # ツールバー
-│   │   └── StatusBarView.swift  # ステータスバー（座標表示 + ズーム直接入力）
+│   │   ├── StatusBarView.swift  # ステータスバー（座標表示 + ズーム直接入力）
+│   │   └── CoalescedEditMouseDownObserver.swift # マウスダウンで連続編集のまとめを終える (#72)
 │   ├── LeftPanel/
 │   │   ├── LeftPanelView.swift
 │   │   └── LayerListView.swift
@@ -84,7 +85,9 @@ Sources/LCCAD/
 │   ├── Shared/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField, NumberBoxField
 │   │   ├── DesignTokens.swift   # Pen デザイン変数の Swift 転写
-│   │   └── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
+│   │   ├── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
+│   │   ├── CodableColorPicker.swift # CodableColor 用 ColorPicker + ColorPickerHistory (#72)
+│   │   └── UndoFreeTextView.swift # allowsUndo = false の複数行テキスト欄（内容欄で使用、#72）
 │   ├── PrickingIronSheet.swift  # 目打ち管理シート
 │   ├── BevelSheet.swift         # 範囲選択の一括面取りシート (Arrange ▸ Bevel…)
 │   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
