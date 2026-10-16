@@ -29,12 +29,13 @@ struct TextSection: View {
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
 
                     // TextEditor は自前の入力 Undo を登録して ViewModel の Undo と二重になるため、
-                    // Undo を持たないテキストビューを使う。フォーカスが外れたら打鍵のまとめを終え、
-                    // 次の入力を別の Undo にする (#72)
+                    // Undo を持たないテキストビューを使う。フォーカスアウトや打鍵以外の編集で
+                    // 打鍵のまとめを区切り、次の入力を別の Undo にする (#72)
                     UndoFreeTextView(
                         text: contentBinding(current: text.content),
+                        identity: text.id,
                         fontSize: 11,
-                        onEndEditing: { editor.endCoalescedEdit() }
+                        onEditBoundary: { editor.endCoalescedEdit() }
                     )
                     .frame(minHeight: 40, maxHeight: 120)
                     .padding(4)
@@ -151,7 +152,10 @@ struct TextSection: View {
                         .frame(width: 26, alignment: .leading)
 
                     // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
-                    CodableColorPicker(color: text.stroke.color) { newColor in
+                    CodableColorPicker(
+                        color: text.stroke.color,
+                        currentColors: { editor.selectedShapes.map(\.stroke.color) }
+                    ) { newColor in
                         editor.updateTextProperty(coalescing: .textColor) { $0.stroke.color = newColor }
                     }
                 }

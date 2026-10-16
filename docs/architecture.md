@@ -68,7 +68,7 @@ Sources/LCCAD/
 │   │   ├── MainEditorView.swift # メインエディタ (3カラム HSplitView)
 │   │   ├── ToolbarView.swift    # ツールバー
 │   │   ├── StatusBarView.swift  # ステータスバー（座標表示 + ズーム直接入力）
-│   │   └── CoalescedEditMouseDownObserver.swift # マウスダウンで連続編集のまとめを終える (#72)
+│   │   └── CoalescedEditBoundaryObserver.swift # マウスダウン・カラーパネルのキー入力で連続編集のまとめを終える (#72)
 │   ├── LeftPanel/
 │   │   ├── LeftPanelView.swift
 │   │   └── LayerListView.swift
@@ -185,13 +185,16 @@ Sources/LCCAD/
 
 - 別の操作で `registerUndo` が呼ばれる(Undo/Redo も、Redo 用の再登録で `registerUndo` を通るので同じく終わる)
 - `selectedShapeIds` が変わる
-- `endCoalescedEdit()` が呼ばれる。内容欄のフォーカスアウト(`UndoFreeTextView` の `textDidEndEditing`)と、アプリ内のマウスダウン(`CoalescedEditMouseDownObserver`)が呼ぶ。SwiftUI の `ColorPicker` はドラッグの終了を通知しないので、`NSEvent` のローカルモニターでマウス操作の区切りを拾う。カラーパネルのホイールやスウォッチはマウスの追跡を自前のループで行い、マウスアップがローカルモニターに届かないため、次のマウスダウン(追跡の開始前に配送される)で区切る
+- 変更前の document が、直前のまとめ編集の結果と違う(Undo を通さずに document が差し替えられた場合など)
+- `endCoalescedEdit()` が呼ばれる。呼ぶのは次のとおり:
+  - 内容欄(`UndoFreeTextView`)のフォーカスアウト(`textDidEndEditing`)と、打鍵以外の編集(⌘V・⌘X・メニューからのペーストなど)の前後。打鍵以外の編集は独立した Undo になる。IME の未確定文字は document に書き込まず、確定したときに書き込む
+  - `CoalescedEditBoundaryObserver`(`NSEvent` のローカルモニター)が拾う、アプリ内のマウスダウン(左・右・その他)とカラーパネルでのキー入力。SwiftUI の `ColorPicker` はドラッグの終了を通知せず、カラーパネルのホイールやスウォッチはマウスの追跡を自前のループで行うのでマウスアップもローカルモニターに届かない。そのため次のマウスダウン(追跡の開始前に配送される)で区切る。カラーパネルのキー入力(16 進欄の Enter など)で確定した色は、1 回ごとに別の Undo になる
 
 最初の編集が値の変わらない呼び出しで Undo が登録されなかった場合は、まとめを始めない(始めてしまうと、続く実際の変更が Undo なしで素通りするため)。
 
 内容欄は SwiftUI の `TextEditor` ではなく `UndoFreeTextView`(`allowsUndo = false` の NSTextView を包んだ `NSViewRepresentable`)を使う。`TextEditor` の中の NSTextView は自前の入力 Undo を document と同じ UndoManager に登録するため、ViewModel の Undo と二重になって ⌘Z が両方を別々に戻してしまうほか、選択を変えた後の ⌘Z でテキストビューの文字列が別の図形に書き込まれるおそれがある。Undo は ViewModel 側に一本化し、⌘Z で戻した document は `updateNSView` で欄に反映する。
 
-カラーピッカーは素の `ColorPicker` ではなく `CodableColorPicker` を使う。`CodableColor` との変換バインディングをそのまま渡すと、document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色がピッカーに渡し直され、開いているカラーパネルの色が上書きされる。その結果、ホイールの指示点がマウス位置から飛び、パネルが誤差の分だけ違う色を送り返して意図しない Undo が積まれる。`CodableColorPicker` はピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`、アプリ起動中のみ・最大 256 件)、保存値が覚えている色と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)で同じなら元の色を返す。誤差の範囲の変更は書き込まない。色成分は描画・印刷と同じく sRGB で取り出すが、カラーパネルが返す色は sRGB とは限らない(汎用 RGB など)。そのため Undo で戻した保存値を sRGB の色としてパネルに返すと、見た目は同じでも明度などの表示が変わる(明度 100% → 97.8% など)。元の色を返すのはこれを防ぐため。覚えていない色(再起動後やファイルを開き直した後)は sRGB の色として返す。
+カラーピッカーは素の `ColorPicker` ではなく `CodableColorPicker` を使う。`CodableColor` との変換バインディングをそのまま渡すと、document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色がピッカーに渡し直され、開いているカラーパネルの色が上書きされる。その結果、ホイールの指示点がマウス位置から飛び、パネルが誤差の分だけ違う色を送り返して意図しない Undo が積まれる。`CodableColorPicker` はピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`、アプリ起動中のみ・最大 256 件)、保存値が覚えている色と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)で同じなら元の色を返す。編集対象(複数選択では選択中の全図形)がすべてすでにその色なら、パネルからの送り返しとして書き込まない。編集対象の色は、変更が届いた時点で ViewModel から読む。色成分は描画・印刷と同じく sRGB で取り出すが、カラーパネルが返す色は sRGB とは限らない(汎用 RGB など)。そのため Undo で戻した保存値を sRGB の色としてパネルに返すと、見た目は同じでも明度などの表示が変わる(明度 100% → 97.8% など)。元の色を返すのはこれを防ぐため。覚えていない色(再起動後やファイルを開き直した後)は sRGB の色として返す。
 
 ### マルチセレクト
 

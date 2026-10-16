@@ -20,6 +20,19 @@ final class CodableColorPickerTests: XCTestCase {
                        "A visible change (one 8-bit level) must not be swallowed as noise")
     }
 
+    func testEchoOfCurrentColorIsNotApplied() {
+        let black = CodableColor(r: 0, g: 0, b: 0)
+        let echoed = CodableColor(r: 0.00000003, g: 0, b: 0)
+        XCTAssertFalse(CodableColorPicker.shouldApply(echoed, to: [black]))
+    }
+
+    func testColorIsAppliedWhenSomeSelectedShapesDiffer() {
+        // 黒と赤の線を選択し(先頭は黒)、黒を選んだら赤の線も黒になること (review #74)
+        let black = CodableColor(r: 0, g: 0, b: 0)
+        let red = CodableColor(r: 1, g: 0, b: 0)
+        XCTAssertTrue(CodableColorPicker.shouldApply(black, to: [black, red]))
+    }
+
     func testAlphaIsCompared() {
         let opaque = CodableColor(r: 0, g: 0, b: 0, a: 1)
         let translucent = CodableColor(r: 0, g: 0, b: 0, a: 0.5)

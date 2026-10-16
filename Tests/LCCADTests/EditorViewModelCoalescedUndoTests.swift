@@ -142,6 +142,20 @@ final class EditorViewModelCoalescedUndoTests: XCTestCase {
         XCTAssertEqual(content, "")
     }
 
+    func testDocumentReplacedOutsideUndoEndsCoalescing() {
+        // ファイルの読み込みなど、Undo を通さずに document が差し替えられた場合 (review #74)
+        type("a")
+        var replaced = editor.document
+        guard case .text(var t) = replaced.layers[0].shapes[0] else { return XCTFail("expected text") }
+        t.content = "loaded"
+        replaced.layers[0].shapes[0] = .text(t)
+        editor.document = replaced
+        type("loaded!")
+
+        XCTAssertTrue(undoStep())
+        XCTAssertEqual(content, "loaded", "Typing after a document replacement must be its own undo entry")
+    }
+
     // MARK: - カラーピッカーのドラッグ
 
     func testStrokeColorDragCoalescesUntilMouseUp() {

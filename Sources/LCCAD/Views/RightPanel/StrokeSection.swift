@@ -10,7 +10,10 @@ struct StrokeSection: View {
         PropertySection(title: "Stroke") {
             HStack(spacing: 8) {
                 // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
-                CodableColorPicker(color: stroke.color) { newColor in
+                CodableColorPicker(
+                    color: stroke.color,
+                    currentColors: { editor.selectedShapes.map(\.stroke.color) }
+                ) { newColor in
                     editor.updateStroke(coalescing: .strokeColor) { $0.color = newColor }
                 }
                 .frame(width: 24, height: 24)

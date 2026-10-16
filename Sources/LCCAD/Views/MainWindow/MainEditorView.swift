@@ -29,7 +29,7 @@ struct MainEditorView: View {
         }
         .background(WindowConfigurator(fileDocument: fileDocument))
         .background(DisplayDensityObserver(editor: editor))
-        .modifier(CoalescedEditMouseDownObserver(editor: editor))
+        .modifier(CoalescedEditBoundaryObserver(editor: editor))
         .onAppear {
             editor.fileDocument = fileDocument
             editor.undoManager = undoManager

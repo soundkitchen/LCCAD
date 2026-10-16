@@ -166,7 +166,7 @@ final class EditorViewModel {
     var currentTool: DrawingTool = .select
     var selectedShapeIds: Set<UUID> = [] {
         // 選択が変わったら連続編集のまとめを終える(戻ってきた図形の編集を前回の Undo に混ぜない)
-        didSet { activeCoalescedEdit = nil }
+        didSet { endCoalescedEdit() }
     }
     var cursorWorldPosition: CGPoint = .zero
     var activeLayerIndex: Int = 0 {
@@ -424,21 +424,34 @@ final class EditorViewModel {
     /// 別の Undo 登録・Undo/Redo・選択変更・`endCoalescedEdit()` で終わる
     @ObservationIgnored private var activeCoalescedEdit: CoalescedEdit?
 
+    /// まとめ中の連続編集が最後に作った document。次の編集の変更前の状態がこれと
+    /// 一致するときだけまとめを続ける。Undo を通さずに document が差し替えられた場合
+    /// (ファイルの読み込みなど)でも、まとめが自動で終わる
+    @ObservationIgnored private var coalescedEditResult: DocumentData?
+
     /// 連続編集のまとめを終える。次の編集は新しい Undo になる。
-    /// 内容欄のフォーカスアウトや、次のマウス操作の開始(マウスダウン)から呼ばれる
+    /// 内容欄のフォーカスアウトや打鍵以外の編集(ペーストなど)、マウス操作の開始、
+    /// カラーパネルでのキー入力から呼ばれる
     func endCoalescedEdit() {
         activeCoalescedEdit = nil
+        coalescedEditResult = nil
     }
 
-    /// Undo を登録する。登録したら true、無変更などで登録しなかったら false
-    @discardableResult
-    private func registerUndo(actionName: String, oldDocument: DocumentData) -> Bool {
+    /// Undo を登録する。
+    /// - Parameter edit: 連続編集としてまとめる単位。同じ編集がまとめ中で、変更前の状態が
+    ///   その編集の結果のままなら登録を省き、そうでなければ通常どおり登録してまとめを始める
+    private func registerUndo(actionName: String, oldDocument: DocumentData, coalescing edit: CoalescedEdit? = nil) {
+        if let edit, edit == activeCoalescedEdit, oldDocument == coalescedEditResult {
+            coalescedEditResult = document
+            return
+        }
         // 別の操作の Undo が積まれたら連続編集のまとめは終わり。Undo/Redo も
         // 下の Redo 用の再登録を通るので、ここで同じく終わる
-        activeCoalescedEdit = nil
+        endCoalescedEdit()
         // ドキュメントが変わっていない操作では Undo を積まない(空振りの Undo 防止、#70)。
-        // Redo 用の再登録は old と現在値が必ず異なるため、このガードには掛からない
-        guard let undoManager, oldDocument != document else { return false }
+        // Redo 用の再登録は old と現在値が必ず異なるため、このガードには掛からない。
+        // 登録しなかった編集はまとめの起点にしない(続く実際の変更が Undo なしで素通りするため)
+        guard let undoManager, oldDocument != document else { return }
         undoManager.registerUndo(withTarget: self) { target in
             let redoDoc = target.document
             target.document = oldDocument
@@ -450,21 +463,9 @@ final class EditorViewModel {
             target.registerUndo(actionName: actionName, oldDocument: redoDoc)
         }
         undoManager.setActionName(actionName)
-        return true
-    }
-
-    /// `edit` を指定すると連続編集としてまとめる。同じ編集がまとめ中なら登録を省き、
-    /// そうでなければ通常どおり登録してまとめを始める
-    private func registerUndo(actionName: String, oldDocument: DocumentData, coalescing edit: CoalescedEdit?) {
-        guard let edit else {
-            registerUndo(actionName: actionName, oldDocument: oldDocument)
-            return
-        }
-        guard activeCoalescedEdit != edit else { return }
-        // 登録できたときだけまとめを始める(無変更で登録されなかった編集を起点にすると、
-        // 続く実際の変更が Undo なしで素通りしてしまう)
-        if registerUndo(actionName: actionName, oldDocument: oldDocument) {
+        if let edit {
             activeCoalescedEdit = edit
+            coalescedEditResult = document
         }
     }
 

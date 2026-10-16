@@ -11,13 +11,17 @@ import SwiftUI
 // 違う色を送り返して、意図しない Undo が積まれる。
 // そこで、ピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`)、
 // 保存値が覚えている色と誤差の範囲で同じなら、元の色をそのままピッカーに返す(パネルを
-// 上書きしない)。誤差の範囲の変更は onChange に渡さない。
+// 上書きしない)。編集対象がすでにその色(誤差の範囲)なら onChange に渡さない。
 // 元の色を返すのは、Undo で色を戻したときのためでもある。カラーパネルが返す色は sRGB とは
 // 限らない(汎用 RGB など)ので、sRGB に変換した保存値をそのまま戻すと、見た目は同じでも
 // パネルの明度などの表示が変わってしまう(明度 100% の色が 97.8% になる、など)。
 
 struct CodableColorPicker: View {
+    /// ピッカーに表示する色(複数選択では先頭の図形の色)
     let color: CodableColor
+    /// 編集対象の現在の色。変更が届いた時点で読む(body を組み立てたときの値は、
+    /// 再描画の前に続けて変更が届くと古くなっている)。複数選択では選択中の全図形の色
+    let currentColors: () -> [CodableColor]
     let onChange: (CodableColor) -> Void
 
     var body: some View {
@@ -34,8 +38,7 @@ struct CodableColorPicker: View {
             set: { newColor in
                 guard let codable = CodableColor(newColor) else { return }
                 ColorPickerHistory.shared.record(newColor, as: codable)
-                // パネルからの送り返し(誤差だけの変化)は変更として扱わない
-                guard !codable.isApproximatelyEqual(to: color) else { return }
+                guard Self.shouldApply(codable, to: currentColors()) else { return }
                 onChange(codable)
             }
         )
@@ -61,6 +64,11 @@ final class ColorPickerHistory {
     }
 
     func record(_ color: Color, as codable: CodableColor) {
+        // ドラッグ中は直前と同じ色の更新が続くことが多いので、末尾だけ見て済ませる
+        if let last = entries.last, last.codable.isApproximatelyEqual(to: codable) {
+            entries[entries.count - 1] = (codable, color)
+            return
+        }
         entries.removeAll { $0.codable.isApproximatelyEqual(to: codable) }
         entries.append((codable, color))
         if entries.count > capacity {
@@ -68,9 +76,19 @@ final class ColorPickerHistory {
         }
     }
 
-    /// 保存値に対応する元の色。覚えていなければ nil
+    /// 保存値に対応する元の色。覚えていなければ nil。新しいものから探すので、
+    /// ドラッグ中や再描画(直前に記録した色を引く)では末尾で見つかる
     func originalColor(for codable: CodableColor) -> Color? {
         entries.last { $0.codable.isApproximatelyEqual(to: codable) }?.color
+    }
+}
+
+extension CodableColorPicker {
+    /// ピッカーから届いた色を編集対象に適用するか。編集対象がすべてすでにその色(誤差の範囲)なら、
+    /// パネルからの送り返しとして扱わない。複数選択で一部の図形だけ色が違う場合は、
+    /// 先頭の図形と同じ色でも適用する
+    static func shouldApply(_ color: CodableColor, to currentColors: [CodableColor]) -> Bool {
+        !currentColors.allSatisfy { $0.isApproximatelyEqual(to: color) }
     }
 }
 
