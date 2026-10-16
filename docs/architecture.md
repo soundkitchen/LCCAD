@@ -176,6 +176,8 @@ Sources/LCCAD/
 | **ページ** | `moveSelectedPage(by:)` | ページドラッグ移動（PageSnapEngine 連動） |
 | **ページ** | `updatePageProperty(_:)` | 右パネルからのプロパティ変更（Undo 対応） |
 
+「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
+
 ### マルチセレクト
 
 選択モデルは `selectedShapeIds: Set<UUID>` で複数図形の同時選択に対応:
