@@ -425,7 +425,7 @@ final class EditorViewModel {
     @ObservationIgnored private var activeCoalescedEdit: CoalescedEdit?
 
     /// 連続編集のまとめを終える。次の編集は新しい Undo になる。
-    /// 内容欄のフォーカスアウトやマウスアップ(カラーピッカーのドラッグ終了)から呼ばれる
+    /// 内容欄のフォーカスアウトや、次のマウス操作の開始(マウスダウン)から呼ばれる
     func endCoalescedEdit() {
         activeCoalescedEdit = nil
     }

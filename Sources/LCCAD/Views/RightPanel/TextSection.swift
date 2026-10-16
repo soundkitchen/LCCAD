@@ -4,7 +4,6 @@ import AppKit
 struct TextSection: View {
     @Bindable var editor: EditorViewModel
     @Environment(\.colorScheme) private var colorScheme
-    @FocusState private var isContentFocused: Bool
 
     private var textShape: TextShape? {
         guard let id = editor.selectedShapeIds.first,
@@ -29,22 +28,22 @@ struct TextSection: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
 
-                    TextEditor(text: contentBinding(current: text.content))
-                        .focused($isContentFocused)
-                        .font(.system(size: 11))
-                        .frame(minHeight: 40, maxHeight: 120)
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                        .background(DesignTokens.bgInput(colorScheme))
-                        .cornerRadius(4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
-                        )
-                        // フォーカスが外れたら打鍵のまとめを終え、次の入力を別の Undo にする (#72)
-                        .onChange(of: isContentFocused) { _, focused in
-                            if !focused { editor.endCoalescedEdit() }
-                        }
+                    // TextEditor は自前の入力 Undo を登録して ViewModel の Undo と二重になるため、
+                    // Undo を持たないテキストビューを使う。フォーカスが外れたら打鍵のまとめを終え、
+                    // 次の入力を別の Undo にする (#72)
+                    UndoFreeTextView(
+                        text: contentBinding(current: text.content),
+                        fontSize: 11,
+                        onEndEditing: { editor.endCoalescedEdit() }
+                    )
+                    .frame(minHeight: 40, maxHeight: 120)
+                    .padding(4)
+                    .background(DesignTokens.bgInput(colorScheme))
+                    .cornerRadius(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
+                    )
                 }
 
                 // Font Name
@@ -225,7 +224,7 @@ struct TextSection: View {
             get: { Color(red: current.r, green: current.g, blue: current.b, opacity: current.a) },
             set: { newColor in
                 if let components = NSColor(newColor).usingColorSpace(.deviceRGB) {
-                    // ドラッグ中は連続で呼ばれるため、マウスアップまでを 1 件の Undo にまとめる (#72)
+                    // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
                     editor.updateTextProperty(coalescing: .textColor) {
                         $0.stroke.color = CodableColor(
                             r: components.redComponent,

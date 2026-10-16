@@ -162,7 +162,7 @@
 
 ### 3'. Text セクション（テキスト図形）
 - Content, Font, Size, Style (Bold/Italic), Alignment, Color
-- **Content の Undo**: 連続入力は Undo 1 件にまとめる。キャンバスは 1 打鍵ごとに更新し、フォーカスが外れる・選択が変わる・別の Undo 操作が入る・Undo/Redo するのどれかで区切る（#72）
+- **Content の Undo**: 連続入力は Undo 1 件にまとめる。キャンバスは 1 打鍵ごとに更新し、フォーカスが外れる・マウスボタンを押す(キャレット移動を含む)・選択が変わる・別の Undo 操作が入る・Undo/Redo するのどれかで区切る（#72）
 - **Color の Undo**: Stroke セクションと同じく、1 回のドラッグ / クリックを Undo 1 件にまとめる
 
 ### 4. Arc / Curve セクション（弧図形）

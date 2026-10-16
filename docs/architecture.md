@@ -182,9 +182,11 @@ Sources/LCCAD/
 
 - 別の操作で `registerUndo` が呼ばれる(Undo/Redo も、Redo 用の再登録で `registerUndo` を通るので同じく終わる)
 - `selectedShapeIds` が変わる
-- `endCoalescedEdit()` が呼ばれる。内容欄のフォーカスアウト(`TextSection` の `@FocusState`)と、アプリ内のマウスアップ(`CoalescedEditMouseUpObserver`)が呼ぶ。SwiftUI の `ColorPicker` はドラッグの終了を通知しないので、`NSEvent` のローカルモニターでマウスアップを拾う。カラーパネルがマウスアップの処理中に送る最後の値まで同じ Undo に含めるため、区切りはイベント処理の後まで遅らせる
+- `endCoalescedEdit()` が呼ばれる。内容欄のフォーカスアウト(`UndoFreeTextView` の `textDidEndEditing`)と、アプリ内のマウスダウン(`CoalescedEditMouseDownObserver`)が呼ぶ。SwiftUI の `ColorPicker` はドラッグの終了を通知しないので、`NSEvent` のローカルモニターでマウス操作の区切りを拾う。カラーパネルのホイールやスウォッチはマウスの追跡を自前のループで行い、マウスアップがローカルモニターに届かないため、次のマウスダウン(追跡の開始前に配送される)で区切る
 
 最初の編集が値の変わらない呼び出しで Undo が登録されなかった場合は、まとめを始めない(始めてしまうと、続く実際の変更が Undo なしで素通りするため)。
+
+内容欄は SwiftUI の `TextEditor` ではなく `UndoFreeTextView`(`allowsUndo = false` の NSTextView を包んだ `NSViewRepresentable`)を使う。`TextEditor` の中の NSTextView は自前の入力 Undo を document と同じ UndoManager に登録するため、ViewModel の Undo と二重になって ⌘Z が両方を別々に戻してしまうほか、選択を変えた後の ⌘Z でテキストビューの文字列が別の図形に書き込まれるおそれがある。Undo は ViewModel 側に一本化し、⌘Z で戻した document は `updateNSView` で欄に反映する。
 
 ### マルチセレクト
 
