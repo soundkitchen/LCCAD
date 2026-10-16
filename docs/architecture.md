@@ -161,7 +161,7 @@ Sources/LCCAD/
 | **移動** | `moveSelectedShapes(by:)` | 全選択図形を一括移動 |
 | **削除** | `deleteSelectedShapes()` | 全選択図形を一括削除（Undo 対応） |
 | **ストローク編集** | `updateStroke(_:)` | 選択図形の stroke.color / stroke.width / stroke.lineStyle を更新（Undo 対応） |
-| **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応。値が変わらなければ Undo を積まない） |
+| **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応） |
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
 | **ズーム** | `zoomToFit()` | 表示中の全図形の外接矩形がビューに収まるようにズーム・パン（図形がなければ Actual Size にフォールバック） |
@@ -174,7 +174,9 @@ Sources/LCCAD/
 | **ページ** | `addPage(at:)` | キャンバスクリック位置にページ追加（Undo 対応） |
 | **ページ** | `deleteSelectedPage()` | 選択ページ削除（Undo 対応） |
 | **ページ** | `moveSelectedPage(by:)` | ページドラッグ移動（PageSnapEngine 連動） |
-| **ページ** | `updatePageProperty(_:)` | 右パネルからのプロパティ変更（Undo 対応。値が変わらなければ Undo を積まない） |
+| **ページ** | `updatePageProperty(_:)` | 右パネルからのプロパティ変更（Undo 対応） |
+
+「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
 
 ### マルチセレクト
 

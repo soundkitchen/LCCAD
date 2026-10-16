@@ -405,7 +405,9 @@ final class EditorViewModel {
     // MARK: - Undo Support
 
     private func registerUndo(actionName: String, oldDocument: DocumentData) {
-        guard let undoManager else { return }
+        // ドキュメントが変わっていない操作では Undo を積まない(空振りの Undo 防止、#70)。
+        // Redo 用の再登録は old と現在値が必ず異なるため、このガードには掛からない
+        guard let undoManager, oldDocument != document else { return }
         undoManager.registerUndo(withTarget: self) { target in
             let redoDoc = target.document
             target.document = oldDocument
@@ -717,11 +719,14 @@ final class EditorViewModel {
         // For text editing, use the single selected shape (text editing requires single selection)
         guard let id = selectedShapeIds.first,
               let (li, si) = findShapeLocation(id: id),
-              case .text(var text) = document.layers[li].shapes[si] else { return }
-        let old = document
+              case .text(let original) = document.layers[li].shapes[si] else { return }
+        var text = original
         update(&text)
+        // 打鍵やカラーピッカーのドラッグで頻繁に通るため、テキスト単体で比較し、
+        // 変化がなければ document に触れずに終える(変更通知も飛ばさない)
+        guard text != original else { return }
+        let old = document
         document.layers[li].shapes[si] = .text(text)
-        guard old != document else { return }
         registerUndo(actionName: "Edit Text", oldDocument: old)
     }
 
@@ -2342,9 +2347,13 @@ final class EditorViewModel {
     func updatePageProperty(_ update: (inout PrintPage) -> Void) {
         guard let id = selectedPageId,
               let idx = document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) else { return }
+        let original = document.settings.pageLayout.pages[idx]
+        var page = original
+        update(&page)
+        // ページ単体で比較し、変化がなければ document に触れずに終える
+        guard page != original else { return }
         let old = document
-        update(&document.settings.pageLayout.pages[idx])
-        guard old != document else { return }
+        document.settings.pageLayout.pages[idx] = page
         registerUndo(actionName: "Edit Page Property", oldDocument: old)
     }
 

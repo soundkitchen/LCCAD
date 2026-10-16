@@ -226,8 +226,26 @@ final class EditorViewModelUndoTests: XCTestCase {
         editor.undoManager = undo
         editor.selectedPageId = page.id
 
-        // 数値的に等価な打ち直し(例: "30.0" → "30")に相当する同値代入
+        // 値が変わらない代入(入力フィールドが現在値と等しい数値を確定した場合に相当)
         editor.updatePageProperty { $0.origin.x = 30 }
         XCTAssertFalse(undo.canUndo, "No-op page edit must not register an undo entry")
+    }
+
+    // MARK: - Stroke Property Undo
+
+    func testUpdateStrokeNoOpDoesNotRegisterUndo() {
+        let line = LineShape(start: .zero, end: CGPoint(x: 50, y: 0))
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.line(line)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [line.id]
+
+        // ピッカーで現在の線種をもう一度選んだ場合に相当する同値代入。
+        // updateStroke 自体にはガードがなく、registerUndo の共通ガードで止まる
+        let current = line.stroke.lineStyle
+        editor.updateStroke { $0.lineStyle = current }
+        XCTAssertFalse(undo.canUndo, "No-op stroke edit must not register an undo entry")
     }
 }
