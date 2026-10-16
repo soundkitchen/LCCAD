@@ -164,7 +164,10 @@ final class EditorViewModel {
     /// canvasSize がビュー側から一度でも供給されたか（初期値 800×600 のままかの区別）
     private var isCanvasSizeKnown = false
     var currentTool: DrawingTool = .select
-    var selectedShapeIds: Set<UUID> = []
+    var selectedShapeIds: Set<UUID> = [] {
+        // 選択が変わったら連続編集のまとめを終える(戻ってきた図形の編集を前回の Undo に混ぜない)
+        didSet { activeCoalescedEdit = nil }
+    }
     var cursorWorldPosition: CGPoint = .zero
     var activeLayerIndex: Int = 0 {
         didSet {
@@ -404,10 +407,38 @@ final class EditorViewModel {
 
     // MARK: - Undo Support
 
-    private func registerUndo(actionName: String, oldDocument: DocumentData) {
+    /// 連続編集(内容欄の打鍵、カラーピッカーのドラッグ)を 1 件の Undo にまとめる単位 (#72)。
+    /// 対象の図形 id を含むので、別の図形への編集は別の Undo になる
+    struct CoalescedEdit: Equatable {
+        enum Kind: Equatable {
+            case textContent
+            case textColor
+            case strokeColor
+        }
+        let kind: Kind
+        let shapeIds: Set<UUID>
+    }
+
+    /// まとめ中の連続編集。最初の編集で Undo を登録し、同じ編集が続く間は登録しない
+    /// (最初に登録した Undo の oldDocument が編集前の状態を保持している)。
+    /// 別の Undo 登録・Undo/Redo・選択変更・`endCoalescedEdit()` で終わる
+    @ObservationIgnored private var activeCoalescedEdit: CoalescedEdit?
+
+    /// 連続編集のまとめを終える。次の編集は新しい Undo になる。
+    /// 内容欄のフォーカスアウトやマウスアップ(カラーピッカーのドラッグ終了)から呼ばれる
+    func endCoalescedEdit() {
+        activeCoalescedEdit = nil
+    }
+
+    /// Undo を登録する。登録したら true、無変更などで登録しなかったら false
+    @discardableResult
+    private func registerUndo(actionName: String, oldDocument: DocumentData) -> Bool {
+        // 別の操作の Undo が積まれたら連続編集のまとめは終わり。Undo/Redo も
+        // 下の Redo 用の再登録を通るので、ここで同じく終わる
+        activeCoalescedEdit = nil
         // ドキュメントが変わっていない操作では Undo を積まない(空振りの Undo 防止、#70)。
         // Redo 用の再登録は old と現在値が必ず異なるため、このガードには掛からない
-        guard let undoManager, oldDocument != document else { return }
+        guard let undoManager, oldDocument != document else { return false }
         undoManager.registerUndo(withTarget: self) { target in
             let redoDoc = target.document
             target.document = oldDocument
@@ -419,6 +450,22 @@ final class EditorViewModel {
             target.registerUndo(actionName: actionName, oldDocument: redoDoc)
         }
         undoManager.setActionName(actionName)
+        return true
+    }
+
+    /// `edit` を指定すると連続編集としてまとめる。同じ編集がまとめ中なら登録を省き、
+    /// そうでなければ通常どおり登録してまとめを始める
+    private func registerUndo(actionName: String, oldDocument: DocumentData, coalescing edit: CoalescedEdit?) {
+        guard let edit else {
+            registerUndo(actionName: actionName, oldDocument: oldDocument)
+            return
+        }
+        guard activeCoalescedEdit != edit else { return }
+        // 登録できたときだけまとめを始める(無変更で登録されなかった編集を起点にすると、
+        // 続く実際の変更が Undo なしで素通りしてしまう)
+        if registerUndo(actionName: actionName, oldDocument: oldDocument) {
+            activeCoalescedEdit = edit
+        }
     }
 
     private func addShapeWithUndo(_ shape: AnyShape, actionName: String) {
@@ -700,7 +747,8 @@ final class EditorViewModel {
 
     // MARK: - Stroke Property Editing
 
-    func updateStroke(_ update: (inout StrokeStyle) -> Void) {
+    /// - Parameter coalescing: 連続編集としてまとめる種類(カラーピッカーのドラッグなど)。nil なら毎回 Undo を登録する
+    func updateStroke(coalescing kind: CoalescedEdit.Kind? = nil, _ update: (inout StrokeStyle) -> Void) {
         guard hasSelection else { return }
         let old = document
         for id in selectedShapeIds {
@@ -710,12 +758,14 @@ final class EditorViewModel {
                 document.layers[li].shapes[si].stroke = stroke
             }
         }
-        registerUndo(actionName: "Edit Stroke", oldDocument: old)
+        registerUndo(actionName: "Edit Stroke", oldDocument: old,
+                     coalescing: kind.map { CoalescedEdit(kind: $0, shapeIds: selectedShapeIds) })
     }
 
     // MARK: - Text Property Editing
 
-    func updateTextProperty(_ update: (inout TextShape) -> Void) {
+    /// - Parameter coalescing: 連続編集としてまとめる種類(内容欄の打鍵、カラーピッカーのドラッグ)。nil なら毎回 Undo を登録する
+    func updateTextProperty(coalescing kind: CoalescedEdit.Kind? = nil, _ update: (inout TextShape) -> Void) {
         // For text editing, use the single selected shape (text editing requires single selection)
         guard let id = selectedShapeIds.first,
               let (li, si) = findShapeLocation(id: id),
@@ -727,7 +777,8 @@ final class EditorViewModel {
         guard text != original else { return }
         let old = document
         document.layers[li].shapes[si] = .text(text)
-        registerUndo(actionName: "Edit Text", oldDocument: old)
+        registerUndo(actionName: "Edit Text", oldDocument: old,
+                     coalescing: kind.map { CoalescedEdit(kind: $0, shapeIds: [id]) })
     }
 
     /// Edit the currently selected dimension line with undo registration.

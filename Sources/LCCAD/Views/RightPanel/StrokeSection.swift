@@ -82,7 +82,8 @@ struct StrokeSection: View {
             },
             set: { newColor in
                 if let components = NSColor(newColor).usingColorSpace(.deviceRGB) {
-                    editor.updateStroke {
+                    // ドラッグ中は連続で呼ばれるため、マウスアップまでを 1 件の Undo にまとめる (#72)
+                    editor.updateStroke(coalescing: .strokeColor) {
                         $0.color = CodableColor(
                             r: components.redComponent,
                             g: components.greenComponent,

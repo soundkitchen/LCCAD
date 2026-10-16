@@ -4,6 +4,7 @@ import AppKit
 struct TextSection: View {
     @Bindable var editor: EditorViewModel
     @Environment(\.colorScheme) private var colorScheme
+    @FocusState private var isContentFocused: Bool
 
     private var textShape: TextShape? {
         guard let id = editor.selectedShapeIds.first,
@@ -29,6 +30,7 @@ struct TextSection: View {
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
 
                     TextEditor(text: contentBinding(current: text.content))
+                        .focused($isContentFocused)
                         .font(.system(size: 11))
                         .frame(minHeight: 40, maxHeight: 120)
                         .scrollContentBackground(.hidden)
@@ -39,6 +41,10 @@ struct TextSection: View {
                             RoundedRectangle(cornerRadius: 4)
                                 .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
                         )
+                        // フォーカスが外れたら打鍵のまとめを終え、次の入力を別の Undo にする (#72)
+                        .onChange(of: isContentFocused) { _, focused in
+                            if !focused { editor.endCoalescedEdit() }
+                        }
                 }
 
                 // Font Name
@@ -168,7 +174,8 @@ struct TextSection: View {
         Binding(
             get: { current },
             set: { newValue in
-                editor.updateTextProperty { $0.content = newValue }
+                // 打鍵ごとに呼ばれるため、連続入力を 1 件の Undo にまとめる (#72)
+                editor.updateTextProperty(coalescing: .textContent) { $0.content = newValue }
             }
         )
     }
@@ -218,7 +225,8 @@ struct TextSection: View {
             get: { Color(red: current.r, green: current.g, blue: current.b, opacity: current.a) },
             set: { newColor in
                 if let components = NSColor(newColor).usingColorSpace(.deviceRGB) {
-                    editor.updateTextProperty {
+                    // ドラッグ中は連続で呼ばれるため、マウスアップまでを 1 件の Undo にまとめる (#72)
+                    editor.updateTextProperty(coalescing: .textColor) {
                         $0.stroke.color = CodableColor(
                             r: components.redComponent,
                             g: components.greenComponent,

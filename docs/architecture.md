@@ -178,6 +178,14 @@ Sources/LCCAD/
 
 「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
 
+**連続編集のまとめ (#72)**: 内容欄の打鍵やカラーピッカーのドラッグは 1 イベントごとに値が更新されるため、そのままだと Undo がイベントの数だけ積まれる。`updateTextProperty(coalescing:)` / `updateStroke(coalescing:)` に `CoalescedEdit.Kind`(`textContent` / `textColor` / `strokeColor`)を渡すと、種類と対象の図形 id の組を「まとめ中の連続編集」として覚え、最初の編集でだけ Undo を登録する。続く編集は document を更新するだけなので、最初に登録した Undo の `oldDocument`(編集前の状態)に 1 回で戻り、Redo すると最後の状態まで進む。まとめが終わる条件は次のとおり:
+
+- 別の操作で `registerUndo` が呼ばれる(Undo/Redo も、Redo 用の再登録で `registerUndo` を通るので同じく終わる)
+- `selectedShapeIds` が変わる
+- `endCoalescedEdit()` が呼ばれる。内容欄のフォーカスアウト(`TextSection` の `@FocusState`)と、アプリ内のマウスアップ(`CoalescedEditMouseUpObserver`)が呼ぶ。SwiftUI の `ColorPicker` はドラッグの終了を通知しないので、`NSEvent` のローカルモニターでマウスアップを拾う。カラーパネルがマウスアップの処理中に送る最後の値まで同じ Undo に含めるため、区切りはイベント処理の後まで遅らせる
+
+最初の編集が値の変わらない呼び出しで Undo が登録されなかった場合は、まとめを始めない(始めてしまうと、続く実際の変更が Undo なしで素通りするため)。
+
 ### マルチセレクト
 
 選択モデルは `selectedShapeIds: Set<UUID>` で複数図形の同時選択に対応:
