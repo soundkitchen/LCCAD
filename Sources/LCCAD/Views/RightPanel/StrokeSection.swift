@@ -9,14 +9,16 @@ struct StrokeSection: View {
     var body: some View {
         PropertySection(title: "Stroke") {
             HStack(spacing: 8) {
-                ColorPicker("", selection: colorBinding)
-                    .labelsHidden()
-                    .frame(width: 24, height: 24)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
-                    )
+                // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
+                CodableColorPicker(color: stroke.color) { newColor in
+                    editor.updateStroke(coalescing: .strokeColor) { $0.color = newColor }
+                }
+                .frame(width: 24, height: 24)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
+                )
 
                 // Width is fixed app-wide (StrokeStyle.fixedWidth) so printed
                 // line thickness never shifts calibrated dimensions.
@@ -73,26 +75,5 @@ struct StrokeSection: View {
                 .menuIndicator(.hidden)
             }
         }
-    }
-
-    private var colorBinding: Binding<Color> {
-        Binding(
-            get: {
-                Color(red: stroke.color.r, green: stroke.color.g, blue: stroke.color.b, opacity: stroke.color.a)
-            },
-            set: { newColor in
-                if let components = NSColor(newColor).usingColorSpace(.deviceRGB) {
-                    // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
-                    editor.updateStroke(coalescing: .strokeColor) {
-                        $0.color = CodableColor(
-                            r: components.redComponent,
-                            g: components.greenComponent,
-                            b: components.blueComponent,
-                            a: components.alphaComponent
-                        )
-                    }
-                }
-            }
-        )
     }
 }

@@ -150,8 +150,10 @@ struct TextSection: View {
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
                         .frame(width: 26, alignment: .leading)
 
-                    ColorPicker("", selection: colorBinding(current: text.stroke.color))
-                        .labelsHidden()
+                    // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
+                    CodableColorPicker(color: text.stroke.color) { newColor in
+                        editor.updateTextProperty(coalescing: .textColor) { $0.stroke.color = newColor }
+                    }
                 }
             }
         }
@@ -215,25 +217,6 @@ struct TextSection: View {
             get: { current },
             set: { newValue in
                 editor.updateTextProperty { $0.isItalic = newValue }
-            }
-        )
-    }
-
-    private func colorBinding(current: CodableColor) -> Binding<Color> {
-        Binding(
-            get: { Color(red: current.r, green: current.g, blue: current.b, opacity: current.a) },
-            set: { newColor in
-                if let components = NSColor(newColor).usingColorSpace(.deviceRGB) {
-                    // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
-                    editor.updateTextProperty(coalescing: .textColor) {
-                        $0.stroke.color = CodableColor(
-                            r: components.redComponent,
-                            g: components.greenComponent,
-                            b: components.blueComponent,
-                            a: components.alphaComponent
-                        )
-                    }
-                }
             }
         )
     }
