@@ -188,7 +188,7 @@ Sources/LCCAD/
 
 内容欄は SwiftUI の `TextEditor` ではなく `UndoFreeTextView`(`allowsUndo = false` の NSTextView を包んだ `NSViewRepresentable`)を使う。`TextEditor` の中の NSTextView は自前の入力 Undo を document と同じ UndoManager に登録するため、ViewModel の Undo と二重になって ⌘Z が両方を別々に戻してしまうほか、選択を変えた後の ⌘Z でテキストビューの文字列が別の図形に書き込まれるおそれがある。Undo は ViewModel 側に一本化し、⌘Z で戻した document は `updateNSView` で欄に反映する。
 
-カラーピッカーは素の `ColorPicker` ではなく `CodableColorPicker` を使う。`CodableColor` との変換バインディングをそのまま渡すと、document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色がピッカーに渡し直され、開いているカラーパネルの色が上書きされる。その結果、ホイールの指示点がマウス位置から飛び、パネルが誤差の分だけ違う色を送り返して意図しない Undo が積まれる。`CodableColorPicker` はピッカーから届いた色をそのまま覚えておき、保存値と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)で同じならその色を返し、誤差の範囲の変更は書き込まない。色成分は描画・印刷と同じく sRGB で取り出す。
+カラーピッカーは素の `ColorPicker` ではなく `CodableColorPicker` を使う。`CodableColor` との変換バインディングをそのまま渡すと、document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色がピッカーに渡し直され、開いているカラーパネルの色が上書きされる。その結果、ホイールの指示点がマウス位置から飛び、パネルが誤差の分だけ違う色を送り返して意図しない Undo が積まれる。`CodableColorPicker` はピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`、アプリ起動中のみ・最大 256 件)、保存値が覚えている色と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)で同じなら元の色を返す。誤差の範囲の変更は書き込まない。色成分は描画・印刷と同じく sRGB で取り出すが、カラーパネルが返す色は sRGB とは限らない(汎用 RGB など)。そのため Undo で戻した保存値を sRGB の色としてパネルに返すと、見た目は同じでも明度などの表示が変わる(明度 100% → 97.8% など)。元の色を返すのはこれを防ぐため。覚えていない色(再起動後やファイルを開き直した後)は sRGB の色として返す。
 
 ### マルチセレクト
 
