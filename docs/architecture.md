@@ -76,7 +76,7 @@ Sources/LCCAD/
 │   │   ├── RightPanelView.swift
 │   │   ├── PositionSection.swift  # X/Y 直接入力で図形移動
 │   │   ├── SizeSection.swift
-│   │   ├── StrokeSection.swift    # ColorPicker + 線幅入力 + 線種ピッカー
+│   │   ├── StrokeSection.swift    # CodableColorPicker + 線幅表示（0.1mm 固定）+ 線種ピッカー
 │   │   ├── ArcSection.swift
 │   │   ├── StitchSection.swift
 │   │   ├── TextSection.swift
