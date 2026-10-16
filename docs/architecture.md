@@ -18,43 +18,17 @@
 
 ### XcodeGen (project.yml)
 
-```yaml
-name: LCCAD
-options:
-  bundleIdPrefix: com.lccad
-  deploymentTarget:
-    macOS: "14.0"
-  xcodeVersion: "15.0"
-  generateEmptyDirectories: true
+プロジェクト定義の正はリポジトリ直下の `project.yml`。ここでは変わりにくい要点だけを抜き出す(個々の設定値は `project.yml` を参照)。
 
-targets:
-  LCCAD:
-    type: application
-    platform: macOS
-    sources:
-      - Sources/LCCAD
-    resources:
-      - Sources/LCCAD/Resources
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lccad.app
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: 1
-        MACOSX_DEPLOYMENT_TARGET: "14.0"
-        SWIFT_VERSION: "5.9"
-        INFOPLIST_FILE: Sources/LCCAD/Resources/Info.plist
-    scheme:
-      testTargets:
-        - LCCADTests
-
-  LCCADTests:
-    type: bundle.unit-test
-    platform: macOS
-    sources:
-      - Tests/LCCADTests
-    dependencies:
-      - target: LCCAD
-```
+| 項目 | 内容 |
+|------|------|
+| Bundle ID | `org.izukawa.LCCAD`(`bundleIdPrefix: org.izukawa`) |
+| Swift | 6.0(`settings.base.SWIFT_VERSION`) |
+| 最小 OS | macOS 14.0(`options.deploymentTarget` / `MACOSX_DEPLOYMENT_TARGET`) |
+| ターゲット | `LCCAD`(application、ソースは `Sources/LCCAD`)/ `LCCADTests`(bundle.unit-test、ソースは `Tests/LCCADTests`。`TEST_HOST` / `BUNDLE_LOADER` で LCCAD.app にホストされる) |
+| スキーム | `LCCAD` スキームのテストターゲットに `LCCADTests` を登録(`xcodebuild -scheme LCCAD test` で実行) |
+| Info.plist / entitlements | `Sources/LCCAD/Resources/` に置き、`INFOPLIST_FILE` / `CODE_SIGN_ENTITLEMENTS` で参照する。リソースとして二重に取り込まれないよう `resources` からは除外。テストターゲットは `GENERATE_INFOPLIST_FILE` で自動生成 |
+| 署名 | Automatic(`Apple Development`)、Hardened Runtime 有効。Team ID は `project.yml` に記載 |
 
 ### ディレクトリ構造
 
