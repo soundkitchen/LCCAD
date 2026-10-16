@@ -721,6 +721,7 @@ final class EditorViewModel {
         let old = document
         update(&text)
         document.layers[li].shapes[si] = .text(text)
+        guard old != document else { return }
         registerUndo(actionName: "Edit Text", oldDocument: old)
     }
 
@@ -2343,6 +2344,7 @@ final class EditorViewModel {
               let idx = document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) else { return }
         let old = document
         update(&document.settings.pageLayout.pages[idx])
+        guard old != document else { return }
         registerUndo(actionName: "Edit Page Property", oldDocument: old)
     }
 

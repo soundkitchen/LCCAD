@@ -147,4 +147,87 @@ final class EditorViewModelUndoTests: XCTestCase {
         editor.updateDimensionProperty { $0.offset = 8 }
         XCTAssertFalse(undo.canUndo, "No-op dimension edit must not register an undo entry")
     }
+
+    // MARK: - Text Property Undo/Redo
+
+    func testUpdateTextPropertySupportsUndoAndRedo() {
+        let text = TextShape(position: .zero, content: "label", textAlignment: .left)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.text(text)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [text.id]
+
+        editor.updateTextProperty { $0.textAlignment = .center }
+        guard case .text(let changed) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected text")
+        }
+        XCTAssertEqual(changed.textAlignment, .center)
+        XCTAssertTrue(undo.canUndo)
+
+        undo.undo()
+        guard case .text(let reverted) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected text")
+        }
+        XCTAssertEqual(reverted.textAlignment, .left)
+        XCTAssertTrue(undo.canRedo)
+
+        undo.redo()
+        guard case .text(let redone) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected text")
+        }
+        XCTAssertEqual(redone.textAlignment, .center)
+    }
+
+    func testUpdateTextPropertyNoOpDoesNotRegisterUndo() {
+        let text = TextShape(position: .zero, content: "label", textAlignment: .left)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.text(text)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [text.id]
+
+        // 選択中の整列ボタンをもう一度押した場合に相当する同値代入
+        editor.updateTextProperty { $0.textAlignment = .left }
+        XCTAssertFalse(undo.canUndo, "No-op text edit must not register an undo entry")
+    }
+
+    // MARK: - Page Property Undo/Redo
+
+    func testUpdatePagePropertySupportsUndoAndRedo() {
+        let page = PrintPage(origin: CGPoint(x: 30, y: 20))
+        var doc = DocumentData.empty()
+        doc.settings.pageLayout.pages = [page]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedPageId = page.id
+
+        editor.updatePageProperty { $0.origin.x = 45 }
+        XCTAssertEqual(editor.document.settings.pageLayout.pages[0].origin.x, 45)
+        XCTAssertTrue(undo.canUndo)
+
+        undo.undo()
+        XCTAssertEqual(editor.document.settings.pageLayout.pages[0].origin.x, 30)
+        XCTAssertTrue(undo.canRedo)
+
+        undo.redo()
+        XCTAssertEqual(editor.document.settings.pageLayout.pages[0].origin.x, 45)
+    }
+
+    func testUpdatePagePropertyNoOpDoesNotRegisterUndo() {
+        let page = PrintPage(origin: CGPoint(x: 30, y: 20))
+        var doc = DocumentData.empty()
+        doc.settings.pageLayout.pages = [page]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedPageId = page.id
+
+        // 数値的に等価な打ち直し(例: "30.0" → "30")に相当する同値代入
+        editor.updatePageProperty { $0.origin.x = 30 }
+        XCTAssertFalse(undo.canUndo, "No-op page edit must not register an undo entry")
+    }
 }
