@@ -24,7 +24,7 @@ macOS ネイティブのレザークラフト専用 CAD アプリケーション
 ## 必要環境
 
 - macOS 14.0 (Sonoma) 以降
-- Xcode 15 以降（ビルド時）
+- Xcode 16 以降（ビルド時。Swift 6 コンパイラが必要）
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `brew install xcodegen`
 
 ## ビルド
