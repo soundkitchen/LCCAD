@@ -23,12 +23,11 @@
 | 項目 | 内容 |
 |------|------|
 | Bundle ID | `org.izukawa.LCCAD`(`bundleIdPrefix: org.izukawa`) |
-| Swift | 6.0(`settings.base.SWIFT_VERSION`) |
-| 最小 OS | macOS 14.0(`options.deploymentTarget` / `MACOSX_DEPLOYMENT_TARGET`) |
-| ターゲット | `LCCAD`(application、ソースは `Sources/LCCAD`)/ `LCCADTests`(bundle.unit-test、ソースは `Tests/LCCADTests`。`TEST_HOST` / `BUNDLE_LOADER` で LCCAD.app にホストされる) |
-| スキーム | `LCCAD` スキームのテストターゲットに `LCCADTests` を登録(`xcodebuild -scheme LCCAD test` で実行) |
-| Info.plist / entitlements | `Sources/LCCAD/Resources/` に置き、`INFOPLIST_FILE` / `CODE_SIGN_ENTITLEMENTS` で参照する。リソースとして二重に取り込まれないよう `resources` からは除外。テストターゲットは `GENERATE_INFOPLIST_FILE` で自動生成 |
-| 署名 | Automatic(`Apple Development`)、Hardened Runtime 有効。Team ID は `project.yml` に記載 |
+| Swift | 6.0(トップレベルの `settings.base.SWIFT_VERSION`) |
+| 最小 OS | macOS 14.0(`options.deploymentTarget` とトップレベルの `settings.base.MACOSX_DEPLOYMENT_TARGET`) |
+| ターゲット / スキーム | `LCCAD`(application、`Sources/LCCAD`)と `LCCADTests`(unit-test、`Tests/LCCADTests`。LCCAD.app をホストに実行)。テストは `LCCAD` スキームから実行する |
+| Info.plist / entitlements | `Sources/LCCAD/Resources/` に置き、`resources` からは除外する(残すと Info.plist がリソースとしてもコピーされてビルドが警告・エラーになり、entitlements がアプリバンドルに同梱されてしまうため)。テストターゲットの Info.plist は自動生成 |
+| 署名 | 両ターゲットとも Automatic(`Apple Development`)。Hardened Runtime は `LCCAD` ターゲットのみ有効。Team ID は `project.yml` に記載(フォーク時の差し替えは README を参照) |
 
 ### ディレクトリ構造
 
@@ -125,9 +124,9 @@ Sources/LCCAD/
 │
 └── Resources/
     ├── Info.plist               # CFBundleLocalizations: en, ja
+    ├── LCCAD.entitlements
     ├── Assets.xcassets/
-    ├── ja.lproj/                # 日本語ローカライズ（システムダイアログ日本語化）
-    └── Localizable.xcstrings    # 日英ローカライズ
+    └── ja.lproj/                # 日本語ローカライズ（システムダイアログ日本語化）
 ```
 
 ## アーキテクチャパターン
