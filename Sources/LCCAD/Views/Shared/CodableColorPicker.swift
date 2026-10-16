@@ -15,6 +15,11 @@ import SwiftUI
 // 元の色を返すのは、Undo で色を戻したときのためでもある。カラーパネルが返す色は sRGB とは
 // 限らない(汎用 RGB など)ので、sRGB に変換した保存値をそのまま戻すと、見た目は同じでも
 // パネルの明度などの表示が変わってしまう(明度 100% の色が 97.8% になる、など)。
+//
+// 送り返しは値だけでは見分けられない(複数選択で、先頭の図形と同じ色をユーザーが選んだ場合と
+// 区別できない)。そこで「直前にピッカーへ渡した色と同じ値」が「カラーパネルでの操作以外」
+// (選択変更のクリックや ⌘Z の処理中)に届いたものを送り返しとして捨てる。複数選択で色が
+// ばらばらだと、送り返しを適用すると全図形が先頭の色に塗り替えられてしまうため (review #74)。
 
 struct CodableColorPicker: View {
     /// ピッカーに表示する色(複数選択では先頭の図形の色)
@@ -24,6 +29,9 @@ struct CodableColorPicker: View {
     let currentColors: () -> [CodableColor]
     let onChange: (CodableColor) -> Void
 
+    /// 直前にピッカーへ渡した色。描画のたびに更新するだけで再描画は起こさないので、参照型で持つ
+    @State private var lastPushed = LastPushedColor()
+
     var body: some View {
         ColorPicker("", selection: selection)
             .labelsHidden()
@@ -32,11 +40,13 @@ struct CodableColorPicker: View {
     private var selection: Binding<Color> {
         Binding(
             get: {
-                ColorPickerHistory.shared.originalColor(for: color)
+                lastPushed.color = color
+                return ColorPickerHistory.shared.originalColor(for: color)
                     ?? Color(red: color.r, green: color.g, blue: color.b, opacity: color.a)
             },
             set: { newColor in
                 guard let codable = CodableColor(newColor) else { return }
+                guard !Self.isEcho(codable, lastPushed: lastPushed.color, event: NSApp.currentEvent) else { return }
                 ColorPickerHistory.shared.record(newColor, as: codable)
                 guard Self.shouldApply(codable, to: currentColors()) else { return }
                 onChange(codable)
@@ -83,7 +93,20 @@ final class ColorPickerHistory {
     }
 }
 
+/// CodableColorPicker が直前にピッカーへ渡した色
+@MainActor
+final class LastPushedColor {
+    var color: CodableColor?
+}
+
 extension CodableColorPicker {
+    /// パネルからの送り返しか。直前にピッカーへ渡した色と同じ値が、カラーパネルでの操作
+    /// (マウス・キー)以外から届いたら送り返しとみなす
+    static func isEcho(_ color: CodableColor, lastPushed: CodableColor?, event: NSEvent?) -> Bool {
+        guard let lastPushed, color.isApproximatelyEqual(to: lastPushed) else { return false }
+        return !(event?.window is NSColorPanel)
+    }
+
     /// ピッカーから届いた色を編集対象に適用するか。編集対象がすべてすでにその色(誤差の範囲)なら、
     /// パネルからの送り返しとして扱わない。複数選択で一部の図形だけ色が違う場合は、
     /// 先頭の図形と同じ色でも適用する

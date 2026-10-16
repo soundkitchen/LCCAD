@@ -33,6 +33,37 @@ final class CodableColorPickerTests: XCTestCase {
         XCTAssertTrue(CodableColorPicker.shouldApply(black, to: [black, red]))
     }
 
+    @MainActor
+    func testPushedColorReturnedOutsideColorPanelIsEcho() throws {
+        // 選択変更のクリックや ⌘Z の処理中(メインウィンドウのイベント)に、直前に渡した色が届いた
+        let black = CodableColor(r: 0, g: 0, b: 0)
+        let mainWindowClick = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        XCTAssertTrue(CodableColorPicker.isEcho(black, lastPushed: black, event: mainWindowClick))
+        XCTAssertTrue(CodableColorPicker.isEcho(black, lastPushed: black, event: nil))
+    }
+
+    @MainActor
+    func testDifferentColorIsNotEcho() {
+        let black = CodableColor(r: 0, g: 0, b: 0)
+        let red = CodableColor(r: 1, g: 0, b: 0)
+        XCTAssertFalse(CodableColorPicker.isEcho(red, lastPushed: black, event: nil))
+        XCTAssertFalse(CodableColorPicker.isEcho(red, lastPushed: nil, event: nil))
+    }
+
+    @MainActor
+    func testPushedColorChosenInColorPanelIsNotEcho() throws {
+        // カラーパネルでユーザーが先頭の図形と同じ色を選んだ(複数選択で全図形に適用したい)
+        let black = CodableColor(r: 0, g: 0, b: 0)
+        let panel = NSColorPanel.shared
+        let clickInPanel = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        XCTAssertTrue(clickInPanel.window === panel, "precondition: the event must belong to the color panel")
+        XCTAssertFalse(CodableColorPicker.isEcho(black, lastPushed: black, event: clickInPanel))
+    }
+
     func testAlphaIsCompared() {
         let opaque = CodableColor(r: 0, g: 0, b: 0, a: 1)
         let translucent = CodableColor(r: 0, g: 0, b: 0, a: 0.5)
