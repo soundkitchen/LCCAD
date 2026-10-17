@@ -67,7 +67,8 @@ Sources/LCCAD/
 │   ├── MainWindow/
 │   │   ├── MainEditorView.swift # メインエディタ (3カラム HSplitView)
 │   │   ├── ToolbarView.swift    # ツールバー
-│   │   └── StatusBarView.swift  # ステータスバー（座標表示 + ズーム直接入力）
+│   │   ├── StatusBarView.swift  # ステータスバー（座標表示 + ズーム直接入力）
+│   │   └── CoalescedEditBoundaryObserver.swift # マウスダウン・カラーパネルのキー入力で連続編集のまとめを終える (#72)
 │   ├── LeftPanel/
 │   │   ├── LeftPanelView.swift
 │   │   └── LayerListView.swift
@@ -75,7 +76,7 @@ Sources/LCCAD/
 │   │   ├── RightPanelView.swift
 │   │   ├── PositionSection.swift  # X/Y 直接入力で図形移動
 │   │   ├── SizeSection.swift
-│   │   ├── StrokeSection.swift    # ColorPicker + 線幅入力 + 線種ピッカー
+│   │   ├── StrokeSection.swift    # CodableColorPicker + 線幅表示（0.1mm 固定）+ 線種ピッカー
 │   │   ├── ArcSection.swift
 │   │   ├── StitchSection.swift
 │   │   ├── TextSection.swift
@@ -84,7 +85,9 @@ Sources/LCCAD/
 │   ├── Shared/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField, NumberBoxField
 │   │   ├── DesignTokens.swift   # Pen デザイン変数の Swift 転写
-│   │   └── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
+│   │   ├── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
+│   │   ├── CodableColorPicker.swift # CodableColor 用 ColorPicker + ColorPickerHistory (#72)
+│   │   └── UndoFreeTextView.swift # allowsUndo = false の複数行テキスト欄（内容欄で使用、#72）
 │   ├── PrickingIronSheet.swift  # 目打ち管理シート
 │   ├── BevelSheet.swift         # 範囲選択の一括面取りシート (Arrange ▸ Bevel…)
 │   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
@@ -177,6 +180,21 @@ Sources/LCCAD/
 | **ページ** | `updatePageProperty(_:)` | 右パネルからのプロパティ変更（Undo 対応） |
 
 「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
+
+**連続編集のまとめ (#72)**: 内容欄の打鍵やカラーピッカーのドラッグは 1 イベントごとに値が更新されるため、そのままだと Undo がイベントの数だけ積まれる。`updateTextProperty(coalescing:)` / `updateStroke(coalescing:)` に `CoalescedEdit.Kind`(`textContent` / `textColor` / `strokeColor`)を渡すと、種類と対象の図形 id の組を「まとめ中の連続編集」として覚え、最初の編集でだけ Undo を登録する。続く編集は document を更新するだけなので、最初に登録した Undo の `oldDocument`(編集前の状態)に 1 回で戻り、Redo すると最後の状態まで進む。まとめが終わる条件は次のとおり:
+
+- 別の操作で `registerUndo` が呼ばれる(Undo/Redo も、Redo 用の再登録で `registerUndo` を通るので同じく終わる)
+- `selectedShapeIds` が変わる
+- 変更前の document が、直前のまとめ編集の結果と違う(Undo を通さずに document が差し替えられた場合など)
+- `endCoalescedEdit()` が呼ばれる。呼ぶのは次のとおり:
+  - 内容欄(`UndoFreeTextView`)のフォーカスアウト(`textDidEndEditing`)と、打鍵以外の編集(⌘V・⌘X・メニューからのペーストなど)の前後。打鍵以外の編集は独立した Undo になる。IME の未確定文字は document に書き込まず、確定したときに書き込む
+  - `CoalescedEditBoundaryObserver`(`NSEvent` のローカルモニター)が拾う、アプリ内のマウスダウン(左・右・その他)とカラーパネルでのキー入力。SwiftUI の `ColorPicker` はドラッグの終了を通知せず、カラーパネルのホイールやスウォッチはマウスの追跡を自前のループで行うのでマウスアップもローカルモニターに届かない。そのため次のマウスダウン(追跡の開始前に配送される)で区切る。カラーパネルのキー入力(16 進欄の Enter など)で確定した色は、1 回ごとに別の Undo になる
+
+最初の編集が値の変わらない呼び出しで Undo が登録されなかった場合は、まとめを始めない(始めてしまうと、続く実際の変更が Undo なしで素通りするため)。
+
+内容欄は SwiftUI の `TextEditor` ではなく `UndoFreeTextView`(`allowsUndo = false` の NSTextView を包んだ `NSViewRepresentable`)を使う。`TextEditor` の中の NSTextView は自前の入力 Undo を document と同じ UndoManager に登録するため、ViewModel の Undo と二重になって ⌘Z が両方を別々に戻してしまうほか、選択を変えた後の ⌘Z でテキストビューの文字列が別の図形に書き込まれるおそれがある。Undo は ViewModel 側に一本化し、⌘Z で戻した document は `updateNSView` で欄に反映する。
+
+カラーピッカーは素の `ColorPicker` ではなく `CodableColorPicker` を使う。`CodableColor` との変換バインディングをそのまま渡すと、document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色がピッカーに渡し直され、開いているカラーパネルの色が上書きされる。その結果、ホイールの指示点がマウス位置から飛び、パネルが誤差の分だけ違う色を送り返して意図しない Undo が積まれる。`CodableColorPicker` はピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`、アプリ起動中のみ・最大 256 件)、保存値が覚えている色と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)で同じなら元の色を返す。送り返しは次の 2 段で捨てる。(1) 直前にピッカーへ渡した色と同じ値が、カラーパネルでの操作以外(選択変更のクリックや ⌘Z の処理中)に届いたもの(`isEcho`)。値だけでは、複数選択で先頭の図形と同じ色をユーザーが選んだ場合と見分けられないので、イベントの出どころ(`NSApp.currentEvent` のウィンドウが `NSColorPanel` か)を使う。これがないと、色がばらばらの複数選択で送り返しが適用され、全図形が先頭の色に塗り替えられる。(2) 編集対象(複数選択では選択中の全図形)がすべてすでにその色(誤差の範囲)なら書き込まない(`shouldApply`)。編集対象の色は、変更が届いた時点で ViewModel から読む。色成分は描画・印刷と同じく sRGB で取り出すが、カラーパネルが返す色は sRGB とは限らない(汎用 RGB など)。そのため Undo で戻した保存値を sRGB の色としてパネルに返すと、見た目は同じでも明度などの表示が変わる(明度 100% → 97.8% など)。元の色を返すのはこれを防ぐため。覚えていない色(再起動後やファイルを開き直した後)は sRGB の色として返す。
 
 ### マルチセレクト
 

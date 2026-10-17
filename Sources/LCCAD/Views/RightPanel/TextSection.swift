@@ -28,17 +28,23 @@ struct TextSection: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
 
-                    TextEditor(text: contentBinding(current: text.content))
-                        .font(.system(size: 11))
-                        .frame(minHeight: 40, maxHeight: 120)
-                        .scrollContentBackground(.hidden)
-                        .padding(4)
-                        .background(DesignTokens.bgInput(colorScheme))
-                        .cornerRadius(4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
-                        )
+                    // TextEditor は自前の入力 Undo を登録して ViewModel の Undo と二重になるため、
+                    // Undo を持たないテキストビューを使う。フォーカスアウトや打鍵以外の編集で
+                    // 打鍵のまとめを区切り、次の入力を別の Undo にする (#72)
+                    UndoFreeTextView(
+                        text: contentBinding(current: text.content),
+                        identity: text.id,
+                        fontSize: 11,
+                        onEditBoundary: { editor.endCoalescedEdit() }
+                    )
+                    .frame(minHeight: 40, maxHeight: 120)
+                    .padding(4)
+                    .background(DesignTokens.bgInput(colorScheme))
+                    .cornerRadius(4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
+                    )
                 }
 
                 // Font Name
@@ -145,8 +151,13 @@ struct TextSection: View {
                         .foregroundStyle(DesignTokens.textMuted(colorScheme))
                         .frame(width: 26, alignment: .leading)
 
-                    ColorPicker("", selection: colorBinding(current: text.stroke.color))
-                        .labelsHidden()
+                    // ドラッグ中は連続で呼ばれるため、1 回のドラッグ / クリックを 1 件の Undo にまとめる (#72)
+                    CodableColorPicker(
+                        color: text.stroke.color,
+                        currentColors: { editor.selectedShapes.map(\.stroke.color) }
+                    ) { newColor in
+                        editor.updateTextProperty(coalescing: .textColor) { $0.stroke.color = newColor }
+                    }
                 }
             }
         }
@@ -168,7 +179,8 @@ struct TextSection: View {
         Binding(
             get: { current },
             set: { newValue in
-                editor.updateTextProperty { $0.content = newValue }
+                // 打鍵ごとに呼ばれるため、連続入力を 1 件の Undo にまとめる (#72)
+                editor.updateTextProperty(coalescing: .textContent) { $0.content = newValue }
             }
         )
     }
@@ -209,24 +221,6 @@ struct TextSection: View {
             get: { current },
             set: { newValue in
                 editor.updateTextProperty { $0.isItalic = newValue }
-            }
-        )
-    }
-
-    private func colorBinding(current: CodableColor) -> Binding<Color> {
-        Binding(
-            get: { Color(red: current.r, green: current.g, blue: current.b, opacity: current.a) },
-            set: { newColor in
-                if let components = NSColor(newColor).usingColorSpace(.deviceRGB) {
-                    editor.updateTextProperty {
-                        $0.stroke.color = CodableColor(
-                            r: components.redComponent,
-                            g: components.greenComponent,
-                            b: components.blueComponent,
-                            a: components.alphaComponent
-                        )
-                    }
-                }
             }
         )
     }
