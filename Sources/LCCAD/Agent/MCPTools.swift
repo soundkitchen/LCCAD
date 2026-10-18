@@ -94,7 +94,26 @@ enum MCPToolCatalog {
              description: "Return the document as JSON (same format as a .lccad file) with the file path, whether it has unsaved changes, the active layer index and the selected shape ids.",
              inputSchema: object([:]), annotations: readOnly),
         Tool(name: "add_shapes",
-             description: "Add shapes in one undo step and return their new ids. Shapes go to the active layer unless layer_index is given.",
+             description: """
+                Add shapes in one undo step and return their new ids. Shapes go to the active layer unless layer_index is given. \
+                To import flat pieces from 3D software (Blender, Houdini), convert them with a script inside the 3D software, \
+                not by hand, and pass every boundary loop as a closed polyline: the outline and each inner loop (holes) separately. \
+                Positions: use world-space vertex positions with the object transform applied \
+                (Blender: obj.matrix_world @ v.co; Houdini: positions times the object node's worldTransform()), \
+                not UV coordinates, which carry no real size. \
+                Units: scenes are usually in meters, so multiply by 1000; check the scene unit setting first \
+                (Blender: also multiply by scene.unit_settings.scale_length; Houdini: the hip file's Unit Length). \
+                Flatness: every vertex must lie on the piece's plane (within about 0.01 mm); \
+                if a piece is not flat, ask the user to flatten it in the 3D software. \
+                Orientation: the side the face normal points to is the grain (front) side of the leather, \
+                so lay each piece out as seen from that side; a wrong choice mirrors the piece. \
+                With n the world-space face normal and u a unit vector in the piece's plane \
+                (the world X axis when it lies in the plane): x_mm = dot(p, u) * 1000, y_mm = dot(p, cross(u, n)) * 1000 \
+                (LCCAD's Y axis points down). For example, a Blender piece on the XY plane with its normal up gives \
+                x_mm = x * 1000, y_mm = -y * 1000, and a Houdini piece on the XZ plane with its normal up gives \
+                x_mm = x * 1000, y_mm = z * 1000. \
+                Then place the pieces at positive coordinates without overlapping, and check them with render_image.
+                """,
              inputSchema: object([
                 "shapes": ["type": "array", "items": shapeSpec, "minItems": 1],
                 "layer_index": ["type": "integer", "description": "Target layer (0-based). Defaults to the active layer"],
