@@ -195,15 +195,15 @@ macOS 標準の `Settings` シーン（⌘,）。TabView で 3 タブ構成:
 ### General タブ
 
 ```
-┌──────────────────────────────────┐
-│ Settings                         │
-├──────────────────────────────────┤
-│ [General] [Printer Calibration]  │
-│                                  │
-│ APPEARANCE                       │
-│ Color Mode  [System][Light][Dark]│
-│                                  │
-└──────────────────────────────────┘
+┌───────────────────────────────────────────┐
+│ Settings                                  │
+├───────────────────────────────────────────┤
+│ [General] [Printer Calibration] [Agent]   │
+│                                           │
+│ APPEARANCE                                │
+│ Color Mode  [System][Light][Dark]         │
+│                                           │
+└───────────────────────────────────────────┘
 ```
 
 - セグメントピッカー（`Picker(.segmented)`）で 3 択
@@ -216,7 +216,7 @@ macOS 標準の `Settings` シーン（⌘,）。TabView で 3 タブ構成:
 ┌──────────────────────────────────────────┐
 │ Settings                                  │
 ├──────────────────────────────────────────┤
-│ [General] [Printer Calibration]           │
+│ [General] [Printer Calibration] [Agent]   │
 │                                           │
 │ CALIBRATION                               │
 │ テストページを印刷し、150mmの正方形を     │
