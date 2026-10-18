@@ -191,7 +191,7 @@ struct MCPToolExecutor {
         // ドラッグの途中で document を変えると Undo が壊れる。保存・書き出しも、
         // 動かしている途中の位置を書き出してしまうので待ってもらう
         if editor.isGestureInProgress, !MCPToolCatalog.toolsAllowedDuringGesture.contains(name) {
-            throw ToolError("The user is dragging on the canvas. Wait a moment and try again")
+            throw ToolError("The user is dragging on the canvas. This waits for the user to finish the drag; wait a moment and try again")
         }
         switch name {
         case "get_document": return try getDocument()

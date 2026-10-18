@@ -59,28 +59,19 @@ enum HTTPMessage {
     /// `progress` に途中経過を残し、次の呼び出しではその続きからデコードする。
     /// 1 件を取り出すか失敗したら `progress` は nil に戻る
     static func parseRequest(_ buffer: Data, progress: inout ChunkedProgress?) -> ParseResult {
-        switch parseRequest(buffer, resuming: progress) {
-        case .incomplete(let next):
-            progress = next
-            return .incomplete
-        case .failure(let status):
-            progress = nil
-            return .failure(status: status)
-        case .request(let request, let consumed):
-            progress = nil
-            return .request(request, consumed: consumed)
-        }
+        // 途中までの本文の持ち主をここで引き取る。呼び出し元が参照を持ったままだと、
+        // 続きを append するたびに本文全体がコピーされてしまう(COW、review #86)
+        var resumed = progress
+        progress = nil
+        let result = parseRequest(buffer, resuming: &resumed)
+        if case .incomplete = result { progress = resumed }
+        return result
     }
 
-    private enum InternalResult {
-        case incomplete(ChunkedProgress?)
-        case request(Request, consumed: Int)
-        case failure(status: Int)
-    }
-
-    private static func parseRequest(_ buffer: Data, resuming progress: ChunkedProgress?) -> InternalResult {
+    /// `resumed` は chunked の途中経過。届ききっていなければ続きの経過を入れて返す
+    private static func parseRequest(_ buffer: Data, resuming resumed: inout ChunkedProgress?) -> ParseResult {
         guard let headerEnd = buffer.range(of: headerTerminator) else {
-            return buffer.count > maxHeaderBytes ? .failure(status: 431) : .incomplete(nil)
+            return buffer.count > maxHeaderBytes ? .failure(status: 431) : .incomplete
         }
         let headerLength = headerEnd.lowerBound - buffer.startIndex
         guard headerLength <= maxHeaderBytes else { return .failure(status: 431) }
@@ -117,19 +108,22 @@ enum HTTPMessage {
 
         if let transferEncoding = request.header("Transfer-Encoding") {
             guard transferEncoding.lowercased() == "chunked" else { return .failure(status: 501) }
-            let resume = progress.map { (position: buffer.startIndex + $0.offset, body: $0.body) }
-            switch decodeChunked(buffer, from: resume?.position ?? bodyStart, decoded: resume?.body ?? Data()) {
-            case .incomplete(let position, let decoded):
-                return .incomplete(ChunkedProgress(offset: position - buffer.startIndex, body: decoded))
+            // 本文を一意に持ったまま append できるよう、途中経過は取り出してから渡す
+            var state = resumed ?? ChunkedProgress(offset: bodyStart - buffer.startIndex, body: Data())
+            resumed = nil
+            switch decodeChunked(buffer, state: &state) {
+            case .incomplete:
+                resumed = state
+                return .incomplete
             case .failure(let status): return .failure(status: status)
-            case .decoded(let decoded, let decodedEnd):
-                body = decoded
+            case .decoded(let decodedEnd):
+                body = state.body
                 end = decodedEnd
             }
         } else if let lengthText = request.header("Content-Length") {
             guard let length = Int(lengthText), length >= 0 else { return .failure(status: 400) }
             guard length <= maxBodyBytes else { return .failure(status: 413) }
-            guard buffer.endIndex - bodyStart >= length else { return .incomplete(nil) }
+            guard buffer.endIndex - bodyStart >= length else { return .incomplete }
             body = buffer.subdata(in: bodyStart..<(bodyStart + length))
             end = bodyStart + length
         }
@@ -145,20 +139,21 @@ enum HTTPMessage {
     }
 
     private enum ChunkedResult {
-        /// 続きのデータを待つ。`position` は次のサイズ行の位置、`body` はそこまでの本文
-        case incomplete(position: Data.Index, body: Data)
+        /// 続きのデータを待つ。途中経過は `state` に残っている
+        case incomplete
         case failure(status: Int)
-        case decoded(Data, end: Data.Index)
+        /// デコードし終えた。本文は `state.body`
+        case decoded(end: Data.Index)
     }
 
-    /// `start` のサイズ行から chunked の本文をデコードし、`decoded` の後ろに足していく
-    private static func decodeChunked(_ buffer: Data, from start: Data.Index, decoded: Data) -> ChunkedResult {
-        var body = decoded
-        var position = start
+    /// `state.offset` のサイズ行から chunked の本文をデコードし、`state.body` の後ろに足していく。
+    /// `state` はチャンクを 1 つ読み終えるたびに進める
+    private static func decodeChunked(_ buffer: Data, state: inout ChunkedProgress) -> ChunkedResult {
         while true {
+            let position = buffer.startIndex + state.offset
             guard let lineEnd = buffer.range(of: crlf, in: position..<buffer.endIndex) else {
                 guard buffer.endIndex - position <= maxChunkSizeLineBytes else { return .failure(status: 400) }
-                return .incomplete(position: position, body: body)
+                return .incomplete
             }
             guard let sizeLine = String(data: buffer[position..<lineEnd.lowerBound], encoding: .ascii) else {
                 return .failure(status: 400)
@@ -172,21 +167,21 @@ enum HTTPMessage {
             if size == 0 {
                 // トレーラーは読み飛ばす。空行で終わる
                 if buffer.endIndex - chunkStart >= 2, buffer[chunkStart..<(chunkStart + 2)] == crlf {
-                    return .decoded(body, end: chunkStart + 2)
+                    return .decoded(end: chunkStart + 2)
                 }
                 guard let trailerEnd = buffer.range(of: headerTerminator, in: chunkStart..<buffer.endIndex) else {
                     guard buffer.endIndex - chunkStart <= maxHeaderBytes else { return .failure(status: 431) }
-                    return .incomplete(position: position, body: body)
+                    return .incomplete
                 }
-                return .decoded(body, end: trailerEnd.upperBound)
+                return .decoded(end: trailerEnd.upperBound)
             }
-            // body.count は maxBodyBytes 以下なので、引き算の形ならあふれない(足し算だと
+            // state.body.count は maxBodyBytes 以下なので、引き算の形ならあふれない(足し算だと
             // 巨大なサイズ行で Int があふれる、review #86)
-            guard size <= maxBodyBytes - body.count else { return .failure(status: 413) }
-            guard buffer.endIndex - chunkStart >= size + 2 else { return .incomplete(position: position, body: body) }
+            guard size <= maxBodyBytes - state.body.count else { return .failure(status: 413) }
+            guard buffer.endIndex - chunkStart >= size + 2 else { return .incomplete }
             guard buffer[(chunkStart + size)..<(chunkStart + size + 2)] == crlf else { return .failure(status: 400) }
-            body.append(buffer[chunkStart..<(chunkStart + size)])
-            position = chunkStart + size + 2
+            state.body.append(buffer[chunkStart..<(chunkStart + size)])
+            state.offset = chunkStart + size + 2 - buffer.startIndex
         }
     }
 
