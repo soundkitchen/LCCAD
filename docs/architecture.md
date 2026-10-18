@@ -93,7 +93,7 @@ Sources/LCCAD/
 │   │   └── UndoFreeTextView.swift # allowsUndo = false の複数行テキスト欄（内容欄で使用、#72）
 │   ├── PrickingIronSheet.swift  # 目打ち管理シート
 │   ├── BevelSheet.swift         # 範囲選択の一括面取りシート (Arrange ▸ Bevel…)
-│   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
+│   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション、Agent = MCP Server）
 │
 ├── ViewModels/
 │   ├── EditorViewModel.swift    # エディタ全体の状態管理（マルチセレクト対応）
@@ -469,7 +469,7 @@ AI エージェントから LCCAD を操作するための MCP Server をアプ�
                                                      MCPToolExecutor (@MainActor) ──▶ EditorViewModel の操作メソッド
 ```
 
-- **MCPServerController**: 起動・停止と状態(`stopped` / `starting` / `running` / `failed`)。設定は UserDefaults の `mcpServerEnabled`(既定 false)と `mcpServerPort`(既定 47821、1024〜65535)。起動時に `AppDelegate` が `applySettings()` を呼ぶ。テストの実行中(`XCTestConfigurationFilePath` がある)は起動しない。操作の対象は、メインウィンドウの表示時に結び付けた `EditorViewModel`
+- **MCPServerController**: 起動・停止と状態(`stopped` / `starting` / `running` / `failed`)。設定は設定画面の Agent タブで変え、UserDefaults の `mcpServerEnabled`(既定 false)と `mcpServerPort`(既定 47821、1024〜65535)に保存する。タブで値を変えたときと起動時(`AppDelegate`)に `applySettings()` を呼ぶ。テストの実行中(`XCTestConfigurationFilePath` がある)は起動しない。操作の対象は、メインウィンドウの表示時に結び付けた `EditorViewModel`
 - **MCPHTTPListener / HTTPMessage**: SDK の HTTP サーバー用トランスポートは待ち受けを持たないので、Network.framework の `NWListener` で用意する。ループバック(127.0.0.1)にだけ結び付ける。扱うのは HTTP/1.1 の Content-Length と chunked の本文、keep-alive(同じ接続のリクエストは 1 件ずつ順に処理)。ヘッダーは 64KB、本文は 64MB まで。`/mcp` 以外のパスは 404
 - **トランスポート**: SDK の `StatelessHTTPServerTransport`(セッションなし、POST に JSON で答える。GET / DELETE は 405)。既定の検証で、`Origin` / `Host` が localhost 以外の要求をツールの実行前に弾く。ブラウザは別のサイトへの要求に必ず `Origin` を付けるので、閲覧中の Web ページから localhost の MCP を呼ぶ攻撃(DNS リバインディングを含む)を防げる。ブラウザ以外のクライアント(エージェントや curl)は `Origin` を付けないので通る。同じ Mac で動くブラウザ以外のプログラムは呼べるため、既定はオフにしている
 - **MCPToolExecutor**: ツールの呼び出しを、MainActor の上で `EditorViewModel` の操作メソッド(#78 の操作の層)につなぐ。選択中の図形に対して働く操作(削除・移動・線・テキスト)は、一時的に選択を差し替えて呼び、元の選択(消えた図形を除く)に戻す。エラーは JSON-RPC のエラーではなく、ツールの結果(`isError: true` とメッセージ)で返す
