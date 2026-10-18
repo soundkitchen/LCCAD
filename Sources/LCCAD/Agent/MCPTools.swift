@@ -94,7 +94,18 @@ enum MCPToolCatalog {
              description: "Return the document as JSON (same format as a .lccad file) with the file path, whether it has unsaved changes, the active layer index and the selected shape ids.",
              inputSchema: object([:]), annotations: readOnly),
         Tool(name: "add_shapes",
-             description: "Add shapes in one undo step and return their new ids. Shapes go to the active layer unless layer_index is given.",
+             description: """
+                Add shapes in one undo step and return their new ids. Shapes go to the active layer unless layer_index is given. \
+                To import outlines from 3D software (Blender, Houdini), pass each outline as a polyline \
+                (closed: true for a closed piece) after converting its coordinates. \
+                Units: 3D scenes usually use meters, so multiply by 1000 \
+                (in Blender, also multiply by scene.unit_settings.scale_length). \
+                Orientation: LCCAD's Y axis points down. Keep the piece as it looks in the 3D software's top view; \
+                copying the axes as they are can mirror it, which matters for leather because of the grain side. \
+                Blender (Z up, flat pieces on the XY plane): x_mm = x * 1000, y_mm = -y * 1000. \
+                Houdini (Y up, flat pieces on the XZ plane): x_mm = x * 1000, y_mm = z * 1000. \
+                Then place the pieces at positive coordinates without overlapping, and check them with render_image.
+                """,
              inputSchema: object([
                 "shapes": ["type": "array", "items": shapeSpec, "minItems": 1],
                 "layer_index": ["type": "integer", "description": "Target layer (0-based). Defaults to the active layer"],
