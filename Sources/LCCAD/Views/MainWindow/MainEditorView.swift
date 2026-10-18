@@ -33,6 +33,8 @@ struct MainEditorView: View {
         .onAppear {
             editor.fileDocument = fileDocument
             editor.undoManager = undoManager
+            // エージェント用の MCP Server が操作する対象 (#79)
+            MCPServerController.shared.editor = editor
         }
         .onChange(of: undoManager) { _, newValue in
             editor.undoManager = newValue

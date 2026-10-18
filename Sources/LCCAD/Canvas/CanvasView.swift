@@ -15,28 +15,13 @@ struct CanvasView: View {
                 )
                 gridRenderer.draw(in: context, size: size)
 
-                // 2. Committed shapes
+                // 2. Committed shapes + 2.5. Stitch holes(画像出力と共通、#79)
                 let renderer = CanvasRenderer(
                     transform: editor.transform,
                     colorScheme: colorScheme,
                     unit: editor.document.settings.unit
                 )
-                for layer in editor.document.layers where layer.isVisible {
-                    for shape in layer.shapes {
-                        renderer.draw(shape: shape, in: context)
-                    }
-                }
-
-                // 2.5. Stitch holes
-                for layer in editor.document.layers where layer.isVisible {
-                    for stitchLine in layer.stitchLines {
-                        if let iron = editor.document.prickingIrons.first(where: { $0.id == stitchLine.ironId }) {
-                            for hole in stitchLine.holes {
-                                renderer.drawStitchHole(hole, holeType: iron.holeType, holeSize: iron.holeSize, in: context)
-                            }
-                        }
-                    }
-                }
+                renderer.drawDocumentContent(editor.document, in: context)
 
                 // 2.6. Box stitch ghost preview (駒合わせ): semi-transparent holes on
                 // both parts while the sheet is up; the two tints match the sheet's

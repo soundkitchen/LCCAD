@@ -5,6 +5,25 @@ struct CanvasRenderer {
     var colorScheme: ColorScheme = .light
     var unit: LengthUnit = .millimeters
 
+    /// 表示中のレイヤーの図形を描き、その上にステッチ穴を描く。
+    /// キャンバスとエージェント向けの画像出力(`MCPDocumentImageRenderer`)で共通 (#79)
+    func drawDocumentContent(_ document: DocumentData, in context: GraphicsContext) {
+        for layer in document.layers where layer.isVisible {
+            for shape in layer.shapes {
+                draw(shape: shape, in: context)
+            }
+        }
+        for layer in document.layers where layer.isVisible {
+            for stitchLine in layer.stitchLines {
+                if let iron = document.prickingIrons.first(where: { $0.id == stitchLine.ironId }) {
+                    for hole in stitchLine.holes {
+                        drawStitchHole(hole, holeType: iron.holeType, holeSize: iron.holeSize, in: context)
+                    }
+                }
+            }
+        }
+    }
+
     func draw(shape: AnyShape, in context: GraphicsContext) {
         let sc = shape.stroke.color
         let color = Color(red: sc.r, green: sc.g, blue: sc.b, opacity: sc.a)

@@ -37,6 +37,7 @@ LCCAD/
 │       ├── Tools/         # 描画ツール群
 │       ├── Stitch/        # ステッチ関連ロジック
 │       ├── Export/        # SVG/DXF エクスポート
+│       ├── Agent/         # エージェント用の操作 API（アプリ内 MCP Server）
 │       └── Resources/     # アセット・ローカライズ
 ├── Tests/
 │   └── LCCADTests/
