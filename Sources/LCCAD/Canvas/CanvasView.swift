@@ -270,11 +270,7 @@ struct CanvasView: View {
                         // First drag: select page and start tracking raw origin
                         let worldPoint = editor.transform.screenToWorld(value.startLocation)
                         if editor.selectPage(at: worldPoint) {
-                            editor.pageMoveUndoSnapshot = editor.document
-                            if let id = editor.selectedPageId,
-                               let page = editor.document.settings.pageLayout.pages.first(where: { $0.id == id }) {
-                                editor.pageDragRawOrigin = page.origin
-                            }
+                            editor.beginPageMove()
                         }
                     }
                     if editor.selectedPageId != nil, editor.pageDragRawOrigin != nil {
@@ -287,8 +283,7 @@ struct CanvasView: View {
                         editor.pageDragRawOrigin!.y += worldDelta.y
                         let rawOrigin = editor.pageDragRawOrigin!
 
-                        if let id = editor.selectedPageId,
-                           let idx = editor.document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) {
+                        if let id = editor.selectedPageId {
                             let layout = editor.document.settings.pageLayout
                             let otherOrigins = layout.pages.filter { $0.id != id }.map(\.origin)
                             let tolerance = editor.transform.screenToWorldDistance(8)
@@ -325,7 +320,7 @@ struct CanvasView: View {
                                 }
                             }
 
-                            editor.document.settings.pageLayout.pages[idx].origin = origin
+                            editor.setSelectedPageOrigin(origin)
                         }
                     }
                 } else if editor.currentTool == .select {
@@ -410,7 +405,6 @@ struct CanvasView: View {
                 editor.stopEdgeScroll()
                 if editor.currentTool == .page {
                     editor.commitPageMove()
-                    editor.pageDragRawOrigin = nil
                 } else if editor.currentTool == .select {
                     if editor.draggingBezierPointIndex != nil {
                         editor.endBezierPointDrag()

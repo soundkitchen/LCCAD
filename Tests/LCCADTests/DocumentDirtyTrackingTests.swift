@@ -57,6 +57,65 @@ final class DocumentDirtyTrackingTests: XCTestCase {
         XCTAssertEqual(decoded, doc.data)
     }
 
+    /// パネルなしの読み込み (#78): 書き出したファイルを読み戻すと、同じ内容で未変更になる
+    func testReadFromURLReplacesDocument() throws {
+        let source = LCCADFileDocument()
+        source.data.layers[0].name = "From file"
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("lccad")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try source.write(to: url)
+
+        let doc = LCCADFileDocument()
+        doc.data.settings.gridSpacing = 7
+        let before = doc.loadGeneration
+
+        try doc.read(from: url)
+
+        XCTAssertEqual(doc.data, source.data)
+        XCTAssertEqual(doc.fileURL, url)
+        XCTAssertFalse(doc.isModified)
+        XCTAssertEqual(doc.loadGeneration, before + 1)
+    }
+
+    func testReadFromInvalidURLThrowsAndKeepsDocument() {
+        let doc = LCCADFileDocument()
+        doc.data.layers[0].name = "Unsaved"
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("lccad")
+
+        XCTAssertThrowsError(try doc.read(from: missing))
+        XCTAssertEqual(doc.data.layers[0].name, "Unsaved")
+        XCTAssertNil(doc.fileURL)
+    }
+
+    /// レイヤーが空のファイルは、読み込み時に「Layer 1」を 1 枚持たせる (#78)
+    func testDecodingEmptyLayersAddsDefaultLayer() throws {
+        var data = DocumentData()
+        data.layers = []
+        let json = try JSONEncoder().encode(data)
+
+        let decoded = try JSONDecoder().decode(DocumentData.self, from: json)
+        XCTAssertEqual(decoded.layers.map(\.name), ["Layer 1"])
+    }
+
+    func testResetToNewDocumentClearsEverything() {
+        let doc = LCCADFileDocument(fileURL: URL(fileURLWithPath: "/tmp/x.lccad"))
+        doc.data.layers[0].name = "Edited"
+        let before = doc.loadGeneration
+
+        doc.resetToNewDocument()
+
+        // レイヤーの id は作るたびに変わるので、名前と中身で比べる
+        XCTAssertEqual(doc.data.layers.map(\.name), DocumentData.empty().layers.map(\.name))
+        XCTAssertTrue(doc.data.layers.allSatisfy { $0.shapes.isEmpty })
+        XCTAssertNil(doc.fileURL)
+        XCTAssertFalse(doc.isModified)
+        XCTAssertEqual(doc.loadGeneration, before + 1)
+    }
+
     func testNotifyDocumentReplacedBumpsLoadGeneration() {
         let doc = LCCADFileDocument()
         let before = doc.loadGeneration
