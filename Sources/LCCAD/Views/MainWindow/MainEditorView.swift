@@ -38,15 +38,9 @@ struct MainEditorView: View {
             editor.undoManager = newValue
         }
         .onChange(of: fileDocument.loadGeneration) { _, _ in
-            // A New/Open load wholesale-replaced the document: adopt it and reset
-            // editor state that referenced the old document (Issue #22 review).
-            editor.document = fileDocument.data
-            editor.fileDocument = fileDocument
-            editor.activeLayerIndex = min(max(editor.activeLayerIndex, 0),
-                                          max(fileDocument.data.layers.count - 1, 0))
-            editor.selectedShapeIds = []
-            // Drop undo history so ⌘Z can't resurrect the discarded document.
-            editor.undoManager?.removeAllActions()
+            // メニューの開く・新規で document が丸ごと置き換わったら、エディタの状態を
+            // 合わせる(Issue #22 review)。操作の層から開いた場合は合わせ済みなので何もしない (#78)
+            editor.adoptLoadedDocumentIfNeeded()
         }
         .focusedValue(\.editor, editor)
         .onDeleteCommand {

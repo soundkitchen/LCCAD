@@ -96,7 +96,7 @@ Sources/LCCAD/
 │
 ├── ViewModels/
 │   ├── EditorViewModel.swift    # エディタ全体の状態管理（マルチセレクト対応）
-│   └── EditorViewModel+Operations.swift # 画面に依存しない操作（レイヤー操作、パネルなしの書き出し、#78）
+│   └── EditorViewModel+Operations.swift # 画面に依存しない操作（開く・新規、レイヤー操作、パネルなしの書き出し、#78）
 │
 ├── Canvas/
 │   ├── CanvasView.swift         # キャンバス SwiftUI View + ジェスチャー
@@ -170,7 +170,8 @@ Sources/LCCAD/
 | **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応） |
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **図形の追加** | `addShape(_:actionName:)` / `addShapes(_:actionName:)` | mm 座標の図形をアクティブレイヤーに追加（`addShapes` は複数をまとめて Undo 1 件）。作図ツールもここを通す |
-| **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo は登録しない） |
+| **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo は登録しない）。Undo でレイヤーが減ると `activeLayerIndex` が範囲外のまま残ることがあるので、添字は範囲内に丸めた `safeActiveLayerIndex` を使う |
+| **ファイル** | `openDocument(at:)` / `newDocument()` | パネルなしで開く・新規にし、その場でエディタの状態（document・選択・アクティブレイヤー・Undo 履歴）を合わせる。未保存の変更は確認しない |
 | **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
 | **ズーム** | `zoomToFit()` | 表示中の全図形の外接矩形がビューに収まるようにズーム・パン（図形がなければ Actual Size にフォールバック） |
@@ -182,10 +183,12 @@ Sources/LCCAD/
 | **配列** | `arraySelectedShapes(_:)` | Linear / Grid / Polar で複製を一括生成。Polar は bbox 中心を pivot に rotate→translate（Mirror Copy 同型のステッチ追従、Undo 対応） |
 | **ページ** | `addPage(at:)` | キャンバスクリック位置にページ追加（Undo 対応） |
 | **ページ** | `deleteSelectedPage()` | 選択ページ削除（Undo 対応） |
-| **ページ** | `moveSelectedPage(by:)` / `setSelectedPageOrigin(_:)` | 選択ページを差分 / 絶対位置で移動（Undo は登録しない）。ドラッグ中はキャンバスがスナップ（PageSnapEngine → グリッド）済みの位置で `setSelectedPageOrigin` を呼び、`commitPageMove()` で Undo 1 件にまとめる |
+| **ページ** | `beginPageMove()` / `setSelectedPageOrigin(_:)` / `commitPageMove()` | 選択ページのドラッグ移動。`beginPageMove` で変更前の document を覚え、ドラッグ中はキャンバスがスナップ（PageSnapEngine → グリッド）済みの位置で `setSelectedPageOrigin`（Undo なし）を呼び、`commitPageMove` で Undo 1 件にまとめる。1 回で動かすときは `updatePageProperty { $0.origin = ... }`（Undo 対応） |
 | **ページ** | `updatePageProperty(_:)` | 右パネルからのプロパティ変更（Undo 対応） |
 
 **操作の層 (#78)**: 画面のジェスチャーやパネルは、座標の変換・スナップ・保存先の選択といった画面の都合だけを受け持ち、document を変える処理は `EditorViewModel` の操作メソッド(mm 座標や URL を引数に取る)に任せる。UI も外部からの操作(エージェント用の操作 API、#75)も同じメソッドを通るので、Undo の積まれ方などが揃う。View から document を直接書き換えるロジックは置かない(表示設定の単純な切り替えを除く)。ファイルの保存・読み込み・新規作成は `LCCADFileDocument` の `write(to:)` / `read(from:)` / `resetToNewDocument()` がパネルなしで行い、パネル版や未保存の確認はその上に載る。`read(from:)` / `resetToNewDocument()` は未保存の変更を確認しない。
+
+読み込み・新規作成で document が丸ごと置き換わったら、エディタの document を差し替え、古い document を指す状態(選択・アクティブレイヤー・Undo 履歴)をリセットする。これは `EditorViewModel.adoptLoadedDocumentIfNeeded()` が行い、合わせ済みの `loadGeneration` を覚えておいて、2 回目以降は何もしない。`openDocument(at:)` / `newDocument()` は置き換えの直後にその場で呼ぶので、続けて編集してもよい。メニューの開く・新規(パネルと未保存の確認つき)は `LCCADFileDocument` 側で置き換え、`MainEditorView` が `loadGeneration` の変化を見て呼ぶ。エディタを通さずに `LCCADFileDocument.read(from:)` を呼んで、そのまま `EditorViewModel` で編集してはいけない(エディタの古い document が、編集のたびに `LCCADFileDocument.data` へ書き戻されるため)。
 
 「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
 
@@ -540,6 +543,8 @@ JSON ベースの独自形式。将来の拡張性を考慮。
   "tracingImages": [...]
 }
 ```
+
+`layers` が空のファイルは、読み込み時に「Layer 1」を 1 枚足す(エディタはレイヤーが 1 枚以上ある前提のため、#78)。
 
 ## ビルドパイプライン
 

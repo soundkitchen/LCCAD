@@ -326,6 +326,9 @@ final class EditorViewModel {
     // Document binding
     weak var fileDocument: LCCADFileDocument?
     var undoManager: UndoManager?
+    /// エディタの状態を合わせ済みの `LCCADFileDocument.loadGeneration`
+    /// (`adoptLoadedDocumentIfNeeded()` 参照、#78)
+    @ObservationIgnored var adoptedLoadGeneration = 0
 
     init(document: DocumentData = .empty()) {
         self.document = document
@@ -396,7 +399,7 @@ final class EditorViewModel {
 
     /// Index clamped into the valid range, so a stale `activeLayerIndex` left over
     /// from a larger document (e.g. after New/Open) can't index out of bounds.
-    private var safeActiveLayerIndex: Int {
+    var safeActiveLayerIndex: Int {
         min(max(activeLayerIndex, 0), max(document.layers.count - 1, 0))
     }
 
@@ -475,7 +478,9 @@ final class EditorViewModel {
         addShapes([shape], actionName: actionName)
     }
 
-    /// 複数の図形をまとめてアクティブレイヤーに追加する(Undo 1 件)
+    /// 複数の図形をまとめてアクティブレイヤーに追加する(Undo 1 件)。
+    /// 渡す図形は新しい id を持つ前提で、document の中の id との重複は確かめない
+    /// (外部からの入力は、操作 API の側で図形を作るときに新しい id を振る、#79)
     func addShapes(_ shapes: [AnyShape], actionName: String = "Add Shapes") {
         guard !shapes.isEmpty else { return }
         let old = document
@@ -2390,15 +2395,19 @@ final class EditorViewModel {
         return false
     }
 
-    func moveSelectedPage(by worldDelta: CGPoint) {
+    /// 選択ページのドラッグ移動を始める。Undo 用に変更前の document を覚え、
+    /// スナップ前の原点(`pageDragRawOrigin`)の追跡を始める。`commitPageMove()` と対で使う
+    func beginPageMove() {
         guard let id = selectedPageId,
-              let idx = document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) else { return }
-        document.settings.pageLayout.pages[idx].origin.x += worldDelta.x
-        document.settings.pageLayout.pages[idx].origin.y += worldDelta.y
+              let page = document.settings.pageLayout.pages.first(where: { $0.id == id }) else { return }
+        pageMoveUndoSnapshot = document
+        pageDragRawOrigin = page.origin
     }
 
     /// 選択ページの原点を `origin` (mm) にする。Undo は登録しない(ドラッグ中は
-    /// キャンバスがスナップ済みの位置で毎フレーム呼び、`commitPageMove()` で 1 件にまとめる)
+    /// キャンバスがスナップ済みの位置で毎フレーム呼び、`beginPageMove()` から
+    /// `commitPageMove()` までを 1 件にまとめる)。1 回で動かして Undo を付けるときは
+    /// `updatePageProperty { $0.origin = ... }` を使う
     func setSelectedPageOrigin(_ origin: CGPoint) {
         guard let id = selectedPageId,
               let idx = document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) else { return }
@@ -2410,6 +2419,7 @@ final class EditorViewModel {
             registerUndo(actionName: "Move Page", oldDocument: snapshot)
         }
         pageMoveUndoSnapshot = nil
+        pageDragRawOrigin = nil
     }
 
     func updatePageProperty(_ update: (inout PrintPage) -> Void) {

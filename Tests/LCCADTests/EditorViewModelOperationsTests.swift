@@ -106,6 +106,47 @@ final class EditorViewModelOperationsTests: XCTestCase {
         XCTAssertEqual(editor.document.layers.map(\.name), ["B", "C", "A"])
     }
 
+    /// レイヤー追加(Undo なし)の後に、図形の追加を Undo してレイヤーが減ると、
+    /// activeLayerIndex が範囲外のまま残る。その状態でもレイヤー操作が落ちない
+    func testLayerOperationsTolerateStaleActiveLayerIndex() {
+        let editor = EditorViewModel(document: .empty())
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.addShape(makeLine(0))
+        editor.addLayer()
+        XCTAssertEqual(editor.activeLayerIndex, 1)
+
+        undo.undo()
+        XCTAssertEqual(editor.document.layers.count, 1)
+        XCTAssertEqual(editor.activeLayerIndex, 1, "前提: 添字が範囲外のまま残る")
+
+        editor.moveActiveLayerUp()
+        editor.moveActiveLayerDown()
+        editor.removeActiveLayer()
+        XCTAssertEqual(editor.document.layers.count, 1)
+    }
+
+    func testRemoveActiveLayerWithStaleIndexRemovesTheClampedLayer() {
+        let editor = EditorViewModel(document: DocumentData(layers: [Layer(name: "A"), Layer(name: "B"), Layer(name: "C")]))
+        editor.activeLayerIndex = 2
+        // Undo などで、添字を残したままレイヤーが 2 枚に減った状態
+        editor.document.layers.removeLast()
+
+        editor.removeActiveLayer()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A"])
+        XCTAssertEqual(editor.activeLayerIndex, 0)
+    }
+
+    func testMoveActiveLayerUpWithStaleIndexMovesTheClampedLayer() {
+        let editor = EditorViewModel(document: DocumentData(layers: [Layer(name: "A"), Layer(name: "B"), Layer(name: "C")]))
+        editor.activeLayerIndex = 2
+        editor.document.layers.removeLast()
+
+        editor.moveActiveLayerUp()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["B", "A"])
+        XCTAssertEqual(editor.activeLayerIndex, 0)
+    }
+
     func testToggleLayerVisibility() {
         let editor = EditorViewModel(document: .empty())
         editor.toggleLayerVisibility(at: 0)
@@ -118,7 +159,150 @@ final class EditorViewModelOperationsTests: XCTestCase {
         XCTAssertTrue(editor.document.layers[0].isVisible)
     }
 
+    // MARK: - 開く・新規
+
+    /// 図形 1 本・レイヤー 1 枚のファイルを書き出す
+    private func writeSampleFile() throws -> (url: URL, data: DocumentData) {
+        let source = LCCADFileDocument()
+        source.data.layers[0].name = "From file"
+        source.data.layers[0].shapes = [makeLine(100)]
+        let url = temporaryURL("lccad")
+        try source.write(to: url)
+        return (url, source.data)
+    }
+
+    /// 編集中の状態(図形・選択・別レイヤー・Undo 履歴)を持つエディタ
+    private func makeEditedEditor(fileDocument: LCCADFileDocument, undo: UndoManager) -> EditorViewModel {
+        let editor = EditorViewModel(document: fileDocument.data)
+        editor.fileDocument = fileDocument
+        editor.undoManager = undo
+        editor.addLayer()
+        let line = makeLine(0)
+        editor.addShape(line)
+        editor.selectedShapeIds = [line.id]
+        return editor
+    }
+
+    func testOpenDocumentAdoptsLoadedDocumentImmediately() throws {
+        let (url, loaded) = try writeSampleFile()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let fileDocument = LCCADFileDocument()
+        let undo = UndoManager()
+        let editor = makeEditedEditor(fileDocument: fileDocument, undo: undo)
+
+        try editor.openDocument(at: url)
+
+        XCTAssertEqual(editor.document, loaded)
+        XCTAssertEqual(fileDocument.data, loaded)
+        XCTAssertEqual(editor.activeLayerIndex, 0)
+        XCTAssertTrue(editor.selectedShapeIds.isEmpty)
+        XCTAssertFalse(undo.canUndo, "破棄した document に ⌘Z で戻れない")
+        XCTAssertFalse(fileDocument.isModified)
+    }
+
+    /// 開いた直後の編集が、読み込んだ内容に積み上がる(古い document が書き戻されない)。
+    /// 後からキャンバスが loadGeneration の変化で呼んでも、その編集は消えない
+    func testEditRightAfterOpenBuildsOnLoadedDocument() throws {
+        let (url, loaded) = try writeSampleFile()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let fileDocument = LCCADFileDocument()
+        let undo = UndoManager()
+        let editor = makeEditedEditor(fileDocument: fileDocument, undo: undo)
+
+        try editor.openDocument(at: url)
+        let added = makeLine(200)
+        editor.addShape(added)
+        editor.adoptLoadedDocumentIfNeeded()
+
+        let expectedIds = loaded.layers[0].shapes.map(\.id) + [added.id]
+        XCTAssertEqual(fileDocument.data.layers[0].shapes.map(\.id), expectedIds)
+        XCTAssertEqual(editor.document, fileDocument.data)
+        XCTAssertTrue(undo.canUndo, "開いた後の編集の Undo は残る")
+    }
+
+    func testOpenDocumentFailureKeepsEditorState() throws {
+        let fileDocument = LCCADFileDocument()
+        let undo = UndoManager()
+        let editor = makeEditedEditor(fileDocument: fileDocument, undo: undo)
+        let before = editor.document
+        let selection = editor.selectedShapeIds
+
+        XCTAssertThrowsError(try editor.openDocument(at: temporaryURL("lccad")))
+        XCTAssertEqual(editor.document, before)
+        XCTAssertEqual(editor.selectedShapeIds, selection)
+        XCTAssertTrue(undo.canUndo)
+    }
+
+    func testNewDocumentAdoptsEmptyDocument() throws {
+        let fileDocument = LCCADFileDocument()
+        let undo = UndoManager()
+        let editor = makeEditedEditor(fileDocument: fileDocument, undo: undo)
+
+        try editor.newDocument()
+
+        XCTAssertEqual(editor.document.layers.count, 1)
+        XCTAssertTrue(editor.document.layers[0].shapes.isEmpty)
+        XCTAssertEqual(editor.document, fileDocument.data)
+        XCTAssertEqual(editor.activeLayerIndex, 0)
+        XCTAssertTrue(editor.selectedShapeIds.isEmpty)
+        XCTAssertFalse(undo.canUndo)
+    }
+
+    /// メニューの開く・新規の経路: LCCADFileDocument 側で置き換え、キャンバスが後から呼ぶ
+    func testAdoptAfterFileDocumentReplacementResetsEditor() throws {
+        let (url, loaded) = try writeSampleFile()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let fileDocument = LCCADFileDocument()
+        let undo = UndoManager()
+        let editor = makeEditedEditor(fileDocument: fileDocument, undo: undo)
+
+        try fileDocument.read(from: url)
+        editor.adoptLoadedDocumentIfNeeded()
+
+        XCTAssertEqual(editor.document, loaded)
+        XCTAssertTrue(editor.selectedShapeIds.isEmpty)
+        XCTAssertFalse(undo.canUndo)
+    }
+
+    func testFileOperationsWithoutFileDocumentThrow() {
+        let editor = EditorViewModel(document: .empty())
+        XCTAssertThrowsError(try editor.openDocument(at: temporaryURL("lccad"))) {
+            XCTAssertEqual($0 as? EditorOperationError, .noFileDocument)
+        }
+        XCTAssertThrowsError(try editor.newDocument()) {
+            XCTAssertEqual($0 as? EditorOperationError, .noFileDocument)
+        }
+    }
+
     // MARK: - ページ
+
+    func testPageMoveRegistersSingleUndo() {
+        let editor = EditorViewModel(document: .empty())
+        editor.addPage(at: CGPoint(x: 0, y: 0))
+        let undo = UndoManager()
+        editor.undoManager = undo
+
+        editor.beginPageMove()
+        XCTAssertEqual(editor.pageDragRawOrigin, CGPoint(x: 0, y: 0))
+        editor.setSelectedPageOrigin(CGPoint(x: 10, y: 0))
+        editor.setSelectedPageOrigin(CGPoint(x: 20, y: 5))
+        editor.commitPageMove()
+        XCTAssertNil(editor.pageDragRawOrigin)
+        XCTAssertNil(editor.pageMoveUndoSnapshot)
+
+        let origin = { editor.document.settings.pageLayout.pages.first?.origin }
+        XCTAssertEqual(origin(), CGPoint(x: 20, y: 5))
+        undo.undo()
+        XCTAssertEqual(origin(), CGPoint(x: 0, y: 0))
+        XCTAssertFalse(undo.canUndo, "ドラッグ全体で Undo 1 件")
+    }
+
+    func testBeginPageMoveWithoutSelectionDoesNothing() {
+        let editor = EditorViewModel(document: .empty())
+        editor.beginPageMove()
+        XCTAssertNil(editor.pageMoveUndoSnapshot)
+        XCTAssertNil(editor.pageDragRawOrigin)
+    }
 
     func testSetSelectedPageOriginMovesOnlyTheSelectedPage() {
         let editor = EditorViewModel(document: .empty())

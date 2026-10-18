@@ -33,7 +33,10 @@ struct DocumentData: Codable, Equatable, Sendable {
         settings = try container.decode(ProjectSettings.self, forKey: .settings)
         prickingIrons = try container.decodeIfPresent([PrickingIron].self, forKey: .prickingIrons)
             ?? [PrickingIron.defaultDiamond]
-        layers = try container.decode([Layer].self, forKey: .layers)
+        let decodedLayers = try container.decode([Layer].self, forKey: .layers)
+        // エディタはレイヤーが 1 枚以上ある前提(アクティブレイヤーを添字で読む)なので、
+        // 空のファイルは新規ドキュメントと同じく「Layer 1」を 1 枚持たせる (#78)
+        layers = decodedLayers.isEmpty ? [Layer(name: "Layer 1")] : decodedLayers
     }
 }
 

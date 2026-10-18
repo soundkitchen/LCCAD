@@ -91,6 +91,16 @@ final class DocumentDirtyTrackingTests: XCTestCase {
         XCTAssertNil(doc.fileURL)
     }
 
+    /// レイヤーが空のファイルは、読み込み時に「Layer 1」を 1 枚持たせる (#78)
+    func testDecodingEmptyLayersAddsDefaultLayer() throws {
+        var data = DocumentData()
+        data.layers = []
+        let json = try JSONEncoder().encode(data)
+
+        let decoded = try JSONDecoder().decode(DocumentData.self, from: json)
+        XCTAssertEqual(decoded.layers.map(\.name), ["Layer 1"])
+    }
+
     func testResetToNewDocumentClearsEverything() {
         let doc = LCCADFileDocument(fileURL: URL(fileURLWithPath: "/tmp/x.lccad"))
         doc.data.layers[0].name = "Edited"
