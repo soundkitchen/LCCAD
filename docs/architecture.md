@@ -469,12 +469,12 @@ AI エージェントから LCCAD を操作するための MCP Server をアプ�
                                                      MCPToolExecutor (@MainActor) ──▶ EditorViewModel の操作メソッド
 ```
 
-- **MCPServerController**: 起動・停止と状態(`stopped` / `starting` / `running` / `failed`)。設定は設定画面の Agent タブで変え、UserDefaults の `mcpServerEnabled`(既定 false)と `mcpServerPort`(既定 47821、1024〜65535)に保存する。タブで値を変えたときと起動時(`AppDelegate`)に `applySettings()` を呼ぶ。テストの実行中(`XCTestConfigurationFilePath` がある)は起動しない。操作の対象は、メインウィンドウの表示時に結び付けた `EditorViewModel`
-- **MCPHTTPListener / HTTPMessage**: SDK の HTTP サーバー用トランスポートは待ち受けを持たないので、Network.framework の `NWListener` で用意する。ループバック(127.0.0.1)にだけ結び付ける。扱うのは HTTP/1.1 の Content-Length と chunked の本文、keep-alive(同じ接続のリクエストは 1 件ずつ順に処理)。ヘッダーは 64KB、本文は 64MB まで。`/mcp` 以外のパスは 404
+- **MCPServerController**: 起動・停止と状態(`stopped` / `starting` / `running` / `failed`)。設定は設定画面の Agent タブで変え、UserDefaults の `mcpServerEnabled`(既定 false)と `mcpServerPort`(既定 47821、1024〜65535)に保存する。タブで値を変えたときと起動時(`AppDelegate`)に `applySettings()` を呼ぶ。テストの実行中(`XCTestConfigurationFilePath` がある)は起動しない。操作の対象は、メインウィンドウの表示時に結び付けた `EditorViewModel`。SDK の `Server.start` を待つ間に止められた(設定のオフやポートの変更)ときは、起動が終わったところでその `Server` を止める(止めたあとに起動が終わり、誰も止められないサーバーが残るのを防ぐ)
+- **MCPHTTPListener / HTTPMessage**: SDK の HTTP サーバー用トランスポートは待ち受けを持たないので、Network.framework の `NWListener` で用意する。ループバック(127.0.0.1)にだけ結び付ける。扱うのは HTTP/1.1 の Content-Length と chunked の本文、keep-alive(同じ接続のリクエストは 1 件ずつ順に処理)。ヘッダーは 64KB、本文は 64MB まで。`/mcp` 以外のパスは 404。この解析は Origin / Host の検証より前に走るので、ローカルの任意のプロセスから届く入力として扱う: chunked のサイズは上限との差で比べて整数があふれないようにし、サイズ行は 1KB・トレーラーは 64KB で打ち切る。届ききっていない chunked の本文は、デコードの途中経過(`HTTPMessage.ChunkedProgress`)を接続ごとに持ち、受信のたびに最初からデコードし直さない
 - **トランスポート**: SDK の `StatelessHTTPServerTransport`(セッションなし、POST に JSON で答える。GET / DELETE は 405)。既定の検証で、`Origin` / `Host` が localhost 以外の要求をツールの実行前に弾く。ブラウザは別のサイトへの要求に必ず `Origin` を付けるので、閲覧中の Web ページから localhost の MCP を呼ぶ攻撃(DNS リバインディングを含む)を防げる。ブラウザ以外のクライアント(エージェントや curl)は `Origin` を付けないので通る。同じ Mac で動くブラウザ以外のプログラムは呼べるため、既定はオフにしている
-- **MCPToolExecutor**: ツールの呼び出しを、MainActor の上で `EditorViewModel` の操作メソッド(#78 の操作の層)につなぐ。選択中の図形に対して働く操作(削除・移動・線・テキスト)は、一時的に選択を差し替えて呼び、元の選択(消えた図形を除く)に戻す。エラーは JSON-RPC のエラーではなく、ツールの結果(`isError: true` とメッセージ)で返す
+- **MCPToolExecutor**: ツールの呼び出しを、MainActor の上で `EditorViewModel` の操作メソッド(#78 の操作の層)につなぐ。選択中の図形に対して働く操作(削除・移動・線・テキスト)は、一時的に選択を差し替えて呼び、元の選択(消えた図形を除く)に戻す。エラーは JSON-RPC のエラーではなく、ツールの結果(`isError: true` とメッセージ)で返す。同じ id が重なって渡されたら 1 つとして扱う。ユーザーがキャンバスでドラッグしている間(`EditorViewModel.isGestureInProgress`: 図形・ページの移動、ベジェの点の編集)は、`get_document` と `render_image` 以外をエラーで断り、エージェントにやり直してもらう。ドラッグはドラッグ前の document を Undo の起点として持っているので、その間に document を変えると、ドラッグを終えたときの Undo 1 回でエージェントの変更まで戻ってしまうため。保存・書き出しも、動かしている途中の位置を書いてしまうので断る
 - **MCPShapeSpec**: `add_shapes` の図形の指定を `AnyShape` にする。図形の id は外から受け取らず、作るたびに新しい id を振る(`addShapes` は新しい id の図形を渡す前提のため)
-- **MCPDocumentImageRenderer**: 表示中のレイヤーの図形とステッチ穴を、キャンバスと同じ `CanvasRenderer.drawDocumentContent` で白背景の PNG に描く(`ImageRenderer`)。図形の外接矩形に余白 24px を付けて、指定の幅(200〜4096px、既定 1600px)に収める
+- **MCPDocumentImageRenderer**: 表示中のレイヤーの図形とステッチ穴を、キャンバスと同じ `CanvasRenderer.drawDocumentContent` で白背景の PNG に描く(`ImageRenderer`)。収める範囲は、図形の外接矩形に寸法線のラベル(`DimensionLineShape.labelBoundingBox`)とステッチ穴を加えたもの。これに余白 24px を付けて、指定の幅(200〜4096px、既定 1600px)に収める。文字・寸法ラベル・寸法の矢印は、キャンバスでは画面で読める大きさにクランプするが、画像では図形との大きさの比を実物どおりにするためクランプしない(`CanvasRenderer.clampsToScreen = false`)。線の太さとステッチ穴の最小の大きさは、見えなくならないようキャンバスと同じく保つ
 
 ### ツール
 
@@ -491,7 +491,7 @@ AI エージェントから LCCAD を操作するための MCP Server をアプ�
 | `new_document` / `open_document` | 未保存の変更があればエラー。`discard_changes: true` のときだけ破棄する。`EditorViewModel.newDocument()` / `openDocument(at:)` を通るので、Undo 履歴は消える |
 | `save_document` | `path` を省いたら今のファイルに保存する |
 | `export_svg` / `export_dxf` | 表示中のレイヤーを書き出す |
-| `render_image` | PNG を返す(画像の大きさ・1mm あたりのピクセル数・収めた範囲もテキストで返す) |
+| `render_image` | PNG を返す(画像の大きさ・1mm あたりのピクセル数・収めた範囲もテキストで返す)。文字と寸法ラベルは実物どおりの比で描く |
 
 `add_shapes` の図形は `type` で種類を指定する。円弧と寸法線は、キャンバスのツールと同じ 3 点で指定する(角度の向きの取り決めで迷わないように、計算も `EditorViewModel.arcFrom3Points` / `DimensionLineShape(start:end:third:kind:)` を共用する)。
 

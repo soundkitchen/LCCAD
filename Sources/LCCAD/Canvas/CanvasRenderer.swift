@@ -4,6 +4,9 @@ struct CanvasRenderer {
     let transform: CanvasTransform
     var colorScheme: ColorScheme = .light
     var unit: LengthUnit = .millimeters
+    /// 文字・寸法ラベル・寸法の矢印の大きさを、画面で読める範囲にクランプするか。
+    /// エージェント向けの画像出力では、図形との大きさの比を実物どおりにするため false にする(review #86)
+    var clampsToScreen = true
 
     /// 表示中のレイヤーの図形を描き、その上にステッチ穴を描く。
     /// キャンバスとエージェント向けの画像出力(`MCPDocumentImageRenderer`)で共通 (#79)
@@ -219,7 +222,7 @@ struct CanvasRenderer {
         }
         let screenPos = transform.worldToScreen(text.position)
         let screenFontSize = transform.worldToScreenDistance(text.fontSize)
-        let clampedSize = max(6, min(screenFontSize, 200))
+        let clampedSize = clampsToScreen ? max(6, min(screenFontSize, 200)) : max(screenFontSize, 0.1)
 
         // Use NSFontManager-resolved font name to ensure bold/italic variants are applied
         let resolvedNSFont = text.resolvedNSFont
@@ -289,7 +292,8 @@ struct CanvasRenderer {
         context.stroke(dimPath, with: .color(color), style: style)
 
         // Arrowheads (world size, clamped so they stay visible on screen).
-        let arrowLen = max(5, min(transform.worldToScreenDistance(DimensionLineShape.arrowLength), 14))
+        let screenArrowLength = transform.worldToScreenDistance(DimensionLineShape.arrowLength)
+        let arrowLen = clampsToScreen ? max(5, min(screenArrowLength, 14)) : screenArrowLength
         let dir = unitVector(from: sA, to: sB)
         if dir != .zero {
             drawArrowhead(tip: sA, bodyDir: dir, length: arrowLen, color: color, in: context)
@@ -299,7 +303,8 @@ struct CanvasRenderer {
         // Label: JIS 流に寸法線に沿って回転し、読み姿勢での上側に離して置く。
         // フォントは画面上でクランプされるため、隙間も画面座標で同期して計算する。
         let label = dim.displayLabel(unit: unit)
-        let fontSize = max(9, min(transform.worldToScreenDistance(DimensionLineShape.textHeight), 40))
+        let screenTextHeight = transform.worldToScreenDistance(DimensionLineShape.textHeight)
+        let fontSize = clampsToScreen ? max(9, min(screenTextHeight, 40)) : max(screenTextHeight, 0.1)
         let up = dim.labelUpNormal
         let midDim = transform.worldToScreen(dim.labelAnchor)
         // labelGap (mm) を描画フォントサイズ比に換算 (フォントがクランプされても隙間が追従する)

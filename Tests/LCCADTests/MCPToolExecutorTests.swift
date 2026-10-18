@@ -118,6 +118,31 @@ final class MCPToolExecutorTests: XCTestCase {
         XCTAssertEqual(editor.selectedShapeIds, [UUID(uuidString: ids[1])!])
     }
 
+    func testDuplicateIdsAreCountedOnce() throws {
+        let ids = try addTwoLines()
+        let result = call("delete_shapes", ["ids": [.string(ids[0]), .string(ids[0])]])
+        assertSucceeded(result)
+        XCTAssertEqual(try json(result)["deleted"] as? Int, 1)
+        XCTAssertEqual(editor.document.layers[0].shapes.count, 1)
+    }
+
+    /// ドラッグの途中は document を変えるツールを断り、読み取りだけのツールは通す(review #86)
+    func testToolsThatChangeTheDocumentWaitForTheGesture() throws {
+        let ids = try addTwoLines()
+        editor.moveUndoSnapshot = editor.document
+
+        assertFailed(call("add_shapes", ["shapes": twoLines]), containing: "dragging")
+        assertFailed(call("delete_shapes", ["ids": [.string(ids[0])]]), containing: "dragging")
+        assertFailed(call("save_document", ["path": .string(temporaryURL("lccad").path)]), containing: "dragging")
+        assertSucceeded(call("get_document"))
+        assertSucceeded(call("render_image", ["width": 200]))
+        XCTAssertEqual(editor.document.layers[0].shapes.count, 2)
+
+        editor.moveUndoSnapshot = nil
+        assertSucceeded(call("add_shapes", ["shapes": twoLines]))
+        XCTAssertEqual(editor.document.layers[0].shapes.count, 4)
+    }
+
     func testUnknownIdsAreRejected() throws {
         _ = try addTwoLines()
         let unknown = UUID().uuidString
@@ -263,5 +288,24 @@ final class MCPToolExecutorTests: XCTestCase {
         // 100mm を 400 - 余白 48 px に収めるので、高さは 50mm 分 + 余白
         XCTAssertEqual(image.pixelsHigh, Int((50 * (352.0 / 100) + 48).rounded(.up)))
         XCTAssertTrue(text(result).contains("400 x"), text(result))
+    }
+
+    /// 画像の範囲には、図形の外にあるステッチ穴と寸法ラベルも含める(review #86)
+    func testRenderBoundsIncludeStitchHolesAndDimensionLabels() throws {
+        var document = DocumentData()
+        let line = LineShape(start: CGPoint(x: 0, y: 0), end: CGPoint(x: 10, y: 0))
+        let dimension = DimensionLineShape(start: CGPoint(x: 0, y: 40), end: CGPoint(x: 2, y: 40), offset: 5,
+                                           labelOverride: String(repeating: "W", count: 30))
+        let iron = PrickingIron(name: "T", holeType: .round, pitch: 4, holeSize: 1.5, holeAngle: 0)
+        document.layers[0].shapes = [.line(line), .dimensionLine(dimension)]
+        document.prickingIrons = [iron]
+        document.layers[0].stitchLines = [StitchLine(
+            sourceShapeId: line.id, ironId: iron.id, mode: .fixedPitch,
+            holes: [StitchHole(position: CGPoint(x: 5, y: -20), angle: 0)])]
+
+        let bounds = try XCTUnwrap(MCPDocumentImageRenderer.contentBounds(of: document))
+        XCTAssertLessThanOrEqual(bounds.minY, -20.75)
+        XCTAssertTrue(bounds.contains(dimension.labelBoundingBox))
+        XCTAssertGreaterThan(dimension.labelBoundingBox.width, dimension.boundingBox.width, "長いラベルは boundingBox からはみ出す")
     }
 }

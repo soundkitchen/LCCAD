@@ -47,6 +47,39 @@ final class HTTPMessageTests: XCTestCase {
         XCTAssertEqual(HTTPMessage.parseRequest(data(text)), .incomplete)
     }
 
+    /// 巨大なサイズ行でも整数があふれて落ちず、413 を返す(review #86)
+    func testHugeChunkSizeIsRejectedWithoutOverflow() {
+        let text = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n1\r\na\r\n7fffffffffffffff\r\n"
+        XCTAssertEqual(HTTPMessage.parseRequest(data(text)), .failure(status: 413))
+        let first = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n7fffffffffffffff\r\n"
+        XCTAssertEqual(HTTPMessage.parseRequest(data(first)), .failure(status: 413))
+    }
+
+    func testChunkSizeLineWithoutNewlineIsBounded() {
+        let text = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n" + String(repeating: "0", count: 2000)
+        XCTAssertEqual(HTTPMessage.parseRequest(data(text)), .failure(status: 400))
+    }
+
+    /// 少しずつ届く chunked の本文を、途中経過から続けてデコードする(review #86)
+    func testChunkedBodyResumesFromProgress() throws {
+        let text = "POST /mcp HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n2\r\nde\r\n0\r\n\r\n"
+        let bytes = data(text)
+        var progress: HTTPMessage.ChunkedProgress?
+        var result: HTTPMessage.ParseResult = .incomplete
+        var offsets: [Int] = []
+        for end in 1...bytes.count {
+            result = HTTPMessage.parseRequest(bytes.prefix(end), progress: &progress)
+            if let progress { offsets.append(progress.offset) }
+            if case .request = result { break }
+        }
+        guard case .request(let request, let consumed) = result else { return XCTFail("\(result)") }
+        XCTAssertEqual(request.body, data("abcde"))
+        XCTAssertEqual(consumed, bytes.count)
+        XCTAssertNil(progress, "1 件を取り出したら途中経過は消す")
+        XCTAssertEqual(offsets, offsets.sorted(), "途中経過は先へ進むだけ")
+        XCTAssertGreaterThan(offsets.last ?? 0, offsets.first ?? 0)
+    }
+
     func testConnectionHeaderControlsKeepAlive() throws {
         XCTAssertFalse(try XCTUnwrap(parsed("GET /mcp HTTP/1.1\r\nConnection: close\r\n\r\n")).0.keepAlive)
         XCTAssertFalse(try XCTUnwrap(parsed("GET /mcp HTTP/1.0\r\n\r\n")).0.keepAlive)

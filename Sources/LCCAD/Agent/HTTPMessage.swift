@@ -34,13 +34,53 @@ enum HTTPMessage {
         case failure(status: Int)
     }
 
+    /// chunked の本文の解析の途中経過。受信のたびに本文を最初からデコードし直さないように、
+    /// 接続ごとに持って次の `parseRequest` に渡す(review #86)
+    struct ChunkedProgress: Equatable, Sendable {
+        /// 次のサイズ行の位置(バッファの先頭からのバイト数)
+        var offset: Int
+        /// ここまでにデコードした本文
+        var body: Data
+    }
+
+    /// chunked のサイズ行(拡張を含む)の上限。改行が来ないまま超えたら 400 を返す
+    private static let maxChunkSizeLineBytes = 1024
+
     private static let crlf = Data("\r\n".utf8)
     private static let headerTerminator = Data("\r\n\r\n".utf8)
 
     /// バッファの先頭から 1 件のリクエストを取り出す
     static func parseRequest(_ buffer: Data) -> ParseResult {
+        var progress: ChunkedProgress?
+        return parseRequest(buffer, progress: &progress)
+    }
+
+    /// バッファの先頭から 1 件のリクエストを取り出す。chunked の本文が届ききっていないときは
+    /// `progress` に途中経過を残し、次の呼び出しではその続きからデコードする。
+    /// 1 件を取り出すか失敗したら `progress` は nil に戻る
+    static func parseRequest(_ buffer: Data, progress: inout ChunkedProgress?) -> ParseResult {
+        switch parseRequest(buffer, resuming: progress) {
+        case .incomplete(let next):
+            progress = next
+            return .incomplete
+        case .failure(let status):
+            progress = nil
+            return .failure(status: status)
+        case .request(let request, let consumed):
+            progress = nil
+            return .request(request, consumed: consumed)
+        }
+    }
+
+    private enum InternalResult {
+        case incomplete(ChunkedProgress?)
+        case request(Request, consumed: Int)
+        case failure(status: Int)
+    }
+
+    private static func parseRequest(_ buffer: Data, resuming progress: ChunkedProgress?) -> InternalResult {
         guard let headerEnd = buffer.range(of: headerTerminator) else {
-            return buffer.count > maxHeaderBytes ? .failure(status: 431) : .incomplete
+            return buffer.count > maxHeaderBytes ? .failure(status: 431) : .incomplete(nil)
         }
         let headerLength = headerEnd.lowerBound - buffer.startIndex
         guard headerLength <= maxHeaderBytes else { return .failure(status: 431) }
@@ -77,8 +117,10 @@ enum HTTPMessage {
 
         if let transferEncoding = request.header("Transfer-Encoding") {
             guard transferEncoding.lowercased() == "chunked" else { return .failure(status: 501) }
-            switch decodeChunked(buffer, from: bodyStart) {
-            case .incomplete: return .incomplete
+            let resume = progress.map { (position: buffer.startIndex + $0.offset, body: $0.body) }
+            switch decodeChunked(buffer, from: resume?.position ?? bodyStart, decoded: resume?.body ?? Data()) {
+            case .incomplete(let position, let decoded):
+                return .incomplete(ChunkedProgress(offset: position - buffer.startIndex, body: decoded))
             case .failure(let status): return .failure(status: status)
             case .decoded(let decoded, let decodedEnd):
                 body = decoded
@@ -87,7 +129,7 @@ enum HTTPMessage {
         } else if let lengthText = request.header("Content-Length") {
             guard let length = Int(lengthText), length >= 0 else { return .failure(status: 400) }
             guard length <= maxBodyBytes else { return .failure(status: 413) }
-            guard buffer.endIndex - bodyStart >= length else { return .incomplete }
+            guard buffer.endIndex - bodyStart >= length else { return .incomplete(nil) }
             body = buffer.subdata(in: bodyStart..<(bodyStart + length))
             end = bodyStart + length
         }
@@ -103,16 +145,21 @@ enum HTTPMessage {
     }
 
     private enum ChunkedResult {
-        case incomplete
+        /// 続きのデータを待つ。`position` は次のサイズ行の位置、`body` はそこまでの本文
+        case incomplete(position: Data.Index, body: Data)
         case failure(status: Int)
         case decoded(Data, end: Data.Index)
     }
 
-    private static func decodeChunked(_ buffer: Data, from start: Data.Index) -> ChunkedResult {
-        var body = Data()
+    /// `start` のサイズ行から chunked の本文をデコードし、`decoded` の後ろに足していく
+    private static func decodeChunked(_ buffer: Data, from start: Data.Index, decoded: Data) -> ChunkedResult {
+        var body = decoded
         var position = start
         while true {
-            guard let lineEnd = buffer.range(of: crlf, in: position..<buffer.endIndex) else { return .incomplete }
+            guard let lineEnd = buffer.range(of: crlf, in: position..<buffer.endIndex) else {
+                guard buffer.endIndex - position <= maxChunkSizeLineBytes else { return .failure(status: 400) }
+                return .incomplete(position: position, body: body)
+            }
             guard let sizeLine = String(data: buffer[position..<lineEnd.lowerBound], encoding: .ascii) else {
                 return .failure(status: 400)
             }
@@ -121,22 +168,25 @@ enum HTTPMessage {
             guard let size = Int(sizeText.trimmingCharacters(in: .whitespaces), radix: 16), size >= 0 else {
                 return .failure(status: 400)
             }
-            position = lineEnd.upperBound
+            let chunkStart = lineEnd.upperBound
             if size == 0 {
                 // トレーラーは読み飛ばす。空行で終わる
-                if buffer.endIndex - position >= 2, buffer[position..<(position + 2)] == crlf {
-                    return .decoded(body, end: position + 2)
+                if buffer.endIndex - chunkStart >= 2, buffer[chunkStart..<(chunkStart + 2)] == crlf {
+                    return .decoded(body, end: chunkStart + 2)
                 }
-                guard let trailerEnd = buffer.range(of: headerTerminator, in: position..<buffer.endIndex) else {
-                    return .incomplete
+                guard let trailerEnd = buffer.range(of: headerTerminator, in: chunkStart..<buffer.endIndex) else {
+                    guard buffer.endIndex - chunkStart <= maxHeaderBytes else { return .failure(status: 431) }
+                    return .incomplete(position: position, body: body)
                 }
                 return .decoded(body, end: trailerEnd.upperBound)
             }
-            guard body.count + size <= maxBodyBytes else { return .failure(status: 413) }
-            guard buffer.endIndex - position >= size + 2 else { return .incomplete }
-            body.append(buffer[position..<(position + size)])
-            guard buffer[(position + size)..<(position + size + 2)] == crlf else { return .failure(status: 400) }
-            position += size + 2
+            // body.count は maxBodyBytes 以下なので、引き算の形ならあふれない(足し算だと
+            // 巨大なサイズ行で Int があふれる、review #86)
+            guard size <= maxBodyBytes - body.count else { return .failure(status: 413) }
+            guard buffer.endIndex - chunkStart >= size + 2 else { return .incomplete(position: position, body: body) }
+            guard buffer[(chunkStart + size)..<(chunkStart + size + 2)] == crlf else { return .failure(status: 400) }
+            body.append(buffer[chunkStart..<(chunkStart + size)])
+            position = chunkStart + size + 2
         }
     }
 

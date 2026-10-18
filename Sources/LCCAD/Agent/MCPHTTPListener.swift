@@ -99,6 +99,8 @@ private final class ListenerConnection: @unchecked Sendable {
     private let handler: MCPHTTPListener.Handler
     private let onClose: (ObjectIdentifier) -> Void
     private var buffer = Data()
+    /// 届ききっていない chunked の本文のデコードの途中経過
+    private var chunkedProgress: HTTPMessage.ChunkedProgress?
     private var isHandling = false
     private var isClosed = false
     private var receivedEOF = false
@@ -145,7 +147,7 @@ private final class ListenerConnection: @unchecked Sendable {
 
     private func processBuffer() {
         guard !isClosed, !isHandling else { return }
-        switch HTTPMessage.parseRequest(buffer) {
+        switch HTTPMessage.parseRequest(buffer, progress: &chunkedProgress) {
         case .incomplete:
             if receivedEOF {
                 close()

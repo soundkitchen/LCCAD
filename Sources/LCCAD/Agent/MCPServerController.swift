@@ -102,10 +102,18 @@ final class MCPServerController: ObservableObject {
             }
             do {
                 try await server.start(transport: transport)
-                guard runID == id else { return }
+                // 起動を待つ間に止められていたら、teardown の stop() より後に起動が
+                // 終わっていることがあるので、ここで止める(review #86)
+                guard runID == id else {
+                    await server.stop()
+                    return
+                }
                 try listener.start(port: UInt16(port))
             } catch {
-                guard runID == id else { return }
+                guard runID == id else {
+                    await server.stop()
+                    return
+                }
                 fail(error.localizedDescription)
             }
         }

@@ -11,7 +11,9 @@ enum MCPToolCatalog {
         LCCAD is a leathercraft CAD app. All coordinates and lengths are in millimeters. \
         The coordinate system has its origin at the top-left with the Y axis pointing down. \
         Points are [x, y] arrays. Every tool that changes the document registers one undo step. \
-        Call get_document to read the current state and render_image to check the result visually.
+        Call get_document to read the current state and render_image to check the result visually. \
+        While the user is dragging on the canvas, only get_document and render_image run; \
+        the other tools fail, so wait a moment and call them again.
         """
 
     private static let point: Value = [
@@ -83,6 +85,9 @@ enum MCPToolCatalog {
     }
 
     private static let readOnly = Tool.Annotations(readOnlyHint: true)
+
+    /// ユーザーがキャンバスでドラッグしている間も実行できるツール(読み取りだけのもの)
+    static let toolsAllowedDuringGesture: Set<String> = ["get_document", "render_image"]
 
     static let tools: [Tool] = [
         Tool(name: "get_document",
@@ -183,6 +188,11 @@ struct MCPToolExecutor {
     }
 
     private func run(_ name: String, arguments: [String: Value]) throws -> CallTool.Result {
+        // ドラッグの途中で document を変えると Undo が壊れる。保存・書き出しも、
+        // 動かしている途中の位置を書き出してしまうので待ってもらう
+        if editor.isGestureInProgress, !MCPToolCatalog.toolsAllowedDuringGesture.contains(name) {
+            throw ToolError("The user is dragging on the canvas. Wait a moment and try again")
+        }
         switch name {
         case "get_document": return try getDocument()
         case "add_shapes": return try addShapes(decode(AddShapesArguments.self, arguments))
@@ -367,14 +377,15 @@ struct MCPToolExecutor {
         return Self.success(["selected": .int(ids.count)])
     }
 
-    /// 文字列の id を UUID にし、トップレベルの図形として存在するかを確かめる
+    /// 文字列の id を UUID にし、トップレベルの図形として存在するかを確かめる。重複は除く
     private func shapeIds(_ strings: [String]) throws -> [UUID] {
         guard !strings.isEmpty else { throw ToolError("ids must not be empty") }
         var ids: [UUID] = []
         var unknown: [String] = []
         for string in strings {
             if let id = UUID(uuidString: string), editor.findShape(id: id) != nil {
-                ids.append(id)
+                // 同じ id が重なっていても 1 つとして扱う(件数を正しく返すため、review #86)
+                if !ids.contains(id) { ids.append(id) }
             } else {
                 unknown.append(string)
             }
