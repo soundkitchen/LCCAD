@@ -96,14 +96,22 @@ enum MCPToolCatalog {
         Tool(name: "add_shapes",
              description: """
                 Add shapes in one undo step and return their new ids. Shapes go to the active layer unless layer_index is given. \
-                To import outlines from 3D software (Blender, Houdini), pass each outline as a polyline \
-                (closed: true for a closed piece) after converting its coordinates. \
-                Units: 3D scenes usually use meters, so multiply by 1000 \
-                (in Blender, also multiply by scene.unit_settings.scale_length). \
-                Orientation: LCCAD's Y axis points down. Keep the piece as it looks in the 3D software's top view; \
-                copying the axes as they are can mirror it, which matters for leather because of the grain side. \
-                Blender (Z up, flat pieces on the XY plane): x_mm = x * 1000, y_mm = -y * 1000. \
-                Houdini (Y up, flat pieces on the XZ plane): x_mm = x * 1000, y_mm = z * 1000. \
+                To import flat pieces from 3D software (Blender, Houdini), convert them with a script inside the 3D software, \
+                not by hand, and pass every boundary loop as a closed polyline: the outline and each inner loop (holes) separately. \
+                Positions: use world-space vertex positions with the object transform applied \
+                (Blender: obj.matrix_world @ v.co; Houdini: positions times the object node's worldTransform()), \
+                not UV coordinates, which carry no real size. \
+                Units: scenes are usually in meters, so multiply by 1000; check the scene unit setting first \
+                (Blender: also multiply by scene.unit_settings.scale_length; Houdini: the hip file's Unit Length). \
+                Flatness: every vertex must lie on the piece's plane (within about 0.01 mm); \
+                if a piece is not flat, ask the user to flatten it in the 3D software. \
+                Orientation: the side the face normal points to is the grain (front) side of the leather, \
+                so lay each piece out as seen from that side; a wrong choice mirrors the piece. \
+                With n the world-space face normal and u a unit vector in the piece's plane \
+                (the world X axis when it lies in the plane): x_mm = dot(p, u) * 1000, y_mm = dot(p, cross(u, n)) * 1000 \
+                (LCCAD's Y axis points down). For example, a Blender piece on the XY plane with its normal up gives \
+                x_mm = x * 1000, y_mm = -y * 1000, and a Houdini piece on the XZ plane with its normal up gives \
+                x_mm = x * 1000, y_mm = z * 1000. \
                 Then place the pieces at positive coordinates without overlapping, and check them with render_image.
                 """,
              inputSchema: object([
