@@ -59,6 +59,7 @@ make install   # Release ビルドして /Applications/LCCAD.app を入れ替え
 ```
 LCCAD/
 ├── Sources/LCCAD/
+│   ├── Agent/           # エージェント用の操作 API（アプリ内 MCP Server）
 │   ├── App/             # エントリポイント、コマンド、外観モード
 │   ├── Canvas/          # キャンバス描画（Grid / Ruler / Snap / Page overlay）
 │   ├── Export/          # .lccad, SVG, DXF, 印刷
