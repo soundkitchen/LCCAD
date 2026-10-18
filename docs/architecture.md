@@ -37,6 +37,8 @@ Sources/LCCAD/
 │   ├── LCCADApp.swift           # @main エントリポイント、Settings シーン
 │   ├── AppCommands.swift        # macOS メニューバー定義 (File/Edit/View/Arrange/Draw/Stitch)
 │   ├── AppearanceMode.swift     # カラーモード (System/Light/Dark) 管理
+│   ├── DocumentFileOperations.swift # 保存・開く・新規と未保存の確認。パネルなしの write(to:) / read(from:) / resetToNewDocument()（#78）
+│   ├── WindowConfigurator.swift # ウィンドウの閉じる操作の確認と編集済みマーク（#22）
 │   └── DisplayDensityObserver.swift # ディスプレイ物理密度 (pt/mm) を EditorViewModel へ供給（実寸 100% 基準、#62）
 │
 ├── Models/
@@ -93,7 +95,8 @@ Sources/LCCAD/
 │   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
 │
 ├── ViewModels/
-│   └── EditorViewModel.swift    # エディタ全体の状態管理（マルチセレクト対応）
+│   ├── EditorViewModel.swift    # エディタ全体の状態管理（マルチセレクト対応）
+│   └── EditorViewModel+Operations.swift # 画面に依存しない操作（レイヤー操作、パネルなしの書き出し、#78）
 │
 ├── Canvas/
 │   ├── CanvasView.swift         # キャンバス SwiftUI View + ジェスチャー
@@ -122,7 +125,7 @@ Sources/LCCAD/
 ├── Export/
 │   ├── SVGExporter.swift
 │   ├── DXFExporter.swift
-│   ├── ExportCoordinator.swift
+│   ├── ExportCoordinator.swift # 保存パネル経由の書き出しと、パネルなしの writeSVG / writeDXF（#78）
 │   └── PrintCoordinator.swift  # 実寸印刷 + ページベース/自動タイル印刷 + キャリブレーション適用
 │
 └── Resources/
@@ -166,6 +169,9 @@ Sources/LCCAD/
 | **ストローク編集** | `updateStroke(_:)` | 選択図形の stroke.color / stroke.width / stroke.lineStyle を更新（Undo 対応） |
 | **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応） |
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
+| **図形の追加** | `addShape(_:actionName:)` / `addShapes(_:actionName:)` | mm 座標の図形をアクティブレイヤーに追加（`addShapes` は複数をまとめて Undo 1 件）。作図ツールもここを通す |
+| **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo は登録しない） |
+| **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
 | **ズーム** | `zoomToFit()` | 表示中の全図形の外接矩形がビューに収まるようにズーム・パン（図形がなければ Actual Size にフォールバック） |
 | **ズーム** | `zoomToActualSize()` | 実寸 100%（`transform.baselineScale`）に戻し、原点をキャンバス中央に配置 |
@@ -176,8 +182,10 @@ Sources/LCCAD/
 | **配列** | `arraySelectedShapes(_:)` | Linear / Grid / Polar で複製を一括生成。Polar は bbox 中心を pivot に rotate→translate（Mirror Copy 同型のステッチ追従、Undo 対応） |
 | **ページ** | `addPage(at:)` | キャンバスクリック位置にページ追加（Undo 対応） |
 | **ページ** | `deleteSelectedPage()` | 選択ページ削除（Undo 対応） |
-| **ページ** | `moveSelectedPage(by:)` | ページドラッグ移動（PageSnapEngine 連動） |
+| **ページ** | `moveSelectedPage(by:)` / `setSelectedPageOrigin(_:)` | 選択ページを差分 / 絶対位置で移動（Undo は登録しない）。ドラッグ中はキャンバスがスナップ（PageSnapEngine → グリッド）済みの位置で `setSelectedPageOrigin` を呼び、`commitPageMove()` で Undo 1 件にまとめる |
 | **ページ** | `updatePageProperty(_:)` | 右パネルからのプロパティ変更（Undo 対応） |
+
+**操作の層 (#78)**: 画面のジェスチャーやパネルは、座標の変換・スナップ・保存先の選択といった画面の都合だけを受け持ち、document を変える処理は `EditorViewModel` の操作メソッド(mm 座標や URL を引数に取る)に任せる。UI も外部からの操作(エージェント用の操作 API、#75)も同じメソッドを通るので、Undo の積まれ方などが揃う。View から document を直接書き換えるロジックは置かない(表示設定の単純な切り替えを除く)。ファイルの保存・読み込み・新規作成は `LCCADFileDocument` の `write(to:)` / `read(from:)` / `resetToNewDocument()` がパネルなしで行い、パネル版や未保存の確認はその上に載る。`read(from:)` / `resetToNewDocument()` は未保存の変更を確認しない。
 
 「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
 

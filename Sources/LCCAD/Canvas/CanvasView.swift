@@ -288,7 +288,7 @@ struct CanvasView: View {
                         let rawOrigin = editor.pageDragRawOrigin!
 
                         if let id = editor.selectedPageId,
-                           let idx = editor.document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) {
+                           editor.document.settings.pageLayout.pages.contains(where: { $0.id == id }) {
                             let layout = editor.document.settings.pageLayout
                             let otherOrigins = layout.pages.filter { $0.id != id }.map(\.origin)
                             let tolerance = editor.transform.screenToWorldDistance(8)
@@ -325,7 +325,7 @@ struct CanvasView: View {
                                 }
                             }
 
-                            editor.document.settings.pageLayout.pages[idx].origin = origin
+                            editor.setSelectedPageOrigin(origin)
                         }
                     }
                 } else if editor.currentTool == .select {

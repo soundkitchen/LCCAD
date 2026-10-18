@@ -8,13 +8,13 @@ struct LayerListView: View {
         VStack(spacing: 0) {
             // Layer actions bar
             HStack(spacing: 4) {
-                Button(action: addLayer) {
+                Button(action: editor.addLayer) {
                     Image(systemName: "plus").font(.system(size: 14))
                         .foregroundStyle(DesignTokens.iconSecondary(colorScheme))
                 }
                 .buttonStyle(.plain)
 
-                Button(action: removeLayer) {
+                Button(action: editor.removeActiveLayer) {
                     Image(systemName: "trash").font(.system(size: 14))
                         .foregroundStyle(DesignTokens.iconSecondary(colorScheme))
                 }
@@ -23,13 +23,13 @@ struct LayerListView: View {
 
                 Spacer()
 
-                Button(action: moveLayerUp) {
+                Button(action: editor.moveActiveLayerUp) {
                     Image(systemName: "chevron.up").font(.system(size: 14))
                         .foregroundStyle(DesignTokens.iconSecondary(colorScheme))
                 }
                 .buttonStyle(.plain)
 
-                Button(action: moveLayerDown) {
+                Button(action: editor.moveActiveLayerDown) {
                     Image(systemName: "chevron.down").font(.system(size: 14))
                         .foregroundStyle(DesignTokens.iconSecondary(colorScheme))
                 }
@@ -46,7 +46,7 @@ struct LayerListView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(editor.document.layers.enumerated()), id: \.element.id) { index, layer in
                         HStack(spacing: 8) {
-                            Button(action: { editor.document.layers[index].isVisible.toggle() }) {
+                            Button(action: { editor.toggleLayerVisibility(at: index) }) {
                                 Image(systemName: layer.isVisible ? "eye" : "eye.slash")
                                     .font(.system(size: 14))
                                     .foregroundStyle(layer.isVisible ? DesignTokens.iconPrimary(colorScheme) : DesignTokens.textMuted(colorScheme))
@@ -71,29 +71,5 @@ struct LayerListView: View {
                 .padding(.vertical, 4)
             }
         }
-    }
-
-    private func addLayer() {
-        let newLayer = Layer(name: "Layer \(editor.document.layers.count + 1)")
-        editor.document.layers.append(newLayer)
-        editor.activeLayerIndex = editor.document.layers.count - 1
-    }
-
-    private func removeLayer() {
-        guard editor.document.layers.count > 1 else { return }
-        editor.document.layers.remove(at: editor.activeLayerIndex)
-        editor.activeLayerIndex = min(editor.activeLayerIndex, editor.document.layers.count - 1)
-    }
-
-    private func moveLayerUp() {
-        guard editor.activeLayerIndex > 0 else { return }
-        editor.document.layers.swapAt(editor.activeLayerIndex, editor.activeLayerIndex - 1)
-        editor.activeLayerIndex -= 1
-    }
-
-    private func moveLayerDown() {
-        guard editor.activeLayerIndex < editor.document.layers.count - 1 else { return }
-        editor.document.layers.swapAt(editor.activeLayerIndex, editor.activeLayerIndex + 1)
-        editor.activeLayerIndex += 1
     }
 }

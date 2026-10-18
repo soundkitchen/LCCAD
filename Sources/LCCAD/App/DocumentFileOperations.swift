@@ -29,6 +29,25 @@ extension LCCADFileDocument {
         markSaved()
     }
 
+    /// `url` の .lccad を読み込んで document を置き換える(パネルなし、#78)。
+    /// 未保存の変更は確認しない。確認が要る呼び出し元は先に `guardUnsavedChanges` を通す
+    func read(from url: URL) throws {
+        let raw = try Data(contentsOf: url)
+        let decoded = try JSONDecoder().decode(DocumentData.self, from: raw)
+        data = decoded
+        fileURL = url
+        markSaved()
+        notifyDocumentReplaced()
+    }
+
+    /// 新規の空ドキュメントに置き換える(#78)。未保存の変更は確認しない
+    func resetToNewDocument() {
+        data = .empty()
+        fileURL = nil
+        markSaved()
+        notifyDocumentReplaced()
+    }
+
     // MARK: Save / Save As
 
     /// Save to the existing file, or fall back to a Save As panel when untitled.
@@ -73,11 +92,7 @@ extension LCCADFileDocument {
     /// New document, guarding any unsaved changes first.
     func newDocumentGuarded() {
         guardUnsavedChanges { [weak self] in
-            guard let self else { return }
-            self.data = .empty()
-            self.fileURL = nil
-            self.markSaved()
-            self.notifyDocumentReplaced()
+            self?.resetToNewDocument()
         }
     }
 
@@ -94,12 +109,7 @@ extension LCCADFileDocument {
         panel.begin { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
             do {
-                let raw = try Data(contentsOf: url)
-                let decoded = try JSONDecoder().decode(DocumentData.self, from: raw)
-                self.data = decoded
-                self.fileURL = url
-                self.markSaved()
-                self.notifyDocumentReplaced()
+                try self.read(from: url)
             } catch {
                 NSAlert(error: error).runModal()
             }

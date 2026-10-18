@@ -469,9 +469,17 @@ final class EditorViewModel {
         }
     }
 
-    private func addShapeWithUndo(_ shape: AnyShape, actionName: String) {
+    /// 図形をアクティブレイヤーに追加する(Undo 1 件)。座標は mm。
+    /// キャンバスの作図ツールも、外部からの操作もここを通す (#78)
+    func addShape(_ shape: AnyShape, actionName: String = "Add Shape") {
+        addShapes([shape], actionName: actionName)
+    }
+
+    /// 複数の図形をまとめてアクティブレイヤーに追加する(Undo 1 件)
+    func addShapes(_ shapes: [AnyShape], actionName: String = "Add Shapes") {
+        guard !shapes.isEmpty else { return }
         let old = document
-        activeLayer.shapes.append(shape)
+        activeLayer.shapes.append(contentsOf: shapes)
         registerUndo(actionName: actionName, oldDocument: old)
     }
 
@@ -1058,7 +1066,7 @@ final class EditorViewModel {
         case .line:
             if let start = dragStartWorldPoint {
                 let line = LineShape(start: start, end: worldPoint)
-                addShapeWithUndo(.line(line), actionName: "Draw Line")
+                addShape(.line(line), actionName: "Draw Line")
                 dragStartWorldPoint = nil
                 drawingPreview = nil
                 activeSnapCandidate = nil
@@ -1071,7 +1079,7 @@ final class EditorViewModel {
             if let start = dragStartWorldPoint, let end = arcSecondPoint {
                 // 3rd click: determine arc from 3 points
                 if let arc = arcFrom3Points(p1: start, p2: end, p3: worldPoint) {
-                    addShapeWithUndo(.arc(arc), actionName: "Draw Arc")
+                    addShape(.arc(arc), actionName: "Draw Arc")
                 }
                 dragStartWorldPoint = nil
                 arcSecondPoint = nil
@@ -1094,7 +1102,7 @@ final class EditorViewModel {
 
         case .text:
             let textShape = TextShape(position: worldPoint)
-            addShapeWithUndo(.text(textShape), actionName: "Add Text")
+            addShape(.text(textShape), actionName: "Add Text")
             selectedShapeIds = [textShape.id]
             activeSnapCandidate = nil
 
@@ -1102,7 +1110,7 @@ final class EditorViewModel {
             if let start = dragStartWorldPoint, let second = dimensionSecondPoint {
                 // 3rd click: the placement point sets the dimension-line offset
                 let dim = DimensionLineShape(start: start, end: second, third: worldPoint, kind: currentDimensionKind)
-                addShapeWithUndo(.dimensionLine(dim), actionName: "Draw Dimension")
+                addShape(.dimensionLine(dim), actionName: "Draw Dimension")
                 selectedShapeIds = [dim.id]
                 dragStartWorldPoint = nil
                 dimensionSecondPoint = nil
@@ -1226,7 +1234,7 @@ final class EditorViewModel {
             } else if phase == .ended, let start = dragStartWorldPoint {
                 let end = shiftHeld ? constrainToSquare(start: start, end: worldPoint) : worldPoint
                 let rect = RectangleShape(from: start, to: end)
-                addShapeWithUndo(.rectangle(rect), actionName: "Draw Rectangle")
+                addShape(.rectangle(rect), actionName: "Draw Rectangle")
                 dragStartWorldPoint = nil
                 drawingPreview = nil
                 activeSnapCandidate = nil
@@ -1251,7 +1259,7 @@ final class EditorViewModel {
                 let ry = abs(end.y - start.y) / 2
                 if rx > 0.5 && ry > 0.5 {
                     let ellipse = EllipseShape(center: center, radiusX: rx, radiusY: ry)
-                    addShapeWithUndo(.ellipse(ellipse), actionName: "Draw Ellipse")
+                    addShape(.ellipse(ellipse), actionName: "Draw Ellipse")
                 }
                 dragStartWorldPoint = nil
                 drawingPreview = nil
@@ -1268,7 +1276,7 @@ final class EditorViewModel {
                 }
             } else if phase == .ended, let start = dragStartWorldPoint {
                 let line = LineShape(start: start, end: worldPoint)
-                addShapeWithUndo(.line(line), actionName: "Draw Line")
+                addShape(.line(line), actionName: "Draw Line")
                 dragStartWorldPoint = nil
                 drawingPreview = nil
                 activeSnapCandidate = nil
@@ -1381,7 +1389,7 @@ final class EditorViewModel {
             return
         }
         let shape = BezierShape(points: bezierPoints)
-        addShapeWithUndo(.bezier(shape), actionName: "Draw Bezier")
+        addShape(.bezier(shape), actionName: "Draw Bezier")
         bezierPoints = []
         isDraggingBezierHandle = false
         drawingPreview = nil
@@ -2389,6 +2397,14 @@ final class EditorViewModel {
         document.settings.pageLayout.pages[idx].origin.y += worldDelta.y
     }
 
+    /// 選択ページの原点を `origin` (mm) にする。Undo は登録しない(ドラッグ中は
+    /// キャンバスがスナップ済みの位置で毎フレーム呼び、`commitPageMove()` で 1 件にまとめる)
+    func setSelectedPageOrigin(_ origin: CGPoint) {
+        guard let id = selectedPageId,
+              let idx = document.settings.pageLayout.pages.firstIndex(where: { $0.id == id }) else { return }
+        document.settings.pageLayout.pages[idx].origin = origin
+    }
+
     func commitPageMove() {
         if let snapshot = pageMoveUndoSnapshot, snapshot != document {
             registerUndo(actionName: "Move Page", oldDocument: snapshot)
@@ -2888,16 +2904,6 @@ final class EditorViewModel {
         }
         selectedShapeIds = placedIds
         registerUndo(actionName: "Place Template", oldDocument: old)
-    }
-
-    // MARK: - Export
-
-    func exportSVG() {
-        ExportCoordinator.exportSVG(document: document)
-    }
-
-    func exportDXF() {
-        ExportCoordinator.exportDXF(document: document)
     }
 }
 
