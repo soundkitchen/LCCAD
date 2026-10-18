@@ -27,6 +27,7 @@
 | 最小 OS | macOS 14.0(`options.deploymentTarget` とトップレベルの `settings.base.MACOSX_DEPLOYMENT_TARGET`) |
 | ターゲット / スキーム | `LCCAD`(application、`Sources/LCCAD`)と `LCCADTests`(unit-test、`Tests/LCCADTests`。LCCAD.app をホストに実行)。テストは `LCCAD` スキームから実行する |
 | Info.plist / entitlements | `Sources/LCCAD/Resources/` に置き、`resources` からは除外する(残すと Info.plist がリソースとしてもコピーされてビルドが警告・エラーになり、entitlements がアプリバンドルに同梱されてしまうため)。テストターゲットの Info.plist は自動生成 |
+| パッケージ | [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk)(`MCP`)を `exactVersion` で固定(`Package.resolved` はコミットしないため)。`swift-tools-version` 6.1 のため、ビルドには Xcode 16.3 以降が必要(#79) |
 | 署名 | 両ターゲットとも Automatic(`Apple Development`)。Hardened Runtime は `LCCAD` ターゲットのみ有効。Team ID は `project.yml` に記載(フォーク時の差し替えは README を参照) |
 
 ### ディレクトリ構造
@@ -92,7 +93,7 @@ Sources/LCCAD/
 │   │   └── UndoFreeTextView.swift # allowsUndo = false の複数行テキスト欄（内容欄で使用、#72）
 │   ├── PrickingIronSheet.swift  # 目打ち管理シート
 │   ├── BevelSheet.swift         # 範囲選択の一括面取りシート (Arrange ▸ Bevel…)
-│   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション）
+│   └── SettingsView.swift       # 設定画面（カラーモード切替、プリンターキャリブレーション、Agent = MCP Server）
 │
 ├── ViewModels/
 │   ├── EditorViewModel.swift    # エディタ全体の状態管理（マルチセレクト対応）
@@ -100,7 +101,7 @@ Sources/LCCAD/
 │
 ├── Canvas/
 │   ├── CanvasView.swift         # キャンバス SwiftUI View + ジェスチャー
-│   ├── CanvasRenderer.swift     # Core Graphics 描画ロジック
+│   ├── CanvasRenderer.swift     # Core Graphics 描画ロジック(drawDocumentContent はキャンバスと画像出力で共通)
 │   ├── CanvasTransform.swift    # パン/ズーム座標変換
 │   ├── GridRenderer.swift       # 適応グリッド描画（1-2-5 系列、10 分割固定）
 │   ├── SnapEngine.swift         # スナップ計算
@@ -121,6 +122,14 @@ Sources/LCCAD/
 ├── Stitch/
 │   ├── AutoStitchEngine.swift   # 自動ステッチ配置アルゴリズム
 │   └── PathWalker.swift         # パス歩行
+│
+├── Agent/                       # エージェント用の操作 API(アプリ内 MCP Server、#79)
+│   ├── MCPServerController.swift # 起動・停止と状態(設定でオン、既定はオフ)
+│   ├── MCPHTTPListener.swift    # 127.0.0.1 の HTTP/1.1 待ち受け(Network.framework)
+│   ├── HTTPMessage.swift        # 最小限の HTTP/1.1 の解析と組み立て
+│   ├── MCPTools.swift           # ツールの定義(MCPToolCatalog)と実行(MCPToolExecutor)
+│   ├── MCPShapeSpec.swift       # add_shapes の図形の指定 → AnyShape
+│   └── MCPDocumentImageRenderer.swift # render_image の PNG 出力
 │
 ├── Export/
 │   ├── SVGExporter.swift
@@ -447,6 +456,58 @@ SettingsView
 
 `NSApp.appearance` を使うことで、SwiftUI の `preferredColorScheme` のシーン間伝播遅延を回避。
 
+## エージェント用の操作 API(MCP Server、#79)
+
+AI エージェントから LCCAD を操作するための MCP Server をアプリに組み込む(全体の目標は #75)。設定でオンにしたときだけ、`http://127.0.0.1:<ポート>/mcp` で [MCP](https://modelcontextprotocol.io/) の Streamable HTTP を待ち受ける。
+
+### 構成
+
+```
+エージェント ──HTTP POST /mcp──▶ MCPHTTPListener ──▶ StatelessHTTPServerTransport ──▶ Server (MCP SDK)
+                                 (Network.framework)     (JSON 応答のみ)                    │ tools/list, tools/call
+                                                                                            ▼
+                                                     MCPToolExecutor (@MainActor) ──▶ EditorViewModel の操作メソッド
+```
+
+- **MCPServerController**: 起動・停止と状態(`stopped` / `starting` / `running` / `failed`)。設定は設定画面の Agent タブで変え、UserDefaults の `mcpServerEnabled`(既定 false)と `mcpServerPort`(既定 47821、1024〜65535)に保存する。タブで値を変えたときと起動時(`AppDelegate`)に `applySettings()` を呼ぶ。テストの実行中(`XCTestConfigurationFilePath` がある)は起動しない。操作の対象は、メインウィンドウの表示時に結び付けた `EditorViewModel`。SDK の `Server.start` を待つ間に止められた(設定のオフやポートの変更)ときは、起動が終わったところでその `Server` を止める(止めたあとに起動が終わり、誰も止められないサーバーが残るのを防ぐ)
+- **MCPHTTPListener / HTTPMessage**: SDK の HTTP サーバー用トランスポートは待ち受けを持たないので、Network.framework の `NWListener` で用意する。ループバック(127.0.0.1)にだけ結び付ける。扱うのは HTTP/1.1 の Content-Length と chunked の本文、keep-alive(同じ接続のリクエストは 1 件ずつ順に処理)。ヘッダーは 64KB、本文は 64MB まで。`/mcp` 以外のパスは 404。この解析は Origin / Host の検証より前に走るので、ローカルの任意のプロセスから届く入力として扱う: chunked のサイズは上限との差で比べて整数があふれないようにし、サイズ行は 1KB・トレーラーは 64KB で打ち切る。届ききっていない chunked の本文は、デコードの途中経過(`HTTPMessage.ChunkedProgress`)を接続ごとに持ち、受信のたびに最初からデコードし直さない
+- **トランスポート**: SDK の `StatelessHTTPServerTransport`(セッションなし、POST に JSON で答える。GET / DELETE は 405)。既定の検証で、`Origin` / `Host` が localhost 以外の要求をツールの実行前に弾く。ブラウザは別のサイトへの要求に必ず `Origin` を付けるので、閲覧中の Web ページから localhost の MCP を呼ぶ攻撃(DNS リバインディングを含む)を防げる。ブラウザ以外のクライアント(エージェントや curl)は `Origin` を付けないので通る。同じ Mac で動くブラウザ以外のプログラムは呼べるため、既定はオフにしている
+- **MCPToolExecutor**: ツールの呼び出しを、MainActor の上で `EditorViewModel` の操作メソッド(#78 の操作の層)につなぐ。選択中の図形に対して働く操作(削除・移動・線・テキスト)は、一時的に選択を差し替えて呼び、元の選択(消えた図形を除く)に戻す。エラーは JSON-RPC のエラーではなく、ツールの結果(`isError: true` とメッセージ)で返す。同じ id が重なって渡されたら 1 つとして扱う。ユーザーがキャンバスでドラッグしている間(`EditorViewModel.isGestureInProgress`: 図形・ページの移動、ベジェの点の編集)は、`get_document` と `render_image` 以外をエラーで断り、エージェントにやり直してもらう。ドラッグはドラッグ前の document を Undo の起点として持っているので、その間に document を変えると、ドラッグを終えたときの Undo 1 回でエージェントの変更まで戻ってしまうため。保存・書き出しも、動かしている途中の位置を書いてしまうので断る
+- **MCPShapeSpec**: `add_shapes` の図形の指定を `AnyShape` にする。図形の id は外から受け取らず、作るたびに新しい id を振る(`addShapes` は新しい id の図形を渡す前提のため)
+- **MCPDocumentImageRenderer**: 表示中のレイヤーの図形とステッチ穴を、キャンバスと同じ `CanvasRenderer.drawDocumentContent` で白背景の PNG に描く(`ImageRenderer`)。収める範囲は、図形の外接矩形に寸法線のラベル(`DimensionLineShape.labelBoundingBox`)とステッチ穴を加えたもの。これに余白 24px を付けて、指定の幅(200〜4096px、既定 1600px)に収める。文字・寸法ラベル・寸法の矢印は、キャンバスでは画面で読める大きさにクランプするが、画像では図形との大きさの比を実物どおりにするためクランプしない(`CanvasRenderer.clampsToScreen = false`)。線の太さとステッチ穴の最小の大きさは、見えなくならないようキャンバスと同じく保つ
+
+### ツール
+
+座標と長さはすべて mm、座標系はキャンバスと同じ左上原点・Y 軸下向き。点は `[x, y]` の配列。引数は snake_case。document を変えるツールは、1 回の呼び出しで Undo 1 件になる。エージェントが読む説明文は、アプリの UI 文言と同じく英語。
+
+| ツール | 内容 |
+|---|---|
+| `get_document` | document 全体(.lccad と同じ JSON)、ファイルのパス、未保存の変更があるか、アクティブレイヤー、選択中の図形の id |
+| `add_shapes` | 図形をまとめて追加し、新しい id を返す(`layer_index` を省いたらアクティブレイヤー。1 つでも不正な指定があれば何も追加しない) |
+| `delete_shapes` / `move_shapes` | 削除 / 移動(ステッチは従来どおり消える / 追従する) |
+| `set_stroke` / `set_text` | 線の色(`#RRGGBB` / `#RRGGBBAA`)・線種 / テキストの内容・フォント・サイズなど |
+| `select_shapes` | 選択を指定する(画面にも反映される) |
+| `undo` / `redo` | 取り消し / やり直し |
+| `new_document` / `open_document` | 未保存の変更があればエラー。`discard_changes: true` のときだけ破棄する。`EditorViewModel.newDocument()` / `openDocument(at:)` を通るので、Undo 履歴は消える |
+| `save_document` | `path` を省いたら今のファイルに保存する |
+| `export_svg` / `export_dxf` | 表示中のレイヤーを書き出す |
+| `render_image` | PNG を返す(画像の大きさ・1mm あたりのピクセル数・収めた範囲もテキストで返す)。文字と寸法ラベルは実物どおりの比で描く |
+
+`add_shapes` の図形は `type` で種類を指定する。円弧と寸法線は、キャンバスのツールと同じ 3 点で指定する(角度の向きの取り決めで迷わないように、計算も `EditorViewModel.arcFrom3Points` / `DimensionLineShape(start:end:third:kind:)` を共用する)。
+
+| `type` | 引数 |
+|---|---|
+| `line` | `start`, `end` |
+| `rectangle` | `x`, `y`(左上), `width`, `height`, `corner_radius`(省略可) |
+| `ellipse` | `center`, `radius_x`, `radius_y` |
+| `arc` | `start`, `end`, `through`(弧が通る 1 点。膨らむ側を決める) |
+| `bezier` | `points`(`{point, control_in, control_out}` の配列。制御点を省いたらアンカーと同じ位置), `closed` |
+| `polyline` | `points`(`[x, y]` の配列), `closed`。直線区間だけの `BezierShape` になる |
+| `text` | `position`, `content`, `font_size`, `font_name`, `bold`, `italic`, `align` |
+| `dimension` | `start`, `end`, `offset_point`(寸法線を置く位置), `kind`(`aligned` / `horizontal` / `vertical`) |
+
+どの図形も `stroke`(`color`, `line_style`)を省略可で受け取る。線幅は 0.1mm 固定なので受け取らない。
+
 ## 印刷 + プリンターキャリブレーション
 
 ### 実寸印刷
@@ -565,4 +626,8 @@ xcodebuild -project LCCAD.xcodeproj -scheme LCCAD -configuration Release \
 
 ## 依存ライブラリ
 
-初期段階では外部依存なし。Apple 標準フレームワークを最大限活用する方針。
+Apple 標準フレームワークを最大限活用する方針。外部の依存は次のものだけ。
+
+| パッケージ | 用途 |
+|---|---|
+| [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) 0.12.1 | エージェント用の操作 API(MCP Server、#79)。アプリに入るのは SDK 本体と、その依存の swift-log / swift-system / EventSource |

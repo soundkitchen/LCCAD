@@ -32,6 +32,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The single shared document, injected from `LCCADApp` once the window appears.
     weak var fileDocument: LCCADFileDocument?
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // エージェント用の MCP Server は設定でオンのときだけ起動する (#79)
+        MainActor.assumeIsolated { MCPServerController.shared.applySettings() }
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let fileDocument else { return .terminateNow }
         // AppKit calls this on the main thread.

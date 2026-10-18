@@ -1083,7 +1083,7 @@ final class EditorViewModel {
         case .arc:
             if let start = dragStartWorldPoint, let end = arcSecondPoint {
                 // 3rd click: determine arc from 3 points
-                if let arc = arcFrom3Points(p1: start, p2: end, p3: worldPoint) {
+                if let arc = Self.arcFrom3Points(p1: start, p2: end, p3: worldPoint) {
                     addShape(.arc(arc), actionName: "Draw Arc")
                 }
                 dragStartWorldPoint = nil
@@ -1184,7 +1184,7 @@ final class EditorViewModel {
         case .arc:
             if let start = dragStartWorldPoint, let end = arcSecondPoint {
                 // 3rd point hover: show arc preview
-                if let arc = arcFrom3Points(p1: start, p2: end, p3: worldPoint) {
+                if let arc = Self.arcFrom3Points(p1: start, p2: end, p3: worldPoint) {
                     drawingPreview = .arcPreview(center: arc.center, radius: arc.radius, startAngle: arc.startAngle, endAngle: arc.endAngle, clockwise: arc.clockwise)
                 }
             } else if let start = dragStartWorldPoint {
@@ -1405,7 +1405,7 @@ final class EditorViewModel {
 
     /// Calculate a circular arc from p1 to p2, passing through p3.
     /// The 3rd point (p3) determines which side the arc bulges towards.
-    private func arcFrom3Points(p1: CGPoint, p2: CGPoint, p3: CGPoint) -> ArcShape? {
+    nonisolated static func arcFrom3Points(p1: CGPoint, p2: CGPoint, p3: CGPoint) -> ArcShape? {
         // Find circumcenter of triangle p1-p2-p3
         let ax = p1.x, ay = p1.y
         let bx = p2.x, by = p2.y
@@ -1438,7 +1438,7 @@ final class EditorViewModel {
     }
 
     /// Check if `target` angle lies on the counter-clockwise arc from `from` to `to`.
-    private func isAngleBetweenCCW(target: CGFloat, from: CGFloat, to: CGFloat) -> Bool {
+    private nonisolated static func isAngleBetweenCCW(target: CGFloat, from: CGFloat, to: CGFloat) -> Bool {
         // Normalize all angles to [0, 2π)
         func norm(_ a: CGFloat) -> CGFloat {
             var r = a.truncatingRemainder(dividingBy: 2 * .pi)

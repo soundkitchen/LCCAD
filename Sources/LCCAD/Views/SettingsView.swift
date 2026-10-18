@@ -14,6 +14,11 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Printer Calibration", systemImage: "printer")
                 }
+
+            AgentSettingsView()
+                .tabItem {
+                    Label("Agent", systemImage: "point.3.connected.trianglepath.dotted")
+                }
         }
         .frame(width: 500, height: 420)
     }
@@ -41,6 +46,80 @@ private struct GeneralSettingsView: View {
         .navigationTitle("General")
         .onChange(of: appearanceMode) { _, newValue in
             AppearanceMode(rawValue: newValue)?.apply()
+        }
+    }
+}
+
+// MARK: - Agent Settings
+
+/// エージェント用の操作 API(アプリ内 MCP Server、#79)の設定。既定はオフ
+private struct AgentSettingsView: View {
+    @AppStorage(MCPServerController.enabledKey) private var isEnabled = false
+    @AppStorage(MCPServerController.portKey) private var port = MCPServerController.defaultPort
+    @ObservedObject private var controller = MCPServerController.shared
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Enable MCP Server", isOn: $isEnabled)
+
+                // 入力の確定(Return / フォーカスアウト)で反映する。打鍵ごとに再起動しない
+                TextField("Port", value: $port, format: .number.grouping(.never))
+                    .multilineTextAlignment(.trailing)
+
+                LabeledContent("Status") {
+                    statusView
+                }
+            } header: {
+                Text("MCP Server")
+            } footer: {
+                Text("Only connections from this Mac are accepted. Requests from web pages are rejected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Text(MCPServerController.claudeCodeCommand(port: port))
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+
+                HStack {
+                    Spacer()
+                    Button("Copy Command") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(MCPServerController.claudeCodeCommand(port: port), forType: .string)
+                    }
+                }
+            } header: {
+                Text("Connect")
+            } footer: {
+                Text("Run this command in a terminal to add LCCAD to Claude Code.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Agent")
+        .onChange(of: isEnabled) { _, _ in controller.applySettings() }
+        .onChange(of: port) { _, _ in controller.applySettings() }
+    }
+
+    @ViewBuilder
+    private var statusView: some View {
+        switch controller.status {
+        case .stopped:
+            Label("Off", systemImage: "circle")
+                .foregroundStyle(.secondary)
+        case .starting:
+            Label("Starting…", systemImage: "circle.dotted")
+                .foregroundStyle(.secondary)
+        case .running(let runningPort):
+            Label("Listening on \(MCPServerController.endpointURL(port: runningPort))", systemImage: "circle.fill")
+                .foregroundStyle(.green)
+                .textSelection(.enabled)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
         }
     }
 }

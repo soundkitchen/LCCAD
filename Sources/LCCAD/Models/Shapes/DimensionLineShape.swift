@@ -209,10 +209,26 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
         let relX = point.x - c.x, relY = point.y - c.y
         let u = relX * d.x + relY * d.y   // 文字進行方向の成分
         let v = relX * n.x + relY * n.y   // 上下方向の成分
-        let text = displayLabel(unit: .millimeters)
-        let halfW = CGFloat(text.count) * Self.textHeight * 0.62 / 2
-        let halfH = Self.textHeight / 2
+        let (halfW, halfH) = labelHalfExtents
         return abs(u) <= halfW + tolerance && abs(v) <= halfH + tolerance
+    }
+
+    /// ラベル矩形の半幅・半高 (world mm)。幅は等幅近似(文字数 × 0.62 × 文字高)
+    private var labelHalfExtents: (width: CGFloat, height: CGFloat) {
+        let text = displayLabel(unit: .millimeters)
+        return (CGFloat(text.count) * Self.textHeight * 0.62 / 2, Self.textHeight / 2)
+    }
+
+    /// ラベル矩形(回転考慮)の外接矩形 (world mm)。手入力の長いラベルは `boundingBox` の
+    /// 余白からはみ出すことがあるので、描いた範囲を求めるときはこれも含める
+    var labelBoundingBox: CGRect {
+        let c = labelCenter()
+        let d = labelDirection
+        let n = labelUpNormal
+        let (halfW, halfH) = labelHalfExtents
+        let extentX = abs(d.x) * halfW + abs(n.x) * halfH
+        let extentY = abs(d.y) * halfW + abs(n.y) * halfH
+        return CGRect(x: c.x - extentX, y: c.y - extentY, width: extentX * 2, height: extentY * 2)
     }
 
     mutating func translate(by delta: CGPoint) {

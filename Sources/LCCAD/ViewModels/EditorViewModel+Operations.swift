@@ -13,6 +13,14 @@ enum EditorOperationError: Error, Equatable {
 
 extension EditorViewModel {
 
+    /// キャンバスでのドラッグ(図形・ページの移動、ベジェの点の編集)の途中か。
+    /// 途中はドラッグ前の document を Undo の起点として持っているので、その間に外から
+    /// document を変えると、ドラッグを終えたときの Undo 1 回で外からの変更まで戻ってしまう。
+    /// 外部からの操作は、この間は document を変えない(review #86)
+    var isGestureInProgress: Bool {
+        moveUndoSnapshot != nil || bezierEditUndoSnapshot != nil || pageMoveUndoSnapshot != nil
+    }
+
     // MARK: - Document
 
     /// `url` の .lccad を開き、エディタの状態を新しい document に合わせる(パネルなし)。

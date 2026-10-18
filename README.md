@@ -20,11 +20,12 @@ macOS ネイティブのレザークラフト専用 CAD アプリケーション
 - **ページレイアウト**: 任意のページ枠を配置し、プリンタ用紙サイズに合わせて印刷
 - **実寸印刷**: プリンターごとの校正値（実測 150mm 正方形からの補正倍率）を保存して反映
 - **エクスポート**: `.lccad`（独自 JSON）/ SVG / DXF
+- **エージェントからの操作（MCP Server）**: Claude Code などの AI エージェントから、図形の作成・編集、保存、書き出し、画像での確認を行える（設定の Agent タブでオンにする。既定はオフで、この Mac からの接続だけを受け付ける）
 
 ## 必要環境
 
 - macOS 14.0 (Sonoma) 以降
-- Xcode 16 以降（ビルド時。Swift 6 コンパイラが必要。動作確認済みは Xcode 26.3）
+- Xcode 16.3 以降（ビルド時。依存する MCP Swift SDK が Swift 6.1 のツールを要求する。動作確認済みは Xcode 26.3）
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `brew install xcodegen`
 
 ## ビルド
@@ -59,6 +60,7 @@ make install   # Release ビルドして /Applications/LCCAD.app を入れ替え
 ```
 LCCAD/
 ├── Sources/LCCAD/
+│   ├── Agent/           # エージェント用の操作 API（アプリ内 MCP Server）
 │   ├── App/             # エントリポイント、コマンド、外観モード
 │   ├── Canvas/          # キャンバス描画（Grid / Ruler / Snap / Page overlay）
 │   ├── Export/          # .lccad, SVG, DXF, 印刷

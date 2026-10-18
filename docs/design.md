@@ -190,20 +190,20 @@
 
 ## 設定画面 (Settings)
 
-macOS 標準の `Settings` シーン（⌘,）。TabView で 2 タブ構成:
+macOS 標準の `Settings` シーン（⌘,）。TabView で 3 タブ構成:
 
 ### General タブ
 
 ```
-┌──────────────────────────────────┐
-│ Settings                         │
-├──────────────────────────────────┤
-│ [General] [Printer Calibration]  │
-│                                  │
-│ APPEARANCE                       │
-│ Color Mode  [System][Light][Dark]│
-│                                  │
-└──────────────────────────────────┘
+┌───────────────────────────────────────────┐
+│ Settings                                  │
+├───────────────────────────────────────────┤
+│ [General] [Printer Calibration] [Agent]   │
+│                                           │
+│ APPEARANCE                                │
+│ Color Mode  [System][Light][Dark]         │
+│                                           │
+└───────────────────────────────────────────┘
 ```
 
 - セグメントピッカー（`Picker(.segmented)`）で 3 択
@@ -216,7 +216,7 @@ macOS 標準の `Settings` シーン（⌘,）。TabView で 2 タブ構成:
 ┌──────────────────────────────────────────┐
 │ Settings                                  │
 ├──────────────────────────────────────────┤
-│ [General] [Printer Calibration]           │
+│ [General] [Printer Calibration] [Agent]   │
 │                                           │
 │ CALIBRATION                               │
 │ テストページを印刷し、150mmの正方形を     │
@@ -239,6 +239,35 @@ macOS 標準の `Settings` シーン（⌘,）。TabView で 2 タブ構成:
 - プロファイルの追加・編集・削除
 - プリンター名はシステム認識プリンターからプルダウン選択
 - 実測値入力で補正倍率を自動計算（Grid レイアウト）
+
+### Agent タブ
+
+エージェント用の操作 API(アプリ内 MCP Server、#79)の設定。Pen のデザインは作らず、ほかのタブと同じ SwiftUI 標準の `Form`(grouped)で組む(#85)。
+
+```
+┌──────────────────────────────────────────┐
+│ Settings                                  │
+├──────────────────────────────────────────┤
+│ [General] [Printer Calibration] [Agent]   │
+│                                           │
+│ MCP SERVER                                │
+│ Enable MCP Server                  [ ○]  │
+│ Port                              47821   │
+│ Status   ● Listening on                   │
+│            http://127.0.0.1:47821/mcp     │
+│ Only connections from this Mac are ...    │
+│                                           │
+│ CONNECT                                   │
+│ claude mcp add --transport http lccad ... │
+│                          [Copy Command]   │
+│ Run this command in a terminal to ...     │
+└──────────────────────────────────────────┘
+```
+
+- **Enable MCP Server**: 既定はオフ。`@AppStorage("mcpServerEnabled")`。切り替えると `MCPServerController.applySettings()` で起動・停止する
+- **Port**: 既定 47821(1024〜65535)。`@AppStorage("mcpServerPort")`。入力の確定(Return / フォーカスアウト)で反映し、打鍵ごとには再起動しない
+- **Status**: オフ(灰)/ 起動中(灰)/ 待ち受け中の URL(緑)/ エラーの内容(赤)
+- **Connect**: Claude Code に登録するコマンドを表示し、**Copy Command** でクリップボードにコピーする
 
 ## 共通入力コンポーネント
 
