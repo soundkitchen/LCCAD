@@ -159,7 +159,7 @@
 - **Style（線種）**: ドロップダウンで線種を選択（プレビュー線 + スタイル名表示）
   - Solid（実線）、Dashed（破線 3-2mm）、Dotted（点線 0.5-1.5mm）、Dash-Dot（一点鎖線 3-1.5-0.5-1.5mm）
   - キャンバス描画はズーム連動、印刷・SVG・DXF エクスポートにも反映
-- カラーウェルの枠（色見本と、ポップオーバーを示す印）は `NSColorWell` が描く（48×24pt）
+- カラーウェルの枠（色見本と、ポップオーバーを示す印）と大きさは `NSColorWell` に任せる
 
 ### 3'. Text セクション（テキスト図形）
 - Content, Font, Size, Style (Bold/Italic), Alignment, Color

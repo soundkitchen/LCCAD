@@ -57,12 +57,13 @@ final class CodableColorPickerTests: XCTestCase {
     @MainActor
     func testWellIsUpdatedWithSRGBColorWhenUnknown() throws {
         let codable = CodableColor(r: 0.2, g: 0.4, b: 0.6, a: 1)
-        let newColor = try XCTUnwrap(CodableColorPicker.colorToShow(
-            for: codable, showing: nil, history: ColorPickerHistory()))
+        let newColor = CodableColorPicker.colorToPush(for: codable, history: ColorPickerHistory())
         XCTAssertTrue(try XCTUnwrap(CodableColor(newColor)).isApproximatelyEqual(to: codable))
     }
 
-    /// コードからウェルの色を変えても action が送られない(送り返しが起きない)ことが前提
+    /// コードからウェルの色を変えても action が送られない(送り返しが起きない)ことが前提。
+    /// 送り返しが起きるのは、カラーパネルとつながっている(アクティブな)ウェルなので、
+    /// アクティブにして確かめる(共有のカラーパネルが一瞬開く)
     @MainActor
     func testSettingWellColorDoesNotSendAction() {
         final class Receiver: NSObject {
@@ -82,7 +83,48 @@ final class CodableColorPickerTests: XCTestCase {
             NSColorPanel.shared.orderOut(nil)
         }
         well.color = NSColor(srgbRed: 0.3, green: 0.6, blue: 0.2, alpha: 1)
+        // パネルが次の run loop で色を届ける場合も捕まえる
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.3))
         XCTAssertEqual(receiver.count, 0)
+        // 比較: パネルのほうの色を変えると、アクティブなウェルに action が届く(確かめ方が効いている)
+        NSColorPanel.shared.color = NSColor(srgbRed: 0.9, green: 0.1, blue: 0.1, alpha: 1)
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.3))
+        XCTAssertEqual(receiver.count, 1)
+    }
+
+    @MainActor
+    func testDismantleDetachesWellFromColorPanel() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        let well = NSColorWell(style: .minimal)
+        window.contentView?.addSubview(well)
+        well.activate(true)
+        defer { NSColorPanel.shared.orderOut(nil) }
+        XCTAssertTrue(well.isActive, "precondition")
+        CodableColorPicker.dismantleNSView(well, coordinator: makeCoordinator(color: CodableColor(r: 0, g: 0, b: 0)))
+        XCTAssertFalse(well.isActive)
+    }
+
+    @MainActor
+    func testUnconvertibleColorIsNotAppliedAndWellReverts() throws {
+        // 画像のパレットのパターンの色は sRGB にできない
+        let pattern = NSColor(patternImage: NSImage(size: NSSize(width: 4, height: 4), flipped: false) { _ in true })
+        XCTAssertNil(CodableColor(pattern), "precondition")
+        let saved = CodableColor(r: 0.2, g: 0.4, b: 0.6)
+        var applied: [CodableColor] = []
+        let coordinator = makeCoordinator(color: saved) { applied.append($0) }
+        let well = NSColorWell(style: .minimal)
+        well.color = pattern
+        coordinator.colorDidChange(well)
+        XCTAssertTrue(applied.isEmpty)
+        XCTAssertTrue(try XCTUnwrap(CodableColor(well.color)).isApproximatelyEqual(to: saved))
+    }
+
+    @MainActor
+    private func makeCoordinator(color: CodableColor,
+                                 onChange: @escaping (CodableColor) -> Void = { _ in }) -> CodableColorPicker.Coordinator {
+        CodableColorPicker.Coordinator(parent: CodableColorPicker(
+            color: color, currentColors: { [color] }, onChange: onChange))
     }
 
     func testAlphaIsCompared() {

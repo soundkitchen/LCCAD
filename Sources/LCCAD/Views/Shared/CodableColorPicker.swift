@@ -39,15 +39,24 @@ struct CodableColorPicker: NSViewRepresentable {
         well.supportsAlpha = true
         well.target = context.coordinator
         well.action = #selector(Coordinator.colorDidChange(_:))
-        well.color = Self.colorToShow(for: color, showing: nil) ?? .black
+        well.color = Self.colorToPush(for: color)
+        well.isEnabled = context.environment.isEnabled
         return well
     }
 
     func updateNSView(_ well: NSColorWell, context: Context) {
         context.coordinator.parent = self
+        well.isEnabled = context.environment.isEnabled
         if let newColor = Self.colorToShow(for: color, showing: well.color) {
             well.color = newColor
         }
+    }
+
+    /// 取り除くウェルを、共有のカラーパネルから切り離す。選択が変わると右パネルのセクションが
+    /// 作り直されるので、パネルを開いたままだと、パネルが取り除いたウェル(古い選択の onChange)を
+    /// 指したまま残る(review #92)
+    static func dismantleNSView(_ well: NSColorWell, coordinator: Coordinator) {
+        well.deactivate()
     }
 
     /// ウェルが描く枠(色見本と、ポップオーバーを示す印)の大きさのまま置く。
@@ -65,7 +74,12 @@ struct CodableColorPicker: NSViewRepresentable {
         }
 
         @objc func colorDidChange(_ sender: NSColorWell) {
-            guard let codable = CodableColor(sender.color) else { return }
+            guard let codable = CodableColor(sender.color) else {
+                // sRGB にできない色(画像のパレットのパターンなど)は使えないので、
+                // ウェルの表示をすぐに保存値の色へ戻す(次の再描画まで食い違ったままにしない)
+                sender.color = CodableColorPicker.colorToPush(for: parent.color)
+                return
+            }
             ColorPickerHistory.shared.record(sender.color, as: codable)
             guard CodableColorPicker.shouldApply(codable, to: parent.currentColors()) else { return }
             parent.onChange(codable)
@@ -113,14 +127,20 @@ final class ColorPickerHistory {
 
 extension CodableColorPicker {
     /// ウェルに渡し直す色。ウェルが表示中の色(`showing`)と保存値が誤差の範囲で同じなら nil
-    /// (渡し直さない)。覚えている元の色があればそれを、なければ sRGB の色を返す
+    /// (渡し直さない)
     @MainActor
-    static func colorToShow(for color: CodableColor, showing current: NSColor?,
+    static func colorToShow(for color: CodableColor, showing current: NSColor,
                             history: ColorPickerHistory = .shared) -> NSColor? {
-        if let current, let shown = CodableColor(current), shown.isApproximatelyEqual(to: color) {
+        if let shown = CodableColor(current), shown.isApproximatelyEqual(to: color) {
             return nil
         }
-        return history.originalColor(for: color)
+        return colorToPush(for: color, history: history)
+    }
+
+    /// 保存値をウェルに渡すときの色。覚えている元の色があればそれを、なければ sRGB の色を返す
+    @MainActor
+    static func colorToPush(for color: CodableColor, history: ColorPickerHistory = .shared) -> NSColor {
+        history.originalColor(for: color)
             ?? NSColor(srgbRed: color.r, green: color.g, blue: color.b, alpha: color.a)
     }
 
