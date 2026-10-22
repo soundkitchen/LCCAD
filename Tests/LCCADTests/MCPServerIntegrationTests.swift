@@ -86,6 +86,21 @@ final class MCPServerIntegrationTests: XCTestCase {
         XCTAssertEqual(editor.document.layers[0].shapes.count, 1)
     }
 
+    /// 1 つ目のクライアントが initialize したあとでも、2 つ目のクライアントが
+    /// initialize してツールを呼べる (#89)
+    func testSecondClientCanInitialize() async throws {
+        try await initialize()
+        try await initialize()
+
+        let call = try await rpc("tools/call", [
+            "name": "add_shapes",
+            "arguments": ["shapes": [["type": "line", "start": [0, 0], "end": [25, 0]]]],
+        ])
+        let result = try XCTUnwrap(call["result"] as? [String: Any], "\(call)")
+        XCTAssertNotEqual(result["isError"] as? Bool, true, "\(result)")
+        XCTAssertEqual(editor.document.layers[0].shapes.count, 1)
+    }
+
     /// ブラウザからの要求(localhost 以外の Origin)は、ツールを実行する前に弾く
     func testRejectsBrowserOrigin() async throws {
         let (status, _) = try await post(

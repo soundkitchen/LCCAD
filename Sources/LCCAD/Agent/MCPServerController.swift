@@ -27,7 +27,6 @@ final class MCPServerController: ObservableObject {
     /// 操作の対象。メインウィンドウが表示されたら結び付ける
     weak var editor: EditorViewModel?
 
-    private var server: Server?
     private var listener: MCPHTTPListener?
     /// 起動のたびに増やし、古い起動からの通知を無視する
     private var runID = 0
@@ -74,50 +73,55 @@ final class MCPServerController: ObservableObject {
         let id = runID
         status = .starting(port: port)
 
-        let transport = StatelessHTTPServerTransport()
-        let server = Server(
-            name: "LCCAD",
-            version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0",
-            instructions: MCPToolCatalog.instructions,
-            capabilities: .init(tools: .init(listChanged: false))
-        )
         let listener = MCPHTTPListener(
-            handler: { request in await transport.handleRequest(request) },
+            handler: { [weak self] request in await Self.respond(to: request, controller: self) },
             onEvent: { [weak self] event in
                 Task { @MainActor in self?.handle(event, runID: id) }
             }
         )
-        self.server = server
         self.listener = listener
-
-        Task {
-            await server.withMethodHandler(ListTools.self) { _ in
-                ListTools.Result(tools: MCPToolCatalog.tools)
-            }
-            await server.withMethodHandler(CallTool.self) { [weak self] params in
-                guard let self else {
-                    return CallTool.Result(content: [.plainText("LCCAD is shutting down")], isError: true)
-                }
-                return await self.callTool(params)
-            }
-            do {
-                try await server.start(transport: transport)
-                // 起動を待つ間に止められていたら、teardown の stop() より後に起動が
-                // 終わっていることがあるので、ここで止める(review #86)
-                guard runID == id else {
-                    await server.stop()
-                    return
-                }
-                try listener.start(port: UInt16(port))
-            } catch {
-                guard runID == id else {
-                    await server.stop()
-                    return
-                }
-                fail(error.localizedDescription)
-            }
+        do {
+            try listener.start(port: UInt16(port))
+        } catch {
+            fail(error.localizedDescription)
         }
     }
+
+    /// HTTP の要求 1 件ごとに、新しい `Server` と受け口を作って答え、答えたら止める。
+    /// SDK の `Server` は 2 回目の `initialize` を断るので、1 つを使い続けると、最初に
+    /// 接続したクライアントしか受け付けられない(#89)。受け口はステートレスで、
+    /// 要求の間に持ち越す状態はない
+    private nonisolated static func respond(
+        to request: HTTPRequest, controller: MCPServerController?
+    ) async -> HTTPResponse {
+        let transport = StatelessHTTPServerTransport()
+        let server = Server(
+            name: "LCCAD",
+            version: serverVersion,
+            instructions: MCPToolCatalog.instructions,
+            capabilities: .init(tools: .init(listChanged: false))
+        )
+        await server.withMethodHandler(ListTools.self) { _ in
+            ListTools.Result(tools: MCPToolCatalog.tools)
+        }
+        await server.withMethodHandler(CallTool.self) { [weak controller] params in
+            guard let controller else {
+                return CallTool.Result(content: [.plainText("LCCAD is shutting down")], isError: true)
+            }
+            return await controller.callTool(params)
+        }
+        do {
+            try await server.start(transport: transport)
+        } catch {
+            return .error(statusCode: 500, .internalError(error.localizedDescription))
+        }
+        let response = await transport.handleRequest(request)
+        await server.stop()
+        return response
+    }
+
+    private nonisolated static let serverVersion =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
 
     func stop() {
         runID += 1
@@ -144,10 +148,6 @@ final class MCPServerController: ObservableObject {
     private func teardown() {
         listener?.stop()
         listener = nil
-        if let server {
-            Task { await server.stop() }
-        }
-        server = nil
     }
 
     private func callTool(_ params: CallTool.Parameters) -> CallTool.Result {
