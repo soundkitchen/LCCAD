@@ -134,6 +134,96 @@ final class CodableColorPickerTests: XCTestCase {
     }
 }
 
+/// カラーパネルをカーソルの左に出す位置
+final class ColorPanelPlacerTests: XCTestCase {
+    private let screen = NSRect(x: 0, y: 0, width: 1440, height: 875)
+    private let panel = NSSize(width: 220, height: 400)
+
+    func testPanelIsPlacedLeftOfCursorWithTopAtCursor() {
+        let origin = ColorPanelPlacer.panelOrigin(
+            panelSize: panel, cursor: NSPoint(x: 1200, y: 700), visibleFrame: screen)
+        XCTAssertEqual(origin.x + panel.width, 1200 - ColorPanelPlacer.panelGap)
+        XCTAssertEqual(origin.y + panel.height, 700)
+    }
+
+    func testPanelStaysOnScreenNearLeftAndBottomEdges() {
+        let origin = ColorPanelPlacer.panelOrigin(
+            panelSize: panel, cursor: NSPoint(x: 100, y: 150), visibleFrame: screen)
+        XCTAssertEqual(origin, NSPoint(x: 0, y: 0))
+    }
+
+    func testPanelStaysOnScreenNearTopEdge() {
+        // 画面の上端(メニューバーの下)より上にははみ出さない
+        let visible = NSRect(x: 0, y: 0, width: 1440, height: 850)
+        let origin = ColorPanelPlacer.panelOrigin(
+            panelSize: panel, cursor: NSPoint(x: 1200, y: 870), visibleFrame: visible)
+        XCTAssertEqual(origin.y + panel.height, visible.maxY)
+    }
+
+    /// 実際のクリックの流れ(NSApp.sendEvent)で、閉じているパネルがカーソルの左へ動く
+    @MainActor
+    func testClickOnWellMovesClosedPanelNearCursor() throws {
+        let panel = NSColorPanel.shared
+        panel.orderOut(nil)
+        let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 200, height: 100),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        let well = NSColorWell(style: .minimal)
+        well.frame = NSRect(x: 20, y: 20, width: 48, height: 24)
+        let placer = ColorPanelPlacer(well: well)
+        window.contentView?.addSubview(well)
+        window.orderFront(nil)
+        defer {
+            // クリックで開いたポップオーバーを閉じる
+            for popover in NSApp.windows where String(describing: type(of: popover)).contains("Popover") {
+                popover.orderOut(nil)
+            }
+            placer.invalidate()
+            well.removeFromSuperview()
+            window.orderOut(nil)
+            panel.orderOut(nil)
+        }
+
+        // ウェルの外のクリックでは動かない
+        panel.setFrameOrigin(NSPoint(x: 5, y: 5))
+        try click(window, at: NSPoint(x: 150, y: 80))
+        XCTAssertEqual(panel.frame.origin, NSPoint(x: 5, y: 5))
+
+        try click(window, at: NSPoint(x: 44, y: 32))
+        let cursor = NSEvent.mouseLocation
+        let screen = try XCTUnwrap(NSScreen.screens.first { NSMouseInRect(cursor, $0.frame, false) } ?? window.screen)
+        let expected = ColorPanelPlacer.panelOrigin(
+            panelSize: panel.frame.size, cursor: cursor, visibleFrame: screen.visibleFrame)
+        // ウィンドウの位置は画面の画素に丸められる
+        XCTAssertEqual(panel.frame.origin.x, expected.x, accuracy: 1)
+        XCTAssertEqual(panel.frame.origin.y, expected.y, accuracy: 1)
+
+        // 開いているパネルは動かさない
+        panel.orderFront(nil)
+        panel.setFrameOrigin(NSPoint(x: 5, y: 5))
+        try click(window, at: NSPoint(x: 44, y: 32))
+        XCTAssertEqual(panel.frame.origin, NSPoint(x: 5, y: 5))
+    }
+
+    @MainActor
+    private func click(_ window: NSWindow, at location: NSPoint) throws {
+        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+            NSApp.sendEvent(try XCTUnwrap(NSEvent.mouseEvent(
+                with: type, location: location, modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                context: nil, eventNumber: 0, clickCount: 1, pressure: 1)))
+        }
+    }
+
+    func testPanelUsesTheScreenOrigin() {
+        // 2 枚目のディスプレイ(左にある、座標が負)でも、その画面の中に収める
+        let second = NSRect(x: -1920, y: 0, width: 1920, height: 1080)
+        let origin = ColorPanelPlacer.panelOrigin(
+            panelSize: panel, cursor: NSPoint(x: -1800, y: 500), visibleFrame: second)
+        XCTAssertEqual(origin.x, second.minX)
+        XCTAssertEqual(origin.y + panel.height, 500)
+    }
+}
+
 /// ピッカーで選んだ元の色を覚えておく仕組み (#72)
 @MainActor
 final class ColorPickerHistoryTests: XCTestCase {

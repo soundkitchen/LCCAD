@@ -8,6 +8,8 @@ import SwiftUI
 // `.minimal` スタイル)。細かい指定は、ポップオーバーから全部入りのカラーパネルを開いて行う。
 // SwiftUI の `ColorPicker` はクリックで直接カラーパネルを開き、パネルは前回の位置
 // (クリックした場所から離れていることが多い)に出るので、`NSColorWell` を直接使う。
+// カラーパネルも前回の位置に出るので、ウェルをクリックしたときに、閉じているパネルを
+// カーソルの左へ動かしておく(`ColorPanelPlacer`)。
 //
 // ウェルに色を渡し直すのは、保存値がウェルの色と誤差(Float 精度)の範囲を超えて違うときだけ
 // (Undo・選択の切り替えなど)。document が更新されて再描画されるたびに誤差を含んだ色を
@@ -36,6 +38,7 @@ struct CodableColorPicker: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSColorWell {
         let well = NSColorWell(style: .minimal)
+        context.coordinator.panelPlacer = ColorPanelPlacer(well: well)
         well.supportsAlpha = true
         well.target = context.coordinator
         well.action = #selector(Coordinator.colorDidChange(_:))
@@ -57,6 +60,8 @@ struct CodableColorPicker: NSViewRepresentable {
     /// 指したまま残る(review #92)
     static func dismantleNSView(_ well: NSColorWell, coordinator: Coordinator) {
         well.deactivate()
+        coordinator.panelPlacer?.invalidate()
+        coordinator.panelPlacer = nil
     }
 
     /// ウェルが描く枠(色見本と、ポップオーバーを示す印)の大きさのまま置く。
@@ -68,6 +73,7 @@ struct CodableColorPicker: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         var parent: CodableColorPicker
+        var panelPlacer: ColorPanelPlacer?
 
         init(parent: CodableColorPicker) {
             self.parent = parent
@@ -84,6 +90,65 @@ struct CodableColorPicker: NSViewRepresentable {
             guard CodableColorPicker.shouldApply(codable, to: parent.currentColors()) else { return }
             parent.onChange(codable)
         }
+    }
+}
+
+/// ウェルがクリックされたときに、閉じているカラーパネルをカーソルの左へ動かしておく。
+/// パネルは、ポップオーバーのボタンから開かれると前回の位置に出る。開かれる経路は AppKit の
+/// 内側なので、閉じている(見えない)うちにクリックの時点で動かしておく。開いているパネルは、
+/// ユーザーが置いた位置のまま動かさない。
+/// `NSColorWell(style:)` はサブクラスを作れず(素の `NSColorWell` を返す)、クリックも
+/// ジェスチャー認識で受けるので、ローカルの NSEvent モニターでクリックを拾う
+@MainActor
+final class ColorPanelPlacer {
+    /// パネルの右端とカーソルの間の隙間(pt)
+    nonisolated static let panelGap: CGFloat = 16
+
+    private weak var well: NSColorWell?
+    private var monitor: Any?
+
+    init(well: NSColorWell) {
+        self.well = well
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            if let self {
+                // ローカルモニターはメインスレッドで呼ばれる
+                MainActor.assumeIsolated {
+                    if self.isWellClicked(by: event) { self.moveClosedColorPanelNearCursor() }
+                }
+            }
+            return event
+        }
+    }
+
+    /// モニターを外す。ウェルを取り除くときに呼ぶ
+    func invalidate() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+
+    /// ウェルの上での(使える状態の)クリックか
+    private func isWellClicked(by event: NSEvent) -> Bool {
+        guard let well, well.isEnabled, let window = well.window, event.window === window else { return false }
+        return well.bounds.contains(well.convert(event.locationInWindow, from: nil))
+    }
+
+    private func moveClosedColorPanelNearCursor() {
+        let panel = NSColorPanel.shared
+        guard !panel.isVisible else { return }
+        let cursor = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
+            ?? well?.window?.screen else { return }
+        panel.setFrameOrigin(Self.panelOrigin(panelSize: panel.frame.size, cursor: cursor,
+                                              visibleFrame: screen.visibleFrame))
+    }
+
+    /// パネルの左下の位置(画面座標)。パネルの右端をカーソルの `panelGap` だけ左に、上端をカーソルの
+    /// 高さに合わせる。画面(メニューバーと Dock を除く)からはみ出すときは、内側へ寄せる
+    nonisolated static func panelOrigin(panelSize: NSSize, cursor: NSPoint, visibleFrame: NSRect) -> NSPoint {
+        var origin = NSPoint(x: cursor.x - panelGap - panelSize.width, y: cursor.y - panelSize.height)
+        origin.x = min(max(origin.x, visibleFrame.minX), visibleFrame.maxX - panelSize.width)
+        origin.y = min(max(origin.y, visibleFrame.minY), visibleFrame.maxY - panelSize.height)
+        return origin
     }
 }
 
