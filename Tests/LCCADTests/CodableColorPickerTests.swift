@@ -152,6 +152,15 @@ final class ColorPanelPlacerTests: XCTestCase {
         XCTAssertEqual(origin, NSPoint(x: 0, y: 0))
     }
 
+    func testPanelLargerThanScreenKeepsTopAndRightEdgesOnScreen() {
+        // 画面より大きいパネルは、タイトルバー(上端)と右端を画面の内側に残す
+        let small = NSRect(x: 0, y: 0, width: 200, height: 300)
+        let origin = ColorPanelPlacer.panelOrigin(
+            panelSize: panel, cursor: NSPoint(x: 100, y: 150), visibleFrame: small)
+        XCTAssertEqual(origin.x + panel.width, small.maxX)
+        XCTAssertEqual(origin.y + panel.height, small.maxY)
+    }
+
     func testPanelStaysOnScreenNearTopEdge() {
         // 画面の上端(メニューバーの下)より上にははみ出さない
         let visible = NSRect(x: 0, y: 0, width: 1440, height: 850)
@@ -160,11 +169,13 @@ final class ColorPanelPlacerTests: XCTestCase {
         XCTAssertEqual(origin.y + panel.height, visible.maxY)
     }
 
-    /// 実際のクリックの流れ(NSApp.sendEvent)で、閉じているパネルがカーソルの左へ動く
+    /// 実際のクリックの流れ(NSApp.sendEvent)で、閉じているパネルがクリックした位置の左へ動く
     @MainActor
-    func testClickOnWellMovesClosedPanelNearCursor() throws {
+    func testClickOnWellMovesClosedPanelNearClick() throws {
         let panel = NSColorPanel.shared
         panel.orderOut(nil)
+        // 共有のパネルの位置は自動保存されるので、テストのあとに元へ戻す
+        let originalFrame = panel.frame
         let window = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 200, height: 100),
                               styleMask: [.titled], backing: .buffered, defer: false)
         let well = NSColorWell(style: .minimal)
@@ -181,6 +192,7 @@ final class ColorPanelPlacerTests: XCTestCase {
             well.removeFromSuperview()
             window.orderOut(nil)
             panel.orderOut(nil)
+            panel.setFrame(originalFrame, display: false)
         }
 
         // ウェルの外のクリックでは動かない
@@ -188,11 +200,14 @@ final class ColorPanelPlacerTests: XCTestCase {
         try click(window, at: NSPoint(x: 150, y: 80))
         XCTAssertEqual(panel.frame.origin, NSPoint(x: 5, y: 5))
 
-        try click(window, at: NSPoint(x: 44, y: 32))
-        let cursor = NSEvent.mouseLocation
-        let screen = try XCTUnwrap(NSScreen.screens.first { NSMouseInRect(cursor, $0.frame, false) } ?? window.screen)
+        // 合成のクリックは本物のカーソルを動かさないので、基準はクリックの位置(カーソルの位置ではない)
+        let clickInWindow = NSPoint(x: 44, y: 32)
+        try click(window, at: clickInWindow)
+        let clickOnScreen = window.convertPoint(toScreen: clickInWindow)
+        let screen = try XCTUnwrap(NSScreen.screens.first { NSMouseInRect(clickOnScreen, $0.frame, false) }
+            ?? window.screen)
         let expected = ColorPanelPlacer.panelOrigin(
-            panelSize: panel.frame.size, cursor: cursor, visibleFrame: screen.visibleFrame)
+            panelSize: panel.frame.size, cursor: clickOnScreen, visibleFrame: screen.visibleFrame)
         // ウィンドウの位置は画面の画素に丸められる
         XCTAssertEqual(panel.frame.origin.x, expected.x, accuracy: 1)
         XCTAssertEqual(panel.frame.origin.y, expected.y, accuracy: 1)

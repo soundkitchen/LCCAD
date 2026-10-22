@@ -105,7 +105,8 @@ final class ColorPanelPlacer {
     nonisolated static let panelGap: CGFloat = 16
 
     private weak var well: NSColorWell?
-    private var monitor: Any?
+    /// deinit(MainActor の外)からも外せるようにする。触るのはメインスレッドだけ
+    nonisolated(unsafe) private var monitor: Any?
 
     init(well: NSColorWell) {
         self.well = well
@@ -113,7 +114,9 @@ final class ColorPanelPlacer {
             if let self {
                 // ローカルモニターはメインスレッドで呼ばれる
                 MainActor.assumeIsolated {
-                    if self.isWellClicked(by: event) { self.moveClosedColorPanelNearCursor() }
+                    if self.isWellClicked(by: event), let window = event.window {
+                        self.moveClosedColorPanel(nearClickAt: window.convertPoint(toScreen: event.locationInWindow))
+                    }
                 }
             }
             return event
@@ -126,24 +129,32 @@ final class ColorPanelPlacer {
         monitor = nil
     }
 
+    /// dismantleNSView を通らずに捨てられたときも、モニターを残さない(review #92)
+    deinit {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+    }
+
     /// ウェルの上での(使える状態の)クリックか
     private func isWellClicked(by event: NSEvent) -> Bool {
         guard let well, well.isEnabled, let window = well.window, event.window === window else { return false }
         return well.bounds.contains(well.convert(event.locationInWindow, from: nil))
     }
 
-    private func moveClosedColorPanelNearCursor() {
+    /// 閉じているパネルを、クリックした位置(画面座標)の左へ動かす。クリックのたびに動かすので、
+    /// ポップオーバーで色見本を選んだだけでもパネルの位置は変わるが、パネルを開く経路は
+    /// ウェルのポップオーバーだけなので、次に開いたときもクリックした位置の左に出る
+    private func moveClosedColorPanel(nearClickAt click: NSPoint) {
         let panel = NSColorPanel.shared
         guard !panel.isVisible else { return }
-        let cursor = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(cursor, $0.frame, false) })
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(click, $0.frame, false) })
             ?? well?.window?.screen else { return }
-        panel.setFrameOrigin(Self.panelOrigin(panelSize: panel.frame.size, cursor: cursor,
+        panel.setFrameOrigin(Self.panelOrigin(panelSize: panel.frame.size, cursor: click,
                                               visibleFrame: screen.visibleFrame))
     }
 
-    /// パネルの左下の位置(画面座標)。パネルの右端をカーソルの `panelGap` だけ左に、上端をカーソルの
-    /// 高さに合わせる。画面(メニューバーと Dock を除く)からはみ出すときは、内側へ寄せる
+    /// パネルの左下の位置(画面座標)。パネルの右端をクリックした位置の `panelGap` だけ左に、
+    /// 上端をその高さに合わせる。画面(メニューバーと Dock を除く)からはみ出すときは、内側へ寄せる。
+    /// パネルが画面より大きいときは、上端(タイトルバー)と右端を画面の内側に残す
     nonisolated static func panelOrigin(panelSize: NSSize, cursor: NSPoint, visibleFrame: NSRect) -> NSPoint {
         var origin = NSPoint(x: cursor.x - panelGap - panelSize.width, y: cursor.y - panelSize.height)
         origin.x = min(max(origin.x, visibleFrame.minX), visibleFrame.maxX - panelSize.width)
