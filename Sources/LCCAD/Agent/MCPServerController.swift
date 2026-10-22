@@ -74,7 +74,7 @@ final class MCPServerController: ObservableObject {
         status = .starting(port: port)
 
         let listener = MCPHTTPListener(
-            handler: { [weak self] request in await Self.respond(to: request, controller: self) },
+            handler: { [weak self] request in await Self.respond(to: request, controller: self, runID: id) },
             onEvent: { [weak self] event in
                 Task { @MainActor in self?.handle(event, runID: id) }
             }
@@ -90,9 +90,9 @@ final class MCPServerController: ObservableObject {
     /// HTTP の要求 1 件ごとに、新しい `Server` と受け口を作って答え、答えたら止める。
     /// SDK の `Server` は 2 回目の `initialize` を断るので、1 つを使い続けると、最初に
     /// 接続したクライアントしか受け付けられない(#89)。受け口はステートレスで、
-    /// 要求の間に持ち越す状態はない
-    private nonisolated static func respond(
-        to request: HTTPRequest, controller: MCPServerController?
+    /// 要求の間に持ち越す状態はない。`runID` は、この要求を受けた待ち受けの起動の世代
+    nonisolated static func respond(
+        to request: HTTPRequest, controller: MCPServerController?, runID id: Int
     ) async -> HTTPResponse {
         let transport = StatelessHTTPServerTransport()
         let server = Server(
@@ -104,11 +104,11 @@ final class MCPServerController: ObservableObject {
         await server.withMethodHandler(ListTools.self) { _ in
             ListTools.Result(tools: MCPToolCatalog.tools)
         }
-        await server.withMethodHandler(CallTool.self) { [weak controller] params in
+        await server.withMethodHandler(CallTool.self) { params in
             guard let controller else {
                 return CallTool.Result(content: [.plainText("LCCAD is shutting down")], isError: true)
             }
-            return await controller.callTool(params)
+            return await controller.callTool(params, runID: id)
         }
         do {
             try await server.start(transport: transport)
@@ -150,7 +150,12 @@ final class MCPServerController: ObservableObject {
         listener = nil
     }
 
-    private func callTool(_ params: CallTool.Parameters) -> CallTool.Result {
+    private func callTool(_ params: CallTool.Parameters, runID id: Int) -> CallTool.Result {
+        // 要求を受けたあとに止められた(設定のオフやポートの変更)ら、ツールを実行しない。
+        // 要求ごとの Server は止めるときに終わらせられないので、ここで断る(review #91)
+        guard runID == id else {
+            return CallTool.Result(content: [.plainText("The LCCAD MCP server has been stopped")], isError: true)
+        }
         guard let editor else {
             return CallTool.Result(content: [.plainText("No LCCAD document window is open")], isError: true)
         }
