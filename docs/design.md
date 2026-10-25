@@ -7,22 +7,6 @@
 - **参考アプリの知見を継承**: ステッチ専用ツール、プロパティパネルの構成
 - **Light / Dark モード両対応**: テーマ変数で一元管理
 
-## デザインファイル
-
-- `design/lccad.pen` — Pen デザインファイル（Single Source of Truth）
-  - `Main Editor - Light` — ライトモードのメインエディタ
-  - `Main Editor - Dark` — ダークモードのメインエディタ
-  - `Settings - Light` — ライトモードの設定画面（General タブ）
-  - `Settings - Dark` — ダークモードの設定画面（General タブ）
-  - `Settings - Calibration - Light` — ライトモードのキャリブレーション設定
-  - `Settings - Calibration - Dark` — ダークモードのキャリブレーション設定
-  - `Pricking Iron Sheet - Light` — ライトモードの目打ち管理シート
-  - `Pricking Iron Sheet - Dark` — ダークモードの目打ち管理シート
-  - `Box Stitch Sheet - Light` — ライトモードの駒合わせシート
-  - `Box Stitch Sheet - Dark` — ダークモードの駒合わせシート
-  - `Page Properties - Light` — ライトモードのページレイアウト右パネル
-  - `Page Properties - Dark` — ダークモードのページレイアウト右パネル
-
 ## レイアウト構成
 
 ```
@@ -48,8 +32,7 @@
 
 ## カラーシステム
 
-テーマ変数による Light / Dark モード管理。
-コード側は `DesignTokens.swift` に転写して使用する。
+Light / Dark モードで切り替わる色は、`Sources/LCCAD/Views/Shared/DesignTokens.swift` に一元定義する。**`DesignTokens.swift` が正（Single Source of Truth）** で、以下の表は参照用の一覧。色を追加・変更したら、同じコミットで表も直す。
 
 ### カラーモード設定
 
@@ -63,51 +46,66 @@
 
 ### 背景色
 
-| 変数名 | Light | Dark | 用途 |
+| トークン | Light | Dark | 用途 |
 |--------|-------|------|------|
-| `bg-app` | #F5F5F5 | #1E1E1E | アプリ全体背景 |
-| `bg-panel` | #FFFFFF | #252526 | サイドパネル |
-| `bg-toolbar` | #F8F8F8 | #2D2D2D | ツールバー、タイトルバー |
-| `bg-canvas` | #F0F0F0 | #1E1E1E | キャンバス背景 |
-| `bg-statusbar` | #E8E8E8 | #007ACC | ステータスバー |
-| `bg-input` | #FFFFFF | #3C3C3C | 入力フィールド |
-| `bg-tool-active` | #E0E0E0 | #404040 | アクティブツール |
-| `bg-section` | #F0F0F0 | #2A2A2A | セクションヘッダー |
+| `bgApp` | #F5F5F5 | #1E1E1E | アプリ全体背景 |
+| `bgPanel` | #FFFFFF | #252526 | サイドパネル |
+| `bgToolbar` | #F8F8F8 | #2D2D2D | ツールバー、タイトルバー |
+| `bgCanvas` | #F0F0F0 | #1E1E1E | キャンバス背景 |
+| `bgStatusbar` | #E8E8E8 | #007ACC | ステータスバー |
+| `bgInput` | #FFFFFF | #3C3C3C | 入力フィールド |
+| `bgToolActive` | #E0E0E0 | #404040 | アクティブツール |
+| `bgSection` | #F0F0F0 | #2A2A2A | セクションヘッダー |
+| `bgMenubar` | #EFEFEF | #333333 | メニューバー（定義のみで、コードでは未使用。メニューはシステムメニューバーを使う） |
 
 ### テキスト・アイコン
 
-| 変数名 | Light | Dark | 用途 |
+| トークン | Light | Dark | 用途 |
 |--------|-------|------|------|
-| `text-primary` | #1A1A1A | #E0E0E0 | 主テキスト |
-| `text-secondary` | #666666 | #999999 | 副テキスト |
-| `text-muted` | #999999 | #666666 | 非アクティブテキスト |
-| `icon-primary` | #444444 | #CCCCCC | 主アイコン |
-| `icon-secondary` | #888888 | #777777 | 副アイコン |
+| `textPrimary` | #1A1A1A | #E0E0E0 | 主テキスト |
+| `textSecondary` | #666666 | #999999 | 副テキスト |
+| `textMuted` | #999999 | #666666 | 非アクティブテキスト |
+| `iconPrimary` | #444444 | #CCCCCC | 主アイコン |
+| `iconSecondary` | #888888 | #777777 | 副アイコン |
 
 ### ボーダー
 
-| 変数名 | Light | Dark | 用途 |
+| トークン | Light | Dark | 用途 |
 |--------|-------|------|------|
 | `border` | #D9D9D9 | #3D3D3D | 主要ボーダー |
-| `border-light` | #EBEBEB | #333333 | 軽いボーダー |
+| `borderLight` | #EBEBEB | #333333 | 軽いボーダー |
 
 ### アクセント・特殊色
 
-| 変数名 | 値 | 用途 |
+| トークン | 値 | 用途 |
 |--------|----|------|
 | `accent` | #4A90D9 | アクセントカラー（青） |
-| `accent-hover` | #3A7BC8 | ホバー時 |
-| `stitch-color` | #D4A574 | ステッチ関連の暖色アクセント |
-| `text-on-accent` | #FFFFFF | アクセント上のテキスト |
+| `accentHover` | #3A7BC8 | ホバー時 |
+| `stitchColor` | #D4A574 | ステッチ関連の暖色アクセント |
+| `textOnAccent` | #FFFFFF | アクセント上のテキスト |
 | `warning` | Light #B45309 / Dark #E8A33D | 警告文言（駒合わせのクランプ・ピッチ乖離など） |
+| `dimensionColor` | Light #5C7C99 / Dark #7E9CB8 | 寸法線（値は `DimensionLineShape.colorLightHex` / `colorDarkHex` に定義し、SVG / DXF / 印刷と共有） |
+| `rulerIndicatorColor` | #E74C3C | ルーラー上のカーソル位置表示 |
 
 ### グリッド
 
-| 変数名 | Light | Dark | 用途 |
+| トークン | Light | Dark | 用途 |
 |--------|-------|------|------|
-| `grid-line` | #B0B0B0 | #404040 | 補助グリッド (minor) |
-| `grid-line-major` | #A8A8A8 | #444444 | 主要グリッド (major) |
-| `pattern-stroke` | #333333 | #CCCCCC | パターン図形の線色 |
+| `gridLine` | #B0B0B0 | #404040 | 補助グリッド (minor) |
+| `gridLineMajor` | #A8A8A8 | #444444 | 主要グリッド (major) |
+| `patternStroke` | #333333 | #CCCCCC | パターン図形の線色 |
+
+### ページレイアウト
+
+| トークン | Light | Dark | 用途 |
+|----------|-------|------|------|
+| `pageFrame` | #2E7BD6 (70%) | #4A90D9 (70%) | ページ枠 |
+| `pageFrameSelected` | #2E7BD6 | #4A90D9 | 選択中のページ枠 |
+| `pageOverlap` | #FFAA00 (10%) | #FFAA00 (15%) | 隣り合うページが重なる範囲 |
+| `pagePrintableArea` | #2E7BD6 (20%) | #4A90D9 (30%) | 印刷可能範囲 |
+| `pageNumber` | #666666 | #888888 | ページ番号 |
+
+（括弧内は不透明度）
 
 ## ツールバー構成
 
@@ -182,7 +180,7 @@
 ```
 
 - **ズーム直接入力**: 100% 部分が `TextField` で、任意の倍率を入力可能
-  - 入力ボックスは `bg-input` 背景 + `border` 枠 + フォーカス時に `accent` 枠
+  - 入力ボックスは `bgInput` 背景 + `border` 枠 + フォーカス時に `accent` 枠
   - Enter / フォーカスアウトで確定、無効値は復元
   - `+` / `-` ボタン、Fit (⇧⌘0) と共存
 - **Zoom to Fit (⇧⌘0)**: 表示中の全図形の外接矩形がビューに収まるようにズーム・パン（図形がなければ Actual Size と同じ動作）。ステータスバー右端の Fit ボタンも同じ
@@ -284,7 +282,7 @@ Position / Zoom / Stroke 幅で共通利用する編集可能な数値入力フ�
 | **範囲** | オプションの `ClosedRange<CGFloat>` でクランプ |
 | **フォーカス表示** | 枠線が `accent` 色に変化 |
 | **外部値同期** | 編集中でなければ外部の value 変更に追従 |
-| **スタイル** | `bg-input` 背景、`border` 枠、`cornerRadius: 4`、高さ 28px |
+| **スタイル** | `bgInput` 背景、`border` 枠、`cornerRadius: 4`、高さ 28px |
 
 ### PropertyField（表示専用）
 
@@ -297,6 +295,5 @@ Position / Zoom / Stroke 幅で共通利用する編集可能な数値入力フ�
 
 ## アイコン
 
-- **デザインファイル**: Lucide Icons
-- **コード**: SF Symbols（対応表は CLAUDE.md 参照）
+- SF Symbols を使う（ツールごとの一覧は CLAUDE.md 参照）
 - **サイズ**: 16x16 (ツールバー), 14x14 (パネル内), 12x12 (ステータスバー)

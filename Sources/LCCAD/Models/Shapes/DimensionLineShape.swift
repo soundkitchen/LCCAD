@@ -40,8 +40,7 @@ struct DimensionLineShape: Shape, Codable, Equatable, Sendable {
 
     /// Canonical dimension color, shared by the canvas renderer (via
     /// `DesignTokens.dimensionColor`), the SVG/DXF exporters, and print so the
-    /// value is defined once. Keep in sync with the `dimension-color` design
-    /// variable (Single Source of Truth in lccad.pen).
+    /// value is defined once.
     static let colorLightHex: UInt = 0x5C7C99
     static let colorDarkHex: UInt = 0x7E9CB8
 

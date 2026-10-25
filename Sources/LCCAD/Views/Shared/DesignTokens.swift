@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Design tokens matching the Pen design file (lccad.pen) variables.
+/// デザイントークン。色の信頼できる唯一の情報源 (Single Source of Truth) で、
+/// docs/design.md の色の表はここからの参照用一覧。色を変えたら表も同じコミットで直す。
 /// These adapt to Light / Dark mode via @Environment(\.colorScheme).
 enum DesignTokens {
     // MARK: - Backgrounds
