@@ -87,7 +87,7 @@ Sources/LCCAD/
 │   │   └── PageSection.swift     # ページレイアウト編集 (Page ツール時)
 │   ├── Shared/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField, NumberBoxField
-│   │   ├── DesignTokens.swift   # Pen デザイン変数の Swift 転写
+│   │   ├── DesignTokens.swift   # デザイントークン（色の Single Source of Truth。一覧は docs/design.md）
 │   │   ├── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
 │   │   ├── CodableColorPicker.swift # CodableColor 用 ColorPicker + ColorPickerHistory (#72)
 │   │   └── UndoFreeTextView.swift # allowsUndo = false の複数行テキスト欄（内容欄で使用、#72）

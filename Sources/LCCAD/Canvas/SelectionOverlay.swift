@@ -2,7 +2,7 @@ import SwiftUI
 
 enum SelectionOverlay {
     static let handleSize: CGFloat = 8
-    static let handleColor = Color(red: 0.29, green: 0.56, blue: 0.85) // #4A90D9
+    static let handleColor = DesignTokens.accent
 
     static func draw(boundingBox: CGRect, transform: CanvasTransform, in context: GraphicsContext) {
         let screenRect = transform.worldToScreen(boundingBox)
@@ -40,7 +40,7 @@ enum SelectionOverlay {
 
     /// Draw a marquee selection rectangle (in screen coordinates).
     static func drawMarquee(rect: CGRect, in context: GraphicsContext) {
-        let marqueeColor = Color(red: 0.29, green: 0.56, blue: 0.85) // #4A90D9
+        let marqueeColor = DesignTokens.accent
         let fillColor = marqueeColor.opacity(0.08)
         let strokeColor = marqueeColor.opacity(0.6)
 

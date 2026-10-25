@@ -104,7 +104,7 @@ struct PrickingIronSheet: View {
         .padding(.horizontal, 12)
         .frame(height: 44)
         .background(selectedIronId == iron.id
-            ? Color(hex: 0x4A90D9, opacity: 0.1)
+            ? DesignTokens.accent.opacity(0.1)
             : Color.clear)
         .contentShape(Rectangle())
         .onTapGesture {
