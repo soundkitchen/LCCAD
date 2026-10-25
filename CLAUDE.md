@@ -24,8 +24,6 @@ LCCAD/
 │   ├── research.md        # 参考アプリ リサーチ結果
 │   ├── design.md          # UI デザイン方針
 │   └── architecture.md    # 技術アーキテクチャ
-├── design/
-│   └── lccad.pen          # Pen デザインファイル
 ├── project.yml            # XcodeGen 設定
 ├── Sources/
 │   └── LCCAD/
@@ -63,7 +61,6 @@ xcodebuild -project LCCAD.xcodeproj -scheme LCCAD -configuration Release build
 make run       # Debug ビルドして起動
 make test      # xcodegen + テスト
 make install   # Release ビルドして /Applications/LCCAD.app を入れ替え
-make design    # Pen でデザインファイルを開く
 make xcode     # Xcode でプロジェクトを開く
 ```
 
@@ -81,23 +78,29 @@ make xcode     # Xcode でプロジェクトを開く
 
 ## Workflow Rules
 
-- **UI 変更は必ず Pen（旧 Pencil）デザインファイル (`design/lccad.pen`) の更新から始める。** デザインを先に更新し、スクリーンショットで確認した上でコードに反映する。コードだけ先に変えてデザインファイルと乖離させてはならない。
-- **Pen デザインファイルの保存**: Pen MCP（MCP サーバー名は `pencil` のまま）でのデザイン作業が完了したら、必ずユーザーに保存を依頼する（Pen MCP はエディタ内メモリ上で変更を保持しており、自動保存されない）。デザインファイルは `design/lccad.pen` で一元管理。Pen エディタでもこのパスを直接開く。
-- **デザイントークンの管理**: Pen デザインファイルの変数定義が信頼できる唯一の情報源 (Single Source of Truth)。コード側は `DesignTokens.swift` に転写して使用する。色を変更する場合は必ずデザイン変数を先に更新する。
+- **UI 変更の進め方**: デザインツールは使わない。既存の画面と `DesignTokens.swift` に合わせて実装し、見た目はユーザーが実機で確かめる。
+- **デザイントークンの管理**: `DesignTokens.swift` が信頼できる唯一の情報源 (Single Source of Truth)。UI の色は直接書かずに `DesignTokens` を参照する。`docs/design.md` の色の表は参照用の一覧なので、色を追加・変更したら同じコミットで表も直す。
+  - 例外: SwiftUI の `Color` を使えない書き出し・印刷・モデルの色は、それぞれの場所で値を持っている。`stitchColor` を変えるときは `SVGExporter.swift`(ステッチ穴の `fill`)・`PrintCoordinator.swift`(ステッチ穴の `NSColor`)・`CodableColor.stitch`(`Shape.swift`)も合わせて直す。寸法線の色は `DimensionLineShape.colorLightHex` / `colorDarkHex` が正で、`DesignTokens.dimensionColor` はそれを参照する
 - **Worktree ブランチのマージ禁止**: worktree で並行作業した場合、ブランチ上で必ずコミットし、main へのマージはユーザーの明示的な許可を得てから行う。worktree のファイルを main に直接コピーしてはならない。作業完了後はブランチ名と変更サマリーを報告し、ユーザーのレビューを待つ。
-- **アイコンの対応**: デザインファイルは lucide アイコン、コードは SF Symbols を使用。以下の対応表を維持すること:
+- **アイコン**: SF Symbols を使う。ツールのアイコンは `DrawingTool.iconName`、ステッチ系ツールは `ToolbarView` の `stitchToolButton` で定義している。変えたら以下の一覧も直すこと:
 
-| ツール | Pen (lucide) | Code (SF Symbols) |
-|--------|----------------|-------------------|
-| Select | mouse-pointer | cursorarrow |
-| Line | minus | minus |
-| Rect | square | square |
-| Circle | circle | circle |
-| Arc | radius | circle.and.line.horizontal |
-| Bezier | spline | point.topleft.down.to.point.bottomright.curvepath |
-| Text | type | character |
-| Bevel | squircle | app |
-| Box Stitch | target | circle.circle |
+| ツール | SF Symbols |
+|--------|------------|
+| Select | cursorarrow |
+| Line | minus |
+| Rectangle | square |
+| Ellipse | circle |
+| Arc | circle.and.line.horizontal |
+| Bezier | point.topleft.down.to.point.bottomright.curvepath |
+| Text | character |
+| Dimension | ruler |
+| Offset | square.inset.filled |
+| Trim | scissors |
+| Bevel | app |
+| Page | doc.plaintext |
+| Auto Stitch | grid |
+| Box Stitch | circle.circle |
+| Stitch Simulator | eye(未実装のため無効で表示) |
 
 ## Key Design Decisions
 

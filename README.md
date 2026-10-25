@@ -71,7 +71,6 @@ LCCAD/
 │   └── Views/           # SwiftUI ビュー（3 カラムレイアウト + シート）
 ├── Tests/LCCADTests/    # XCTest
 ├── docs/                # 技術ドキュメント
-├── design/              # Pen デザインファイル（UI の単一情報源）
 └── project.yml          # XcodeGen 設定
 ```
 

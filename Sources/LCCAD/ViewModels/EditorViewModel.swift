@@ -816,6 +816,8 @@ final class EditorViewModel {
         update(&arc)
         document.layers[li].shapes[si] = .arc(arc)
         guard old != document else { return }
+        // R / S / E の変更で弧の形が変わるので、ステッチ穴を作り直す
+        regenerateStitchLines(forShapeIds: [id])
         registerUndo(actionName: "Edit Arc", oldDocument: old)
     }
 

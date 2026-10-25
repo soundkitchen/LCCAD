@@ -12,10 +12,9 @@ DERIVED_DATA := build/DerivedData
 DEBUG_APP    := $(DERIVED_DATA)/Build/Products/Debug/$(APP_NAME).app
 RELEASE_APP  := $(DERIVED_DATA)/Build/Products/Release/$(APP_NAME).app
 INSTALL_DIR  := /Applications
-DESIGN_FILE  := design/lccad.pen
 
 .DEFAULT_GOAL := help
-.PHONY: help generate build run test release install design xcode clean
+.PHONY: help generate build run test release install xcode clean
 
 help: ## このヘルプを表示
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-10s %s\n", $$1, $$2}'
@@ -47,9 +46,6 @@ install: release ## Release ビルドして /Applications に入れ替え
 	ditto $(RELEASE_APP) $(INSTALL_DIR)/$(APP_NAME).app
 	@echo "✅ $(INSTALL_DIR)/$(APP_NAME).app を更新しました" \
 		"(v$$(defaults read $(INSTALL_DIR)/$(APP_NAME).app/Contents/Info CFBundleShortVersionString))"
-
-design: ## Pen でデザインファイル (design/lccad.pen) を開く
-	open -a Pen $(DESIGN_FILE)
 
 xcode: generate ## Xcode でプロジェクトを開く
 	open $(PROJECT)

@@ -150,7 +150,10 @@ struct EditablePropertyField: View {
             return
         }
         onCommit(newValue)
-        editText = formatted(newValue)
+        // 受け付けられた値は onChange(of: value) で表示に反映される。ここで
+        // newValue を表示すると、呼び出し側が値を退けたとき(例: 両端を通れない
+        // Arc の R)に、反映されていない値が残ってしまう
+        editText = formatted(value)
         // Enter 確定後にフォーカスアウトで commitEdit が再度呼ばれても
         // 二重コミットにならないよう、基準文字列を確定後の表示に合わせる
         textAtEditStart = editText
