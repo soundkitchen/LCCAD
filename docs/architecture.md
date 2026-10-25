@@ -408,6 +408,7 @@ mutating func scale(sx: CGFloat, sy: CGFloat, around anchor: CGPoint)  // 係数
 | 操作 | 穴への反映 |
 |------|-----------|
 | ベジェ制御点ドラッグ (`endBezierPointDrag`) | 再生成 |
+| Arc の R / S / E 編集 (`updateArcProperty`) | 再生成。R は `ArcShape.setRadiusKeepingEndpoints` で両端を固定したまま変わる |
 | Bevel (`bevelSelectedCorners` 一括 / `bevelClickedCorner` クリック) | 直線・ベジェ・矩形(cornerRadius) は id を保存し短縮後の図形で再生成。矩形のクリック個別面取りは4辺へ分解し元矩形が消えるため削除。フィレット arc には穴を生成しない |
 | Trim (`trimSelectedShape`) | 元図形が消えるのでステッチラインを削除 |
 
