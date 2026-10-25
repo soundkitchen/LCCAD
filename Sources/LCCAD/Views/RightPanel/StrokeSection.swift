@@ -16,12 +16,6 @@ struct StrokeSection: View {
                 ) { newColor in
                     editor.updateStroke(coalescing: .strokeColor) { $0.color = newColor }
                 }
-                .frame(width: 24, height: 24)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(DesignTokens.border(colorScheme), lineWidth: 1)
-                )
 
                 // Width is fixed app-wide (StrokeStyle.fixedWidth) so printed
                 // line thickness never shifts calibrated dimensions.

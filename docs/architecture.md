@@ -89,7 +89,7 @@ Sources/LCCAD/
 │   │   ├── InputField.swift     # PropertySection, PropertyField, EditablePropertyField, NumberBoxField
 │   │   ├── DesignTokens.swift   # デザイントークン（色の Single Source of Truth。一覧は docs/design.md）
 │   │   ├── LineStylePreview.swift # 線種プレビュー描画 (SwiftUI Canvas)
-│   │   ├── CodableColorPicker.swift # CodableColor 用 ColorPicker + ColorPickerHistory (#72)
+│   │   ├── CodableColorPicker.swift # CodableColor 用カラーウェル(NSColorWell .minimal)+ ColorPickerHistory (#72)
 │   │   └── UndoFreeTextView.swift # allowsUndo = false の複数行テキスト欄（内容欄で使用、#72）
 │   ├── PrickingIronSheet.swift  # 目打ち管理シート
 │   ├── BevelSheet.swift         # 範囲選択の一括面取りシート (Arrange ▸ Bevel…)
@@ -208,13 +208,13 @@ Sources/LCCAD/
 - 変更前の document が、直前のまとめ編集の結果と違う(Undo を通さずに document が差し替えられた場合など)
 - `endCoalescedEdit()` が呼ばれる。呼ぶのは次のとおり:
   - 内容欄(`UndoFreeTextView`)のフォーカスアウト(`textDidEndEditing`)と、打鍵以外の編集(⌘V・⌘X・メニューからのペーストなど)の前後。打鍵以外の編集は独立した Undo になる。IME の未確定文字は document に書き込まず、確定したときに書き込む
-  - `CoalescedEditBoundaryObserver`(`NSEvent` のローカルモニター)が拾う、アプリ内のマウスダウン(左・右・その他)とカラーパネルでのキー入力。SwiftUI の `ColorPicker` はドラッグの終了を通知せず、カラーパネルのホイールやスウォッチはマウスの追跡を自前のループで行うのでマウスアップもローカルモニターに届かない。そのため次のマウスダウン(追跡の開始前に配送される)で区切る。カラーパネルのキー入力(16 進欄の Enter など)で確定した色は、1 回ごとに別の Undo になる
+  - `CoalescedEditBoundaryObserver`(`NSEvent` のローカルモニター)が拾う、アプリ内のマウスダウン(左・右・その他)とカラーパネルでのキー入力。`NSColorWell` はドラッグの終了を通知せず、カラーパネルのホイールやスウォッチはマウスの追跡を自前のループで行うのでマウスアップもローカルモニターに届かない。そのため次のマウスダウン(追跡の開始前に配送される)で区切る。ウェルのポップオーバーもアプリのウィンドウなので、色見本のクリックも 1 回ごとに区切られる。カラーパネルのキー入力(16 進欄の Enter など)で確定した色は、1 回ごとに別の Undo になる
 
 最初の編集が値の変わらない呼び出しで Undo が登録されなかった場合は、まとめを始めない(始めてしまうと、続く実際の変更が Undo なしで素通りするため)。
 
 内容欄は SwiftUI の `TextEditor` ではなく `UndoFreeTextView`(`allowsUndo = false` の NSTextView を包んだ `NSViewRepresentable`)を使う。`TextEditor` の中の NSTextView は自前の入力 Undo を document と同じ UndoManager に登録するため、ViewModel の Undo と二重になって ⌘Z が両方を別々に戻してしまうほか、選択を変えた後の ⌘Z でテキストビューの文字列が別の図形に書き込まれるおそれがある。Undo は ViewModel 側に一本化し、⌘Z で戻した document は `updateNSView` で欄に反映する。
 
-カラーピッカーは素の `ColorPicker` ではなく `CodableColorPicker` を使う。`CodableColor` との変換バインディングをそのまま渡すと、document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色がピッカーに渡し直され、開いているカラーパネルの色が上書きされる。その結果、ホイールの指示点がマウス位置から飛び、パネルが誤差の分だけ違う色を送り返して意図しない Undo が積まれる。`CodableColorPicker` はピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`、アプリ起動中のみ・最大 256 件)、保存値が覚えている色と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)で同じなら元の色を返す。送り返しは次の 2 段で捨てる。(1) 直前にピッカーへ渡した色と同じ値が、カラーパネルでの操作以外(選択変更のクリックや ⌘Z の処理中)に届いたもの(`isEcho`)。値だけでは、複数選択で先頭の図形と同じ色をユーザーが選んだ場合と見分けられないので、イベントの出どころ(`NSApp.currentEvent` のウィンドウが `NSColorPanel` か)を使う。これがないと、色がばらばらの複数選択で送り返しが適用され、全図形が先頭の色に塗り替えられる。(2) 編集対象(複数選択では選択中の全図形)がすべてすでにその色(誤差の範囲)なら書き込まない(`shouldApply`)。編集対象の色は、変更が届いた時点で ViewModel から読む。色成分は描画・印刷と同じく sRGB で取り出すが、カラーパネルが返す色は sRGB とは限らない(汎用 RGB など)。そのため Undo で戻した保存値を sRGB の色としてパネルに返すと、見た目は同じでも明度などの表示が変わる(明度 100% → 97.8% など)。元の色を返すのはこれを防ぐため。覚えていない色(再起動後やファイルを開き直した後)は sRGB の色として返す。
+カラーピッカーは SwiftUI の `ColorPicker` ではなく `CodableColorPicker`(`NSColorWell` を包んだ `NSViewRepresentable`)を使う。スタイルは `.minimal` で、クリックするとウェルのすぐそばにポップオーバーで色見本を出し、細かい指定はポップオーバーから全部入りのカラーパネルを開いて行う。`ColorPicker` はクリックで直接カラーパネルを開き、パネルは前回の位置(クリックした場所から離れていることが多い)に出るうえ、スタイルも選べないため。カラーパネルも前回の位置に出るので、`ColorPanelPlacer` がウェルのクリックをローカルの NSEvent モニターで拾い、閉じているパネルをクリックした位置の左(`panelOrigin`、画面の `visibleFrame` の内側に寄せる。パネルが画面より大きいときは上端と右端を残す)へ動かしておく。基準はモニターに届いたイベントのクリック位置で、今のカーソルの位置(`NSEvent.mouseLocation`)ではない。色見本を選ぶだけのクリックでもパネルの位置は変わるが、パネルを開く経路はウェルのポップオーバーだけなので、困らない。ポップオーバーのボタンからパネルを開く経路は AppKit の内側で、開く瞬間を受け取れないため、見えないうちに動かしておく。`NSColorWell(style:)` はサブクラスを作れず(素の `NSColorWell` を返す)、クリックもジェスチャー認識で受けて `mouseDown(with:)` を呼ばないので、ウェルの派生ではなくモニターを使う。モニターは `dismantleNSView` で外し、`dismantleNSView` を通らずに捨てられたときのために `deinit` でも外す。ウェルに色を渡し直すのは、保存値がウェルの表示中の色と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)を超えて違うときだけ(`colorToShow`。Undo や選択の切り替え)。document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色を渡し直すと、開いているカラーパネルの色が上書きされ、ホイールの指示点がマウス位置から飛ぶため。渡し直すときは、ピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`、アプリ起動中のみ・最大 256 件)、元の色を渡す。色成分は描画・印刷と同じく sRGB で取り出すが、カラーパネルが返す色は sRGB とは限らない(汎用 RGB など)。そのため Undo で戻した保存値を sRGB の色としてパネルに渡すと、見た目は同じでも明度などの表示が変わる(明度 100% → 97.8% など)。元の色を渡すのはこれを防ぐため。覚えていない色(再起動後やファイルを開き直した後)は sRGB の色として渡す。`NSColorWell` は、コードから色を変えたときには action を送らず、ユーザーがポップオーバー・パネル・ドロップで色を変えたときだけ送る(アクティブなウェルの色を変えるとパネルの色も変わるが、送り返しは起きない)。そのため、渡し直した色が送り返されて図形に適用されることはない。編集対象(複数選択では選択中の全図形)がすべてすでにその色(誤差の範囲)なら書き込まない(`shouldApply`)。編集対象の色は、変更が届いた時点で ViewModel から読む。sRGB にできない色(カラーパネルの画像のパレットのパターンなど)は使えないので、適用せずにウェルの表示をすぐ保存値の色へ戻す。ウェルを取り除くとき(選択が変わると右パネルのセクションが作り直される)は `dismantleNSView` で `deactivate()` し、共有のカラーパネルが取り除いたウェルを指したまま残らないようにする。SwiftUI の `.disabled()` は `isEnabled` の環境値をウェルに渡して効かせる。
 
 ### マルチセレクト
 
