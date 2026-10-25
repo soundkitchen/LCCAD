@@ -152,11 +152,11 @@ Light / Dark モードで切り替わる色は、`Sources/LCCAD/Views/Shared/Des
 
 ### 3. Stroke セクション（非テキスト図形）
 - **ColorPicker**: 線色を直接変更（Undo 対応。1 回のドラッグ / クリック / カラーパネルでのキー確定ごとに Undo 1 件にまとめる、#72）
-- **W（線幅）**: `EditablePropertyField` で mm 単位入力（範囲 0.01〜100）
+- **線幅**: 0.1mm 固定（`StrokeStyle.fixedWidth`）で、「0.1 mm (fixed)」と表示するだけ。印刷キャリブレーションを安定させるため、ユーザーは変更できない
 - **Style（線種）**: ドロップダウンで線種を選択（プレビュー線 + スタイル名表示）
-  - Solid（実線）、Dashed（破線 3-2mm）、Dotted（点線 0.5-1.5mm）、Dash-Dot（一点鎖線 3-1.5-0.5-1.5mm）
+  - Solid（実線）、Dashed（破線 0.6-0.4mm）、Dotted（点線 0.2-0.35mm）、Dash-Dot（一点鎖線 1-0.4-0.2-0.4mm）。値は `LineStyle.dashPattern` に一元定義
   - キャンバス描画はズーム連動、印刷・SVG・DXF エクスポートにも反映
-- デザインに合わせ、カラースウォッチに `cornerRadius: 4` + border
+- カラースウォッチは `cornerRadius: 4` + border
 
 ### 3'. Text セクション（テキスト図形）
 - Content, Font, Size, Style (Bold/Italic), Alignment, Color
@@ -271,7 +271,7 @@ macOS 標準の `Settings` シーン（⌘,）。TabView で 3 タブ構成:
 
 ### EditablePropertyField
 
-Position / Zoom / Stroke 幅で共通利用する編集可能な数値入力フィールド:
+Position / Size / Arc / Dimension / Page の各セクションで共通利用する編集可能な数値入力フィールド:
 
 | 項目 | 仕様 |
 |------|------|
