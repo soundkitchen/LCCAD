@@ -55,6 +55,44 @@ struct ArcShape: Shape, Codable, Equatable, Sendable {
         CGPoint(x: center.x + radius * cos(endAngle), y: center.y + radius * sin(endAngle))
     }
 
+    /// 始点・終点を固定したまま半径を変える。中心は弦の垂直二等分線上を動き、
+    /// 膨らむ向きと劣弧/優弧の別は保つ(ただしちょうど半円は劣弧側として扱うため、
+    /// 優弧を一度半円にしてから R を戻すと劣弧になる)。新しい半径が弦長の半分より小さく
+    /// 両端を通る円が作れないときは何も変えず false を返す。
+    /// 全周(始点と終点が一致)のときは弦が定まらないため、中心を固定して半径だけ変える。
+    @discardableResult
+    mutating func setRadiusKeepingEndpoints(_ newRadius: CGFloat) -> Bool {
+        let s = startPoint
+        let e = endPoint
+        let chord = s.distance(to: e)
+        guard chord > 1e-9 else {
+            radius = newRadius
+            return true
+        }
+        let halfChord = chord / 2
+        guard newRadius >= halfChord - 1e-9 else { return false }
+
+        let mid = CGPoint(x: (s.x + e.x) / 2, y: (s.y + e.y) / 2)
+        let normal = CGPoint(x: -(e.y - s.y) / chord, y: (e.x - s.x) / chord)
+        // 中心が弦のどちら側にあるか。半円で弦上にあるときは膨らみの反対側
+        // (= 劣弧側)とみなす。3 点からの算出やミラー・回転の丸め誤差で中心が
+        // わずかにずれても半円と扱えるよう、許容値は弦長に比例させる
+        var side = (center.x - mid.x) * normal.x + (center.y - mid.y) * normal.y
+        if abs(side) < halfChord * 1e-6 {
+            let bulge = pointAtParameter(0.5)
+            side = -((bulge.x - mid.x) * normal.x + (bulge.y - mid.y) * normal.y)
+        }
+        let distance = sqrt(max(0, newRadius * newRadius - halfChord * halfChord))
+        let sign: CGFloat = side >= 0 ? 1 : -1
+
+        center = CGPoint(x: mid.x + sign * distance * normal.x, y: mid.y + sign * distance * normal.y)
+        radius = newRadius
+        // S / E の編集と同じく 0〜2π に揃えて保存する
+        startAngle = normalizeAngle(atan2(s.y - center.y, s.x - center.x))
+        endAngle = normalizeAngle(atan2(e.y - center.y, e.x - center.x))
+        return true
+    }
+
     func hitTest(point: CGPoint, tolerance: CGFloat) -> Bool {
         let dist = point.distance(to: center)
         guard abs(dist - radius) <= tolerance else { return false }
