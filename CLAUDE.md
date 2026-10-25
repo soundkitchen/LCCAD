@@ -79,7 +79,8 @@ make xcode     # Xcode でプロジェクトを開く
 ## Workflow Rules
 
 - **UI 変更の進め方**: デザインツールは使わない。既存の画面と `DesignTokens.swift` に合わせて実装し、見た目はユーザーが実機で確かめる。
-- **デザイントークンの管理**: `DesignTokens.swift` が信頼できる唯一の情報源 (Single Source of Truth)。`docs/design.md` の色の表は参照用の一覧なので、色を追加・変更したら同じコミットで表も直す。
+- **デザイントークンの管理**: `DesignTokens.swift` が信頼できる唯一の情報源 (Single Source of Truth)。UI の色は直接書かずに `DesignTokens` を参照する。`docs/design.md` の色の表は参照用の一覧なので、色を追加・変更したら同じコミットで表も直す。
+  - 例外: SwiftUI の `Color` を使えない書き出し・印刷・モデルの色は、それぞれの場所で値を持っている。`stitchColor` を変えるときは `SVGExporter.swift`(ステッチ穴の `fill`)・`PrintCoordinator.swift`(ステッチ穴の `NSColor`)・`CodableColor.stitch`(`Shape.swift`)も合わせて直す。寸法線の色は `DimensionLineShape.colorLightHex` / `colorDarkHex` が正で、`DesignTokens.dimensionColor` はそれを参照する
 - **Worktree ブランチのマージ禁止**: worktree で並行作業した場合、ブランチ上で必ずコミットし、main へのマージはユーザーの明示的な許可を得てから行う。worktree のファイルを main に直接コピーしてはならない。作業完了後はブランチ名と変更サマリーを報告し、ユーザーのレビューを待つ。
 - **アイコン**: SF Symbols を使う。ツールのアイコンは `DrawingTool.iconName`、ステッチ系ツールは `ToolbarView` の `stitchToolButton` で定義している。変えたら以下の一覧も直すこと:
 
@@ -87,8 +88,8 @@ make xcode     # Xcode でプロジェクトを開く
 |--------|------------|
 | Select | cursorarrow |
 | Line | minus |
-| Rect | square |
-| Circle | circle |
+| Rectangle | square |
+| Ellipse | circle |
 | Arc | circle.and.line.horizontal |
 | Bezier | point.topleft.down.to.point.bottomright.curvepath |
 | Text | character |
@@ -99,6 +100,7 @@ make xcode     # Xcode でプロジェクトを開く
 | Page | doc.plaintext |
 | Auto Stitch | grid |
 | Box Stitch | circle.circle |
+| Stitch Simulator | eye(未実装のため無効で表示) |
 
 ## Key Design Decisions
 

@@ -5,7 +5,7 @@
 - **macOS ネイティブ**: システムメニューバー、タイトルバー（トラフィックライト）を活用
 - **Figma インスパイア**: クリーンな3カラムレイアウト、ミニマルなツールバー
 - **参考アプリの知見を継承**: ステッチ専用ツール、プロパティパネルの構成
-- **Light / Dark モード両対応**: テーマ変数で一元管理
+- **Light / Dark モード両対応**: 色は `DesignTokens.swift` で一元管理
 
 ## レイアウト構成
 
@@ -32,7 +32,7 @@
 
 ## カラーシステム
 
-Light / Dark モードで切り替わる色は、`Sources/LCCAD/Views/Shared/DesignTokens.swift` に一元定義する。**`DesignTokens.swift` が正（Single Source of Truth）** で、以下の表は参照用の一覧。色を追加・変更したら、同じコミットで表も直す。
+UI の色（Light / Dark で切り替わるものも、切り替わらないものも）は `Sources/LCCAD/Views/Shared/DesignTokens.swift` に一元定義する。**`DesignTokens.swift` が正（Single Source of Truth）** で、以下の表は参照用の一覧。色を追加・変更したら、同じコミットで表も直す。例外として、寸法線の色は SVG / DXF / 印刷と共有するため `DimensionLineShape` が値を持ち、書き出し・印刷のステッチ穴の色はそれぞれの場所で値を持つ（CLAUDE.md の Workflow Rules を参照）。
 
 ### カラーモード設定
 
@@ -240,7 +240,7 @@ macOS 標準の `Settings` シーン（⌘,）。TabView で 3 タブ構成:
 
 ### Agent タブ
 
-エージェント用の操作 API(アプリ内 MCP Server、#79)の設定。Pen のデザインは作らず、ほかのタブと同じ SwiftUI 標準の `Form`(grouped)で組む(#85)。
+エージェント用の操作 API(アプリ内 MCP Server、#79)の設定。ほかのタブと同じ SwiftUI 標準の `Form`(grouped)で組む。
 
 ```
 ┌──────────────────────────────────────────┐
