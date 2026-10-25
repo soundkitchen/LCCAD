@@ -166,7 +166,7 @@
 - **Color の Undo**: Stroke セクションと同じく、1 回のドラッグ / クリック / カラーパネルでのキー確定ごとに Undo 1 件にまとめる
 
 ### 4. Arc / Curve セクション（弧図形）
-- **R（半径）**: `EditablePropertyField` で mm 単位入力（範囲 0.1〜10000）
+- **R（半径）**: `EditablePropertyField` で mm 単位入力（範囲 0.1〜10000）。**始点・終点を固定**したまま中心を弦の垂直二等分線上で動かし、膨らむ向きと劣弧/優弧の別は保つ（`ArcShape.setRadiusKeepingEndpoints`）。弦長の半分より小さい R は受け付けず、フィールドは元の値に戻る。全周の弧だけは弦が定まらないため中心固定で半径を変える
 - **中心角**: R / Start / End から決まる導出値のため表示のみ（回転アイコン + 度数）
 - **S / E（開始角 / 終了角）**: `EditablePropertyField` で度数入力（`°` サフィックス）。表示・入力とも 0〜360° に正規化（`angleSpan` は 2π 補正を 1 回しか行わないため、範囲外の生値を保存すると弧が退化する）
 - 編集は `EditorViewModel.updateArcProperty` 経由で Undo 対応

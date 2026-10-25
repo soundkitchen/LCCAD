@@ -103,6 +103,21 @@ final class EditorViewModelUndoTests: XCTestCase {
         XCTAssertFalse(undo.canUndo, "No-op arc edit must not register an undo entry")
     }
 
+    func testUpdateArcPropertyRejectedRadiusDoesNotRegisterUndo() {
+        let arc = ArcShape(center: .zero, radius: 25, startAngle: 0, endAngle: .pi / 2)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.arc(arc)]
+        let editor = EditorViewModel(document: doc)
+        let undo = UndoManager()
+        editor.undoManager = undo
+        editor.selectedShapeIds = [arc.id]
+
+        // 弦長 25√2 の半分より小さい R は両端を通れないので受け付けない
+        editor.updateArcProperty { $0.setRadiusKeepingEndpoints(10) }
+        XCTAssertEqual(editor.document.layers[0].shapes[0], .arc(arc))
+        XCTAssertFalse(undo.canUndo, "Rejected radius must not register an undo entry")
+    }
+
     // MARK: - Dimension Property Undo/Redo
 
     func testUpdateDimensionPropertySupportsUndoAndRedo() {

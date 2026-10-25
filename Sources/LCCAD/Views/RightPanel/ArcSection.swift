@@ -22,7 +22,9 @@ struct ArcSection: View {
                         value: unit.fromMillimeters(arc.radius),
                         range: 0.1...10_000
                     ) { newValue in
-                        editor.updateArcProperty { $0.radius = unit.toMillimeters(newValue) }
+                        // 始点・終点を固定して R を変える。作れない R は無視し、
+                        // フィールドは元の値に戻る
+                        editor.updateArcProperty { $0.setRadiusKeepingEndpoints(unit.toMillimeters(newValue)) }
                     }
 
                     // 中心角は R / Start / End から決まる導出値なので表示のみ
