@@ -22,9 +22,11 @@ struct ArcSection: View {
                         value: unit.fromMillimeters(arc.radius),
                         range: 0.1...10_000
                     ) { newValue in
-                        // 始点・終点を固定して R を変える。作れない R は無視し、
+                        // 始点・終点を固定して R を変える。作れない R は beep して無視し、
                         // フィールドは元の値に戻る
-                        editor.updateArcProperty { $0.setRadiusKeepingEndpoints(unit.toMillimeters(newValue)) }
+                        var accepted = true
+                        editor.updateArcProperty { accepted = $0.setRadiusKeepingEndpoints(unit.toMillimeters(newValue)) }
+                        if !accepted { NSSound.beep() }
                     }
 
                     // 中心角は R / Start / End から決まる導出値なので表示のみ

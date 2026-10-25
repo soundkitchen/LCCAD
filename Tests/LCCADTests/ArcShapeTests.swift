@@ -106,6 +106,28 @@ final class ArcShapeTests: XCTestCase {
         assertPoint(arc.endPoint, CGPoint(x: -10, y: 0))
     }
 
+    func testSetRadiusTreatsNearlySemicircleAsMinor() {
+        // 丸め誤差で中心が膨らみ側に 1e-8 ずれた「見た目は半円」の弧(厳密には
+        // わずかに優弧)。R を上げても全周近い優弧に飛ばず、浅い劣弧になる
+        let eps: CGFloat = 1e-9
+        var arc = ArcShape(center: .zero, radius: 10, startAngle: -eps, endAngle: .pi + eps)
+        XCTAssertGreaterThan(arc.angleSpan, .pi)
+
+        XCTAssertTrue(arc.setRadiusKeepingEndpoints(20))
+        XCTAssertLessThan(arc.angleSpan, .pi)
+        XCTAssertGreaterThan(arc.pointAtParameter(0.5).y, 0)
+    }
+
+    func testSetRadiusStoresNormalizedAngles() {
+        // 下側(y 負)に中心が来る弧でも、保存する角度は 0〜2π に揃う
+        var arc = ArcShape(center: .zero, radius: 10, startAngle: 0, endAngle: .pi / 2)
+        XCTAssertTrue(arc.setRadiusKeepingEndpoints(20))
+        for angle in [arc.startAngle, arc.endAngle] {
+            XCTAssertGreaterThanOrEqual(angle, 0)
+            XCTAssertLessThan(angle, 2 * .pi)
+        }
+    }
+
     func testSetRadiusOnFullCircleScalesAroundCenter() {
         // 始点と終点が一致する全周は弦が定まらないので、中心固定で半径だけ変える
         var arc = ArcShape(center: CGPoint(x: 5, y: 5), radius: 10, startAngle: 0, endAngle: 0)

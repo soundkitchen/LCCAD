@@ -118,6 +118,31 @@ final class EditorViewModelUndoTests: XCTestCase {
         XCTAssertFalse(undo.canUndo, "Rejected radius must not register an undo entry")
     }
 
+    func testUpdateArcPropertyRegeneratesStitchHoles() {
+        // R10 の 1/4 円弧に付いた穴は、R20 にしたあと新しい弧の上に並び直す
+        let arc = ArcShape(center: .zero, radius: 10, startAngle: 0, endAngle: .pi / 2)
+        let iron = PrickingIron.defaultDiamond
+        let stitch = StitchLine(sourceShapeId: arc.id, ironId: iron.id, mode: .fixedPitch)
+        var doc = DocumentData.empty()
+        doc.layers[0].shapes = [.arc(arc)]
+        doc.layers[0].stitchLines = [stitch]
+        doc.prickingIrons = [iron]
+        let editor = EditorViewModel(document: doc)
+        editor.undoManager = UndoManager()
+        editor.selectedShapeIds = [arc.id]
+
+        editor.updateArcProperty { $0.setRadiusKeepingEndpoints(20) }
+
+        guard case .arc(let changed) = editor.document.layers[0].shapes[0] else {
+            return XCTFail("expected arc")
+        }
+        let holes = editor.document.layers[0].stitchLines[0].holes
+        XCTAssertFalse(holes.isEmpty, "regeneration should produce holes")
+        for hole in holes {
+            XCTAssertEqual(hole.position.distance(to: changed.center), 20, accuracy: 0.01)
+        }
+    }
+
     // MARK: - Dimension Property Undo/Redo
 
     func testUpdateDimensionPropertySupportsUndoAndRedo() {
