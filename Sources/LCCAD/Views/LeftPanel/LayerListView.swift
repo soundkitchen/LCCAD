@@ -179,12 +179,12 @@ struct LayerListView: View {
     }
 
     /// 編集中の名前を確定する。先に編集状態を解くので、確定の後に続くフォーカスアウトでは何もしない。
-    /// 空白だけの名前は `renameLayer` が無視する(元の名前のまま)
     private func commitRenaming() {
         guard let id = editingLayerId else { return }
         editingLayerId = nil
         guard let index = editor.document.layers.firstIndex(where: { $0.id == id }) else { return }
-        editor.renameLayer(at: index, to: draftName)
+        // 空になる名前は無視して元の名前のままにする(renameLayer が投げて何も変えない)
+        try? editor.renameLayer(at: index, to: draftName)
     }
 
     private func cancelRenaming() {

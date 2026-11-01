@@ -180,7 +180,7 @@ Sources/LCCAD/
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **図形の追加** | `addShape(_:actionName:)` / `addShapes(_:actionName:)` | mm 座標の図形をアクティブレイヤーに追加（`addShapes` は複数をまとめて Undo 1 件）。作図ツールもここを通す |
 | **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo 対応、#84）。追加・削除・並べ替えは変更前のアクティブレイヤーも `registerUndo(oldActiveLayerIndex:)` に渡し、Undo では変更前、Redo では変更直後のアクティブレイヤーに戻す（削除を Undo すると、戻したレイヤーがまたアクティブになる）。削除したレイヤーの図形は選択から外す。添字は念のため範囲内に丸めた `safeActiveLayerIndex` を使う |
-| **レイヤー名** | `renameLayer(at:to:)` | レイヤー名を変える（Undo 対応、#95）。前後の空白・改行は取り除き（`normalizedLayerName(_:)`）、空になる名前は無視して元の名前のままにする。同じ名前のレイヤーは禁止しない |
+| **レイヤー名** | `renameLayer(at:to:)` | レイヤー名を変え、保存した名前を返す（Undo 対応、#95）。前後の空白・改行は取り除く。範囲外の添字と空になる名前は `EditorOperationError` を投げ、document は変えない（UI は無視して元の名前のままにし、MCP はエラーとして返す。検証をここに一本化するため）。同じ名前のレイヤーは禁止しない |
 | **ファイル** | `openDocument(at:)` / `newDocument()` | パネルなしで開く・新規にし、その場でエディタの状態（document・選択・アクティブレイヤー・Undo 履歴）を合わせる。未保存の変更は確認しない |
 | **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
@@ -489,7 +489,7 @@ AI エージェントから LCCAD を操作するための MCP Server をアプ�
 | `delete_shapes` / `move_shapes` | 削除 / 移動(ステッチは従来どおり消える / 追従する) |
 | `set_stroke` / `set_text` | 線の色(`#RRGGBB` / `#RRGGBBAA`)・線種 / テキストの内容・フォント・サイズなど |
 | `select_shapes` | 選択を指定する(画面にも反映される) |
-| `rename_layer` | `layer_index` のレイヤー名を変える(#95)。`EditorViewModel.renameLayer(at:to:)` を通り、前後の空白は取り除く。UI と違い、空になる名前は無視せずエラーにする(エージェントが気付けるように)。範囲外の `layer_index` もエラー |
+| `rename_layer` | `layer_index` のレイヤー名を変える(#95)。検証は `EditorViewModel.renameLayer(at:to:)` が行い、前後の空白は取り除く。UI と違い、空になる名前は無視せずエラーにする(エージェントが気付けるように)。範囲外の `layer_index` もエラー |
 | `undo` / `redo` | 取り消し / やり直し |
 | `new_document` / `open_document` | 未保存の変更があればエラー。`discard_changes: true` のときだけ破棄する。`EditorViewModel.newDocument()` / `openDocument(at:)` を通るので、Undo 履歴は消える |
 | `save_document` | `path` を省いたら今のファイルに保存する |

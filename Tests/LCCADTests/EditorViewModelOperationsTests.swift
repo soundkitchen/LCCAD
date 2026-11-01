@@ -236,7 +236,7 @@ final class EditorViewModelOperationsTests: XCTestCase {
     func testRenameLayerWithUndoRedo() {
         let (editor, undo) = makeUndoableEditor(["A", "B"])
         editor.activeLayerIndex = 0
-        register(undo) { editor.renameLayer(at: 1, to: "裁断線") }
+        register(undo) { try? editor.renameLayer(at: 1, to: "裁断線") }
         XCTAssertEqual(undo.undoActionName, "Rename Layer")
         XCTAssertEqual(editor.document.layers.map(\.name), ["A", "裁断線"])
         XCTAssertEqual(editor.activeLayerIndex, 0, "名前の変更はアクティブレイヤーを変えない")
@@ -247,25 +247,33 @@ final class EditorViewModelOperationsTests: XCTestCase {
         XCTAssertEqual(editor.document.layers.map(\.name), ["A", "裁断線"])
     }
 
-    func testRenameLayerTrimsWhitespace() {
+    func testRenameLayerTrimsWhitespace() throws {
         let (editor, _) = makeUndoableEditor(["A"])
         editor.undoManager = nil
-        editor.renameLayer(at: 0, to: "  ステッチ \n")
+        XCTAssertEqual(try editor.renameLayer(at: 0, to: "  ステッチ \n"), "ステッチ", "保存した名前を返す")
         XCTAssertEqual(editor.document.layers[0].name, "ステッチ")
         // 中の空白はそのまま
-        editor.renameLayer(at: 0, to: "刻印 1")
+        try editor.renameLayer(at: 0, to: "刻印 1")
         XCTAssertEqual(editor.document.layers[0].name, "刻印 1")
     }
 
-    /// 空・空白だけの名前、同じ名前、範囲外の添字では何も変えず、Undo も積まない
+    /// 空・空白だけの名前と範囲外の添字はエラーにし、同じ名前とあわせて何も変えず、Undo も積まない
     func testRenameLayerIgnoresEmptyUnchangedAndOutOfRange() {
         // 空のグループも canUndo に数えられるので、グループで囲まずに呼ぶ
         let (editor, undo) = makeUndoableEditor(["A"])
-        editor.renameLayer(at: 0, to: "")
-        editor.renameLayer(at: 0, to: "  \n ")
-        editor.renameLayer(at: 0, to: " A ")
-        editor.renameLayer(at: 3, to: "B")
-        editor.renameLayer(at: -1, to: "B")
+        XCTAssertThrowsError(try editor.renameLayer(at: 0, to: "")) {
+            XCTAssertEqual($0 as? EditorOperationError, .emptyLayerName)
+        }
+        XCTAssertThrowsError(try editor.renameLayer(at: 0, to: "  \n ")) {
+            XCTAssertEqual($0 as? EditorOperationError, .emptyLayerName)
+        }
+        XCTAssertNoThrow(try editor.renameLayer(at: 0, to: " A "), "同じ名前はエラーではない")
+        XCTAssertThrowsError(try editor.renameLayer(at: 3, to: "B")) {
+            XCTAssertEqual($0 as? EditorOperationError, .layerIndexOutOfRange(index: 3, count: 1))
+        }
+        XCTAssertThrowsError(try editor.renameLayer(at: -1, to: "B")) {
+            XCTAssertEqual($0 as? EditorOperationError, .layerIndexOutOfRange(index: -1, count: 1))
+        }
         XCTAssertEqual(editor.document.layers.map(\.name), ["A"])
         XCTAssertFalse(undo.canUndo)
     }

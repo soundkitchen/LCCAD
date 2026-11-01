@@ -434,14 +434,10 @@ struct MCPToolExecutor {
 
     // MARK: Layers
 
+    /// 検証は `renameLayer(at:to:)` が行う。UI では空の名前は元に戻すだけだが、
+    /// エージェントには失敗として返して気付けるようにする
     private func renameLayer(_ arguments: RenameLayerArguments) throws -> CallTool.Result {
-        guard editor.document.layers.indices.contains(arguments.layerIndex) else {
-            throw ToolError("layer_index \(arguments.layerIndex) is out of range (0..<\(editor.document.layers.count))")
-        }
-        let name = EditorViewModel.normalizedLayerName(arguments.name)
-        // UI では空の名前は元に戻すだけだが、エージェントには失敗として返して気付けるようにする
-        guard !name.isEmpty else { throw ToolError("name must not be empty") }
-        editor.renameLayer(at: arguments.layerIndex, to: name)
+        let name = try editor.renameLayer(at: arguments.layerIndex, to: arguments.name)
         return Self.success(["layer_index": .int(arguments.layerIndex), "name": .string(name)])
     }
 

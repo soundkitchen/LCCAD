@@ -5,10 +5,26 @@ import Foundation
 // 画面のジェスチャーやパネルを通さずに呼べる操作。UI もこれを呼び、
 // 外部からの操作(エージェント用の操作 API、#75)も同じ経路を通す。
 
-/// 操作の前提が満たされていないときのエラー
-enum EditorOperationError: Error, Equatable {
+/// 操作の前提が満たされていないときのエラー。
+/// 説明文はエージェント(MCP)にもそのまま返すので、英語で書く
+enum EditorOperationError: Error, Equatable, CustomStringConvertible {
     /// ファイルを扱う操作で、エディタに `LCCADFileDocument` が結び付いていない
     case noFileDocument
+    /// レイヤーの添字が範囲外
+    case layerIndexOutOfRange(index: Int, count: Int)
+    /// 前後の空白を取り除くと空になるレイヤー名
+    case emptyLayerName
+
+    var description: String {
+        switch self {
+        case .noFileDocument:
+            return "The editor has no file document"
+        case .layerIndexOutOfRange(let index, let count):
+            return "layer_index \(index) is out of range (0..<\(count))"
+        case .emptyLayerName:
+            return "name must not be empty"
+        }
+    }
 }
 
 extension EditorViewModel {
@@ -101,20 +117,22 @@ extension EditorViewModel {
         registerUndo(actionName: "Move Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 
-    /// レイヤー名を変える(#95)。前後の空白・改行は取り除く。
-    /// 取り除いた結果が空なら変えない(元の名前のまま)。名前が変わらなければ Undo は積まない
-    func renameLayer(at index: Int, to name: String) {
-        guard document.layers.indices.contains(index) else { return }
-        let trimmed = Self.normalizedLayerName(name)
-        guard !trimmed.isEmpty else { return }
+    /// レイヤー名を変え(#95)、保存した名前を返す。前後の空白・改行は取り除く。
+    /// 名前が変わらなければ Undo は積まない。UI(空なら元の名前のままにする)と
+    /// MCP(エラーとして返す)が同じ検証を通るように、不正な指定は投げる
+    /// - Throws: 範囲外の添字は `layerIndexOutOfRange`、空になる名前は `emptyLayerName`。
+    ///   どちらも document は変えない
+    @discardableResult
+    func renameLayer(at index: Int, to name: String) throws -> String {
+        guard document.layers.indices.contains(index) else {
+            throw EditorOperationError.layerIndexOutOfRange(index: index, count: document.layers.count)
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw EditorOperationError.emptyLayerName }
         let old = document
         document.layers[index].name = trimmed
         registerUndo(actionName: "Rename Layer", oldDocument: old)
-    }
-
-    /// レイヤー名として保存する形(前後の空白・改行を取り除く)。空ならレイヤー名には使えない
-    static func normalizedLayerName(_ name: String) -> String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed
     }
 
     /// レイヤーの表示 / 非表示を切り替える
