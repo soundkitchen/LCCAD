@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct LayerListView: View {
@@ -11,6 +12,8 @@ struct LayerListView: View {
     /// 名前の編集欄にフォーカスがあるレイヤー。欄ごとに区別して、別のレイヤーの編集に
     /// 移ったときの古い欄のフォーカスアウトで、新しい欄の編集を確定しないようにする
     @FocusState private var focusedNameFieldId: UUID?
+    /// 編集中だけ置く、入力欄の外のマウスダウンを拾うローカルモニター
+    @State private var outsideClickMonitor: Any?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -98,9 +101,18 @@ struct LayerListView: View {
             // ほかの場所をクリックするなどで、編集中の欄からフォーカスが外れたら確定する
             if let oldId, oldId == editingLayerId, newId != oldId { commitRenaming() }
         }
+        // 欄の外のクリックを拾うモニターは、編集中だけ置く
+        .onChange(of: editingLayerId) { _, id in
+            if id == nil { removeOutsideClickMonitor() } else { installOutsideClickMonitor() }
+        }
+        .onDisappear {
+            // Templates タブへの切り替えなどでリストが消えたら、編集中の名前を確定する
+            commitRenaming()
+            removeOutsideClickMonitor()
+        }
     }
 
-    /// 名前の編集欄。Enter かフォーカスが外れたら確定し、Escape で取り消す
+    /// 名前の編集欄。Enter・フォーカスが外れたとき・欄の外のクリックで確定し、Escape で取り消す
     private func nameField(for layerId: UUID) -> some View {
         TextField("", text: $draftName)
             .font(.system(size: 11))
@@ -121,6 +133,41 @@ struct LayerListView: View {
                 // フォーカスが移らないことがあるので、次のループで移す
                 DispatchQueue.main.async { focusedNameFieldId = layerId }
             }
+    }
+
+    /// パネルの空きスペースや Properties の余白など、フォーカスを取らない場所をクリックしても
+    /// 入力欄はフォーカスを手放さない(macOS の挙動)。そのため、欄の外のマウスダウンを
+    /// ローカルモニターで拾って確定する。イベントは消費しないので、クリックした先の操作は
+    /// そのまま行われる
+    private func installOutsideClickMonitor() {
+        guard outsideClickMonitor == nil else { return }
+        outsideClickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { event in
+            // ローカルモニターはメインスレッドで呼ばれる
+            MainActor.assumeIsolated {
+                if !Self.isInFocusedTextField(event) { commitRenaming() }
+            }
+            return event
+        }
+    }
+
+    private func removeOutsideClickMonitor() {
+        if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
+        outsideClickMonitor = nil
+    }
+
+    /// マウスダウンが、イベントのウィンドウで編集中のテキスト欄(フィールドエディタ)の上か
+    @MainActor
+    private static func isInFocusedTextField(_ event: NSEvent) -> Bool {
+        guard let window = event.window,
+              let fieldEditor = window.firstResponder as? NSTextView,
+              let contentView = window.contentView else { return false }
+        let point = contentView.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
+        guard let hit = contentView.hitTest(point) else { return false }
+        if hit === fieldEditor || hit.isDescendant(of: fieldEditor) { return true }
+        // 欄の内側の余白はフィールドエディタではなく NSTextField 自身に当たる
+        return (hit as? NSTextField)?.currentEditor() === fieldEditor
     }
 
     private func startRenaming(_ layer: Layer) {
