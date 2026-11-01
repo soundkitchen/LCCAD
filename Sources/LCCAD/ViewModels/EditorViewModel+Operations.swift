@@ -76,6 +76,8 @@ extension EditorViewModel {
         let index = safeActiveLayerIndex
         document.layers.remove(at: index)
         activeLayerIndex = min(index, document.layers.count - 1)
+        // 削除したレイヤーの図形が選択に残らないようにする(Redo も registerUndo で同じく外す)
+        removeMissingShapesFromSelection()
         registerUndo(actionName: "Delete Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 

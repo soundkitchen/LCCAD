@@ -177,6 +177,44 @@ final class EditorViewModelOperationsTests: XCTestCase {
         XCTAssertEqual(editor.activeLayerIndex, 1)
     }
 
+    /// Redo で戻るアクティブレイヤーは、Undo の前に選び直したレイヤーではなく操作の結果(review #97)
+    func testRedoRestoresActiveLayerOfTheOperationEvenAfterReselecting() {
+        let (editor, undo) = makeUndoableEditor(["A", "B"])
+        editor.activeLayerIndex = 1
+        register(undo) { editor.addLayer() }
+        editor.activeLayerIndex = 0
+        undo.undo()
+        XCTAssertEqual(editor.activeLayerIndex, 1)
+        undo.redo()
+        XCTAssertEqual(editor.activeLayerIndex, 2, "追加し直したレイヤーがアクティブになる")
+
+        editor.activeLayerIndex = 1
+        register(undo) { editor.moveActiveLayerUp() }
+        editor.activeLayerIndex = 2
+        undo.undo()
+        XCTAssertEqual(editor.activeLayerIndex, 1)
+        undo.redo()
+        XCTAssertEqual(editor.activeLayerIndex, 0, "移動し直したレイヤーがアクティブになる")
+    }
+
+    /// 削除したレイヤーの図形は選択から外れる。削除の Redo でも同じ(review #97)
+    func testRemoveLayerDropsItsShapesFromSelection() {
+        let (editor, undo) = makeUndoableEditor(["A", "B"])
+        let lineA = makeLine(0)
+        let lineB = makeLine(10)
+        editor.document.layers[0].shapes = [lineA]
+        editor.document.layers[1].shapes = [lineB]
+        editor.selectedShapeIds = [lineA.id, lineB.id]
+        editor.activeLayerIndex = 1
+        register(undo) { editor.removeActiveLayer() }
+        XCTAssertEqual(editor.selectedShapeIds, [lineA.id])
+
+        undo.undo()
+        editor.selectedShapeIds = [lineA.id, lineB.id]
+        undo.redo()
+        XCTAssertEqual(editor.selectedShapeIds, [lineA.id], "Redo でも外れる")
+    }
+
     func testToggleLayerVisibilityUndoRedo() {
         let (editor, undo) = makeUndoableEditor(["A", "B"])
         editor.activeLayerIndex = 1

@@ -179,7 +179,7 @@ Sources/LCCAD/
 | **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応） |
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **図形の追加** | `addShape(_:actionName:)` / `addShapes(_:actionName:)` | mm 座標の図形をアクティブレイヤーに追加（`addShapes` は複数をまとめて Undo 1 件）。作図ツールもここを通す |
-| **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo 対応、#84）。追加・削除・並べ替えは変更前のアクティブレイヤーも `registerUndo(oldActiveLayerIndex:)` に渡し、Undo / Redo で document と一緒に戻す（削除を Undo すると、戻したレイヤーがまたアクティブになる）。添字は念のため範囲内に丸めた `safeActiveLayerIndex` を使う |
+| **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo 対応、#84）。追加・削除・並べ替えは変更前のアクティブレイヤーも `registerUndo(oldActiveLayerIndex:)` に渡し、Undo では変更前、Redo では変更直後のアクティブレイヤーに戻す（削除を Undo すると、戻したレイヤーがまたアクティブになる）。削除したレイヤーの図形は選択から外す。添字は念のため範囲内に丸めた `safeActiveLayerIndex` を使う |
 | **レイヤー名** | `renameLayer(at:to:)` | レイヤー名を変える（Undo 対応、#95）。前後の空白・改行は取り除き（`normalizedLayerName(_:)`）、空になる名前は無視して元の名前のままにする。同じ名前のレイヤーは禁止しない |
 | **ファイル** | `openDocument(at:)` / `newDocument()` | パネルなしで開く・新規にし、その場でエディタの状態（document・選択・アクティブレイヤー・Undo 履歴）を合わせる。未保存の変更は確認しない |
 | **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
@@ -200,7 +200,7 @@ Sources/LCCAD/
 
 読み込み・新規作成で document が丸ごと置き換わったら、エディタの document を差し替え、古い document を指す状態(選択・アクティブレイヤー・Undo 履歴)をリセットする。これは `EditorViewModel.adoptLoadedDocumentIfNeeded()` が行い、合わせ済みの `loadGeneration` を覚えておいて、2 回目以降は何もしない。`openDocument(at:)` / `newDocument()` は置き換えの直後にその場で呼ぶので、続けて編集してもよい。メニューの開く・新規(パネルと未保存の確認つき)は `LCCADFileDocument` 側で置き換え、`MainEditorView` が `loadGeneration` の変化を見て呼ぶ。エディタを通さずに `LCCADFileDocument.read(from:)` を呼んで、そのまま `EditorViewModel` で編集してはいけない(エディタの古い document が、編集のたびに `LCCADFileDocument.data` へ書き戻されるため)。
 
-「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。Undo / Redo で document を戻したら、`activeLayerIndex` を範囲内に合わせる(戻した document のレイヤーが減っても、範囲外の添字が残らないように、#84)。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
+「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。Undo / Redo で document を戻したら、`activeLayerIndex` を範囲内に合わせ、戻した document に無い図形を選択から外す(`removeMissingShapesFromSelection()`。レイヤーや図形が減っても、範囲外の添字や存在しない id が残らないように、#84)。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
 
 **連続編集のまとめ (#72)**: 内容欄の打鍵やカラーピッカーのドラッグは 1 イベントごとに値が更新されるため、そのままだと Undo がイベントの数だけ積まれる。`updateTextProperty(coalescing:)` / `updateStroke(coalescing:)` に `CoalescedEdit.Kind`(`textContent` / `textColor` / `strokeColor`)を渡すと、種類と対象の図形 id の組を「まとめ中の連続編集」として覚え、最初の編集でだけ Undo を登録する。続く編集は document を更新するだけなので、最初に登録した Undo の `oldDocument`(編集前の状態)に 1 回で戻り、Redo すると最後の状態まで進む。まとめが終わる条件は次のとおり:
 
