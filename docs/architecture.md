@@ -190,8 +190,9 @@ Sources/LCCAD/
 | **ズーム** | `zoomToActualSize()` | 実寸 100%（`transform.baselineScale`）に戻し、原点をキャンバス中央に配置 |
 | **パン** | `centerView(on:)` / `panView(by:)` | ワールド座標の点（mm）をキャンバス中央に置く / 図面を画面上で指定の pt だけずらす（x が正なら右へ。マウスのドラッグと同じ向き）。どちらもズーム率は変えない。表示の変更は Undo に積まない（#81）。中央に寄せる計算は `centerView(on:)` に一本化し、`zoomToFit` / `zoomToActualSize` / `setZoomPercentage` もこれを使う。パンはマウスの中ボタン・端のスクロール・MCP のどれも `panView(by:)` を通す |
 | **表示範囲** | `visibleWorldRect` | キャンバスに今見えている範囲（mm）。MCP の `get_view` が返す |
-| **表示の準備** | `isViewReady` | 起動時の実寸 100% の適用が済んだか。済む前は `canvasSize` と 100% の基準が仮の値（800×600、3 pt/mm）で、外から表示を変えても適用のときに上書きされるため、MCP の `get_view` / `set_view` はこれを待つ（review #100） |
+| **表示の準備** | `isViewReady` | 起動時の実寸 100% の適用が済んだか。済む前は `canvasSize` と 100% の基準が仮の値（800×600、3 pt/mm）で、外から表示を変えても適用のときに上書きされるため、MCP の `get_view` / `set_view` はこれを待つ。密度が取れない環境では `markDisplayDensityUnavailable()` によりフォールバックの基準で済むので、待ち続けることはない（review #100） |
 | **ズーム** | `updateDisplayBaseline(pointsPerMm:)` | ディスプレイの物理密度を 100% の基準として反映。妥当レンジ（2〜15 pt/mm）外は誤推定（EDID 不明時の 72dpi 仮定値）として無視。初回はキャンバス実サイズの確定と両待ちで起動時の実寸 100% を適用、以降は % 表記の基準のみ更新（`DisplayDensityObserver` から供給。ディスプレイ移動とスケーリング変更に追従、#62） |
+| **ズーム** | `markDisplayDensityUnavailable()` | ウィンドウのディスプレイは分かったが密度が取れない（物理サイズを返さない仮想ディスプレイ、妥当レンジ外の誤推定）と知らせる。基準はフォールバック（未供給なら 1mm = 3pt）のまま確定し、キャンバス実サイズが揃った時点で起動時の実寸 100% を適用する。`DisplayDensityObserver` が呼ぶ。これがないと、こうした環境では起動時の適用がいつまでも済まず、`isViewReady` が false のままになる（review #100） |
 | **整列** | `alignSelectedShapes(_:)` | 左/右/上/下/水平中央/垂直中央揃え（Undo 対応） |
 | **分布** | `distributeSelectedShapes(_:)` | 水平/垂直等間隔分布（3個以上必要、Undo 対応） |
 | **反転** | `mirrorSelectedShapes(_:copy:)` | 縦軸/横軸で反転。in-place（中心軸）または copy（端軸で複製＋反転）（Undo 対応） |

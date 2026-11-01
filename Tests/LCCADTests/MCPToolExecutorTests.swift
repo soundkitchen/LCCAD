@@ -353,6 +353,18 @@ final class MCPToolExecutorTests: XCTestCase {
         assertSucceeded(call("set_view", ["zoom_percent": 200]))
     }
 
+    /// 密度が取れない環境(仮想ディスプレイなど)でも、表示のツールがいつまでも断られない(review #100)
+    func testViewToolsWorkWhenDisplayDensityIsUnavailable() throws {
+        editor.canvasSize = CGSize(width: 800, height: 600)
+        assertFailed(call("get_view"), containing: "not ready")
+
+        editor.markDisplayDensityUnavailable()
+
+        let view = try json(call("get_view"))
+        XCTAssertEqual(view["baseline_points_per_mm"] as? Double, Double(CanvasTransform.fallbackBaselineScale))
+        assertSucceeded(call("set_view", ["zoom_percent": 200]))
+    }
+
     /// ドラッグの途中は表示を変えない(画面とワールド座標の対応が変わるとドラッグが崩れるため)
     func testSetViewWaitsForTheGestureButGetViewDoesNot() throws {
         makeViewReady()

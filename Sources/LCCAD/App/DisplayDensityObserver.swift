@@ -17,9 +17,15 @@ struct DisplayDensityObserver: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = ScreenTrackingView()
         view.onScreenChange = { [weak editor] screen in
-            guard let editor, let screen,
-                  let pointsPerMm = DisplayDensityObserver.pointsPerMillimeter(of: screen) else { return }
-            editor.updateDisplayBaseline(pointsPerMm: pointsPerMm)
+            // ディスプレイが未確定(attach 直後など)なら、後追いの通知を待つ
+            guard let editor, let screen else { return }
+            if let pointsPerMm = DisplayDensityObserver.pointsPerMillimeter(of: screen),
+               EditorViewModel.plausibleDensityRange.contains(pointsPerMm) {
+                editor.updateDisplayBaseline(pointsPerMm: pointsPerMm)
+            } else {
+                // ディスプレイは分かったが密度が取れない。フォールバックの基準で確定させる (review #100)
+                editor.markDisplayDensityUnavailable()
+            }
         }
         return view
     }

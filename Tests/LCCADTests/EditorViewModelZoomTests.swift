@@ -218,6 +218,38 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9)
     }
 
+    /// 密度が取れない環境でも、フォールバックの基準で起動時の実寸 100% を済ませる(review #100)
+    func testDisplayDensityUnavailableAppliesActualSizeWithFallback() {
+        let editor = EditorViewModel(document: DocumentData.empty())
+
+        editor.markDisplayDensityUnavailable()
+        XCTAssertFalse(editor.isViewReady, "キャンバス実サイズが揃うまでは済まない")
+
+        editor.canvasSize = CGSize(width: 1000, height: 800)
+
+        XCTAssertTrue(editor.isViewReady)
+        XCTAssertEqual(editor.transform.baselineScale, CanvasTransform.fallbackBaselineScale, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, CanvasTransform.fallbackBaselineScale, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.x, 500, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 400, accuracy: 1e-9)
+
+        // あとで別のディスプレイで密度が取れたら、% 表記の基準だけ更新する
+        editor.updateDisplayBaseline(pointsPerMm: 6.0)
+        XCTAssertEqual(editor.transform.scale, CanvasTransform.fallbackBaselineScale, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.zoomPercentage, 50)
+    }
+
+    func testDisplayDensityUnavailableKeepsSuppliedBaseline() {
+        let editor = EditorViewModel(document: DocumentData.empty())
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        editor.markDisplayDensityUnavailable()
+        editor.canvasSize = CGSize(width: 800, height: 600)
+
+        XCTAssertTrue(editor.isViewReady)
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
+    }
+
     func testZoomToActualSizeUsesBaseline() {
         let editor = makeEditor(shapes: [])
         editor.updateDisplayBaseline(pointsPerMm: 4.85)

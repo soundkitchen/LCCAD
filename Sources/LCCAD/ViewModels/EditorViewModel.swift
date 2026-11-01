@@ -158,7 +158,8 @@ final class EditorViewModel {
     /// 起動時の実寸 100% 適用を一度だけ行うためのフラグ（applyInitialActualSizeIfNeeded 参照）
     private var hasAppliedInitialActualSize = false
 
-    /// ディスプレイの物理密度が一度でも供給されたか
+    /// 100% の基準が確定したか。ディスプレイの物理密度が一度でも供給されたか、
+    /// 密度が取れない環境だと知らされた(フォールバックの 1mm = 3pt のまま確定した)とき true
     private var isDisplayBaselineKnown = false
 
     /// canvasSize がビュー側から一度でも供給されたか（初期値 800×600 のままかの区別）
@@ -2109,7 +2110,7 @@ final class EditorViewModel {
     /// 実在ディスプレイとして妥当な物理密度レンジ（pt/mm、約 51〜381 論理 ppi）。
     /// EDID から物理サイズが取れないディスプレイで CGDisplayScreenSize が返す
     /// 72dpi 仮定の推定値（2x 仮想ディスプレイで約 1.4pt/mm）を弾く (review #64)
-    private static let plausibleDensityRange: ClosedRange<CGFloat> = 2.0...15.0
+    static let plausibleDensityRange: ClosedRange<CGFloat> = 2.0...15.0
 
     /// ウィンドウのあるディスプレイの物理密度（pt/mm）を 100% の基準として反映する (#62)。
     /// 初回はキャンバス実サイズの確定と両待ちで起動時の実寸 100% を適用する。以降の
@@ -2118,6 +2119,16 @@ final class EditorViewModel {
     func updateDisplayBaseline(pointsPerMm: CGFloat) {
         guard Self.plausibleDensityRange.contains(pointsPerMm) else { return }
         transform.baselineScale = pointsPerMm
+        isDisplayBaselineKnown = true
+        applyInitialActualSizeIfNeeded()
+    }
+
+    /// ウィンドウのあるディスプレイの物理密度が取れない(物理サイズを返さない仮想ディスプレイ、
+    /// 妥当レンジ外の誤推定など)と知らせる。基準はフォールバック(未供給なら 1mm = 3pt)のまま確定し、
+    /// キャンバス実サイズが揃っていれば起動時の実寸 100% を適用する。これがないと、こうした環境では
+    /// 起動時の適用がいつまでも済まず、MCP の表示のツールが使えないままになる (review #100)。
+    /// すでに密度が供給されていれば、その基準をそのまま使う
+    func markDisplayDensityUnavailable() {
         isDisplayBaselineKnown = true
         applyInitialActualSizeIfNeeded()
     }
