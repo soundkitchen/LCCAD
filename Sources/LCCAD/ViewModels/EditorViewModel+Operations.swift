@@ -55,45 +55,57 @@ extension EditorViewModel {
 
     // MARK: - Layers
     //
-    // レイヤー操作は従来どおり Undo を登録しない。
-    // Undo でレイヤーが減ると `activeLayerIndex` が範囲外のまま残ることがあるので、
-    // 添字は範囲内に丸めた `safeActiveLayerIndex` を使う
+    // レイヤー操作はどれも Undo 1 件になる(#84)。追加・削除・並べ替えはアクティブレイヤーも
+    // 変えるので、変更前のアクティブレイヤーも一緒に登録し、Undo / Redo で戻す。
+    // 添字は念のため範囲内に丸めた `safeActiveLayerIndex` を使う
 
     /// 新しいレイヤーを末尾に追加し、アクティブにする
     func addLayer() {
+        let old = document
+        let oldActive = activeLayerIndex
         let newLayer = Layer(name: "Layer \(document.layers.count + 1)")
         document.layers.append(newLayer)
         activeLayerIndex = document.layers.count - 1
+        registerUndo(actionName: "Add Layer", oldDocument: old, oldActiveLayerIndex: oldActive)
     }
 
     /// アクティブレイヤーを削除する。最後の 1 枚は削除しない
     func removeActiveLayer() {
         guard document.layers.count > 1 else { return }
+        let old = document
         let index = safeActiveLayerIndex
         document.layers.remove(at: index)
         activeLayerIndex = min(index, document.layers.count - 1)
+        registerUndo(actionName: "Delete Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 
     /// アクティブレイヤーを 1 つ上(リストの前)へ移す
     func moveActiveLayerUp() {
         let index = safeActiveLayerIndex
         guard index > 0 else { return }
+        let old = document
         document.layers.swapAt(index, index - 1)
         activeLayerIndex = index - 1
+        registerUndo(actionName: "Move Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 
     /// アクティブレイヤーを 1 つ下(リストの後ろ)へ移す
     func moveActiveLayerDown() {
         let index = safeActiveLayerIndex
         guard index < document.layers.count - 1 else { return }
+        let old = document
         document.layers.swapAt(index, index + 1)
         activeLayerIndex = index + 1
+        registerUndo(actionName: "Move Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 
     /// レイヤーの表示 / 非表示を切り替える
     func toggleLayerVisibility(at index: Int) {
         guard document.layers.indices.contains(index) else { return }
+        let old = document
         document.layers[index].isVisible.toggle()
+        let actionName = document.layers[index].isVisible ? "Show Layer" : "Hide Layer"
+        registerUndo(actionName: actionName, oldDocument: old)
     }
 
     // MARK: - Export

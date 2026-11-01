@@ -440,10 +440,15 @@ final class EditorViewModel {
         coalescedEditResult = nil
     }
 
-    /// Undo を登録する。
+    /// Undo を登録する。Undo / Redo で document を戻したら、`activeLayerIndex` を範囲内に合わせる
+    /// (レイヤーが減って範囲外のまま残らないように、#84)。
+    /// - Parameter oldActiveLayerIndex: 変更前のアクティブレイヤー。レイヤー操作が渡し、
+    ///   Undo / Redo で document と一緒に戻す(削除したレイヤーを Undo で戻したら、またアクティブにする)。
+    ///   `nil` ならアクティブレイヤーはそのまま(範囲内への丸めだけ行う)
     /// - Parameter edit: 連続編集としてまとめる単位。同じ編集がまとめ中で、変更前の状態が
     ///   その編集の結果のままなら登録を省き、そうでなければ通常どおり登録してまとめを始める
-    private func registerUndo(actionName: String, oldDocument: DocumentData, coalescing edit: CoalescedEdit? = nil) {
+    func registerUndo(actionName: String, oldDocument: DocumentData, oldActiveLayerIndex: Int? = nil,
+                      coalescing edit: CoalescedEdit? = nil) {
         if let edit, edit == activeCoalescedEdit, oldDocument == coalescedEditResult {
             coalescedEditResult = document
             return
@@ -457,13 +462,19 @@ final class EditorViewModel {
         guard let undoManager, oldDocument != document else { return }
         undoManager.registerUndo(withTarget: self) { target in
             let redoDoc = target.document
+            let redoActiveLayerIndex = oldActiveLayerIndex.map { _ in target.activeLayerIndex }
             target.document = oldDocument
+            if let oldActiveLayerIndex {
+                target.activeLayerIndex = oldActiveLayerIndex
+            }
+            target.activeLayerIndex = target.safeActiveLayerIndex
             // Undo/redo swaps the document out from under a pending hybrid pick; the
             // parked walkers would go stale against the restored geometry, so a later
             // click could commit holes for shapes that no longer match. Drop the pick.
             target.pendingHybridRuns = []
             target.hybridPickPreview = nil
-            target.registerUndo(actionName: actionName, oldDocument: redoDoc)
+            target.registerUndo(actionName: actionName, oldDocument: redoDoc,
+                                oldActiveLayerIndex: redoActiveLayerIndex)
         }
         undoManager.setActionName(actionName)
         if let edit {

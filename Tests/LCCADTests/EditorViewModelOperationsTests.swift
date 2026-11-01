@@ -106,24 +106,135 @@ final class EditorViewModelOperationsTests: XCTestCase {
         XCTAssertEqual(editor.document.layers.map(\.name), ["B", "C", "A"])
     }
 
-    /// レイヤー追加(Undo なし)の後に、図形の追加を Undo してレイヤーが減ると、
-    /// activeLayerIndex が範囲外のまま残る。その状態でもレイヤー操作が落ちない
-    func testLayerOperationsTolerateStaleActiveLayerIndex() {
-        let editor = EditorViewModel(document: .empty())
+    // MARK: - レイヤー操作の Undo (#84)
+
+    private func makeUndoableEditor(_ names: [String]) -> (EditorViewModel, UndoManager) {
+        let editor = EditorViewModel(document: DocumentData(layers: names.map { Layer(name: $0) }))
         let undo = UndoManager()
+        undo.groupsByEvent = false
         editor.undoManager = undo
-        editor.addShape(makeLine(0))
-        editor.addLayer()
+        return (editor, undo)
+    }
+
+    /// Undo / Redo を 1 件ずつ行う(`groupsByEvent = false` なのでグループで囲む)
+    private func register(_ undo: UndoManager, _ action: () -> Void) {
+        undo.beginUndoGrouping()
+        action()
+        undo.endUndoGrouping()
+    }
+
+    func testAddLayerUndoRedoRestoresActiveLayer() {
+        let (editor, undo) = makeUndoableEditor(["A", "B"])
+        editor.activeLayerIndex = 0
+        register(undo) { editor.addLayer() }
+        XCTAssertEqual(undo.undoActionName, "Add Layer")
+        XCTAssertEqual(editor.activeLayerIndex, 2)
+
+        undo.undo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "B"])
+        XCTAssertEqual(editor.activeLayerIndex, 0, "追加前のアクティブレイヤーに戻る")
+
+        undo.redo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "B", "Layer 3"])
+        XCTAssertEqual(editor.activeLayerIndex, 2)
+    }
+
+    func testRemoveLayerUndoRedoRestoresActiveLayer() {
+        let (editor, undo) = makeUndoableEditor(["A", "B", "C"])
+        editor.activeLayerIndex = 1
+        register(undo) { editor.removeActiveLayer() }
+        XCTAssertEqual(undo.undoActionName, "Delete Layer")
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "C"])
+
+        undo.undo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "B", "C"])
+        XCTAssertEqual(editor.activeLayerIndex, 1, "戻したレイヤーがまたアクティブになる")
+
+        undo.redo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "C"])
+        XCTAssertEqual(editor.activeLayerIndex, 1)
+    }
+
+    func testMoveLayerUndoRedoFollowsTheLayer() {
+        let (editor, undo) = makeUndoableEditor(["A", "B", "C"])
+        editor.activeLayerIndex = 1
+        register(undo) { editor.moveActiveLayerUp() }
+        register(undo) { editor.moveActiveLayerDown() }
+        register(undo) { editor.moveActiveLayerDown() }
+        XCTAssertEqual(undo.undoActionName, "Move Layer")
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "C", "B"])
+        XCTAssertEqual(editor.activeLayerIndex, 2)
+
+        undo.undo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "B", "C"])
+        XCTAssertEqual(editor.activeLayerIndex, 1)
+        undo.undo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["B", "A", "C"])
+        XCTAssertEqual(editor.activeLayerIndex, 0)
+
+        undo.redo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "B", "C"])
+        XCTAssertEqual(editor.activeLayerIndex, 1)
+    }
+
+    func testToggleLayerVisibilityUndoRedo() {
+        let (editor, undo) = makeUndoableEditor(["A", "B"])
+        editor.activeLayerIndex = 1
+        register(undo) { editor.toggleLayerVisibility(at: 0) }
+        XCTAssertEqual(undo.undoActionName, "Hide Layer")
+
+        undo.undo()
+        XCTAssertTrue(editor.document.layers[0].isVisible)
+        XCTAssertEqual(editor.activeLayerIndex, 1, "表示切り替えはアクティブレイヤーを変えない")
+
+        undo.redo()
+        XCTAssertFalse(editor.document.layers[0].isVisible)
+        register(undo) { editor.toggleLayerVisibility(at: 0) }
+        XCTAssertEqual(undo.undoActionName, "Show Layer")
+    }
+
+    /// 最後の 1 枚の削除や端での移動など、何も変えない操作は Undo を積まない
+    func testNoOpLayerOperationsRegisterNoUndo() {
+        // 空のグループも canUndo に数えられるので、グループで囲まずに呼ぶ
+        // (groupsByEvent = false でグループの外から登録すると例外になるので、登録したら分かる)
+        let (editor, undo) = makeUndoableEditor(["A"])
+        editor.removeActiveLayer()
+        editor.moveActiveLayerUp()
+        editor.moveActiveLayerDown()
+        editor.toggleLayerVisibility(at: 5)
+        XCTAssertFalse(undo.canUndo)
+    }
+
+    /// #84 の再現: 線を描く → レイヤーを削除 → ⌘Z で、削除したレイヤーだけが戻り、線は残る
+    func testUndoAfterRemovingLayerRestoresOnlyTheLayer() {
+        let (editor, undo) = makeUndoableEditor(["A", "B"])
+        editor.activeLayerIndex = 0
+        register(undo) { editor.addShape(makeLine(0)) }
+        editor.activeLayerIndex = 1
+        register(undo) { editor.removeActiveLayer() }
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A"])
+
+        undo.undo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "B"])
+        XCTAssertEqual(editor.document.layers[0].shapes.count, 1, "線はまだ残っている")
         XCTAssertEqual(editor.activeLayerIndex, 1)
 
         undo.undo()
-        XCTAssertEqual(editor.document.layers.count, 1)
-        XCTAssertEqual(editor.activeLayerIndex, 1, "前提: 添字が範囲外のまま残る")
+        XCTAssertEqual(editor.document.layers.map(\.name), ["A", "B"])
+        XCTAssertTrue(editor.document.layers[0].shapes.isEmpty)
+    }
 
-        editor.moveActiveLayerUp()
-        editor.moveActiveLayerDown()
-        editor.removeActiveLayer()
+    /// Undo で戻した document のレイヤーが減っても、activeLayerIndex は範囲内に合わせる
+    func testUndoClampsActiveLayerIndexIntoRange() {
+        let (editor, undo) = makeUndoableEditor(["A"])
+        register(undo) { editor.addShape(makeLine(0)) }
+        // Undo を通さずにレイヤーが増えた状態(古いファイル由来の履歴など)
+        editor.document.layers.append(Layer(name: "B"))
+        editor.activeLayerIndex = 1
+
+        undo.undo()
         XCTAssertEqual(editor.document.layers.count, 1)
+        XCTAssertEqual(editor.activeLayerIndex, 0)
     }
 
     func testRemoveActiveLayerWithStaleIndexRemovesTheClampedLayer() {
