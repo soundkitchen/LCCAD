@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct LayerListView: View {
@@ -7,13 +6,9 @@ struct LayerListView: View {
 
     /// 名前を編集中のレイヤー(#95)。確定・取り消しで nil に戻す
     @State private var editingLayerId: UUID?
-    /// 編集中の名前。確定するまで document には書き込まない
+    /// 編集中の名前(未確定文字を含む)。確定するまで document には書き込まない。
+    /// 欄が確定を伝える前に編集を終えるとき(別のレイヤーの編集に移る、リストが消える)に使う
     @State private var draftName = ""
-    /// 名前の編集欄にフォーカスがあるレイヤー。欄ごとに区別して、別のレイヤーの編集に
-    /// 移ったときの古い欄のフォーカスアウトで、新しい欄の編集を確定しないようにする
-    @FocusState private var focusedNameFieldId: UUID?
-    /// 編集中だけ置く、入力欄の外のマウスダウンを拾うローカルモニター
-    @State private var outsideClickMonitor: Any?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,7 +60,7 @@ struct LayerListView: View {
                             .buttonStyle(.plain)
 
                             if editingLayerId == layer.id {
-                                nameField(for: layer.id)
+                                nameField(for: layer)
                             } else {
                                 Text(layer.name)
                                     .font(.system(size: 11))
@@ -97,94 +92,58 @@ struct LayerListView: View {
                 .padding(.vertical, 4)
             }
         }
-        .onChange(of: focusedNameFieldId) { oldId, newId in
-            // ほかの場所をクリックするなどで、編集中の欄からフォーカスが外れたら確定する
-            if let oldId, oldId == editingLayerId, newId != oldId { commitRenaming() }
-        }
-        // 欄の外のクリックを拾うモニターは、編集中だけ置く
-        .onChange(of: editingLayerId) { _, id in
-            if id == nil { removeOutsideClickMonitor() } else { installOutsideClickMonitor() }
+        .onChange(of: editor.document.layers.map(\.id)) { _, ids in
+            // 編集中のレイヤーが Undo などで消えたら、編集をやめる(review #97)。
+            // 残しておくと、Redo で同じ id のレイヤーが戻ったときに古い下書きのまま編集が続く
+            if let editingLayerId, !ids.contains(editingLayerId) { cancelRenaming() }
         }
         .onDisappear {
             // Templates タブへの切り替えなどでリストが消えたら、編集中の名前を確定する
-            commitRenaming()
-            removeOutsideClickMonitor()
+            commitRenaming(draftName)
         }
     }
 
-    /// 名前の編集欄。Enter・フォーカスが外れたとき・欄の外のクリックで確定し、Escape で取り消す
-    private func nameField(for layerId: UUID) -> some View {
-        TextField("", text: $draftName)
-            .font(.system(size: 11))
-            .textFieldStyle(.plain)
-            .focused($focusedNameFieldId, equals: layerId)
-            .onSubmit { commitRenaming() }
-            .onExitCommand { cancelRenaming() }
-            .padding(.horizontal, 4)
-            .frame(height: 22)
-            .background(DesignTokens.bgInput(colorScheme))
-            .cornerRadius(4)
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(DesignTokens.accent, lineWidth: 1)
-            )
-            .onAppear {
-                // 右クリックメニューから始めたときは、メニューが閉じてからでないと
-                // フォーカスが移らないことがあるので、次のループで移す
-                DispatchQueue.main.async { focusedNameFieldId = layerId }
+    /// 名前の編集欄。Enter・欄の外のクリック・フォーカスが外れたときに確定し、Escape で取り消す。
+    /// 入力の Undo は欄の中だけで扱う(`LayerNameField` 参照)
+    private func nameField(for layer: Layer) -> some View {
+        LayerNameField(
+            initialName: layer.name,
+            onChange: { draftName = $0 },
+            onCommit: { name in
+                // 別のレイヤーの編集に移った後に、古い欄から届いた確定は無視する
+                guard editingLayerId == layer.id else { return }
+                commitRenaming(name)
+            },
+            onCancel: {
+                guard editingLayerId == layer.id else { return }
+                cancelRenaming()
             }
-    }
-
-    /// パネルの空きスペースや Properties の余白など、フォーカスを取らない場所をクリックしても
-    /// 入力欄はフォーカスを手放さない(macOS の挙動)。そのため、欄の外のマウスダウンを
-    /// ローカルモニターで拾って確定する。イベントは消費しないので、クリックした先の操作は
-    /// そのまま行われる
-    private func installOutsideClickMonitor() {
-        guard outsideClickMonitor == nil else { return }
-        outsideClickMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
-        ) { event in
-            // ローカルモニターはメインスレッドで呼ばれる
-            MainActor.assumeIsolated {
-                if !Self.isInFocusedTextField(event) { commitRenaming() }
-            }
-            return event
-        }
-    }
-
-    private func removeOutsideClickMonitor() {
-        if let outsideClickMonitor { NSEvent.removeMonitor(outsideClickMonitor) }
-        outsideClickMonitor = nil
-    }
-
-    /// マウスダウンが、イベントのウィンドウで編集中のテキスト欄(フィールドエディタ)の上か
-    @MainActor
-    private static func isInFocusedTextField(_ event: NSEvent) -> Bool {
-        guard let window = event.window,
-              let fieldEditor = window.firstResponder as? NSTextView,
-              let contentView = window.contentView else { return false }
-        let point = contentView.superview?.convert(event.locationInWindow, from: nil) ?? event.locationInWindow
-        guard let hit = contentView.hitTest(point) else { return false }
-        if hit === fieldEditor || hit.isDescendant(of: fieldEditor) { return true }
-        // 欄の内側の余白はフィールドエディタではなく NSTextField 自身に当たる
-        return (hit as? NSTextField)?.currentEditor() === fieldEditor
+        )
+        .padding(.horizontal, 4)
+        .frame(height: 22)
+        .background(DesignTokens.bgInput(colorScheme))
+        .cornerRadius(4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(DesignTokens.accent, lineWidth: 1)
+        )
     }
 
     private func startRenaming(_ layer: Layer) {
         // 同じレイヤーの編集中(欄の中のダブルクリックなど)は、入力中の名前を残す
         guard editingLayerId != layer.id else { return }
-        commitRenaming()
+        commitRenaming(draftName)
         draftName = layer.name
         editingLayerId = layer.id
     }
 
-    /// 編集中の名前を確定する。先に編集状態を解くので、確定の後に続くフォーカスアウトでは何もしない。
-    private func commitRenaming() {
+    /// 編集中の名前を確定する。先に編集状態を解くので、2 回目以降は何もしない
+    private func commitRenaming(_ name: String) {
         guard let id = editingLayerId else { return }
         editingLayerId = nil
         guard let index = editor.document.layers.firstIndex(where: { $0.id == id }) else { return }
         // 空になる名前は無視して元の名前のままにする(renameLayer が投げて何も変えない)
-        try? editor.renameLayer(at: index, to: draftName)
+        try? editor.renameLayer(at: index, to: name)
     }
 
     private func cancelRenaming() {
