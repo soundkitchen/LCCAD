@@ -99,6 +99,22 @@ extension EditorViewModel {
         registerUndo(actionName: "Move Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 
+    /// レイヤー名を変える(#95)。前後の空白・改行は取り除く。
+    /// 取り除いた結果が空なら変えない(元の名前のまま)。名前が変わらなければ Undo は積まない
+    func renameLayer(at index: Int, to name: String) {
+        guard document.layers.indices.contains(index) else { return }
+        let trimmed = Self.normalizedLayerName(name)
+        guard !trimmed.isEmpty else { return }
+        let old = document
+        document.layers[index].name = trimmed
+        registerUndo(actionName: "Rename Layer", oldDocument: old)
+    }
+
+    /// レイヤー名として保存する形(前後の空白・改行を取り除く)。空ならレイヤー名には使えない
+    static func normalizedLayerName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// レイヤーの表示 / 非表示を切り替える
     func toggleLayerVisibility(at index: Int) {
         guard document.layers.indices.contains(index) else { return }

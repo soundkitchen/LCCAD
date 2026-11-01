@@ -180,6 +180,7 @@ Sources/LCCAD/
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **図形の追加** | `addShape(_:actionName:)` / `addShapes(_:actionName:)` | mm 座標の図形をアクティブレイヤーに追加（`addShapes` は複数をまとめて Undo 1 件）。作図ツールもここを通す |
 | **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo 対応、#84）。追加・削除・並べ替えは変更前のアクティブレイヤーも `registerUndo(oldActiveLayerIndex:)` に渡し、Undo / Redo で document と一緒に戻す（削除を Undo すると、戻したレイヤーがまたアクティブになる）。添字は念のため範囲内に丸めた `safeActiveLayerIndex` を使う |
+| **レイヤー名** | `renameLayer(at:to:)` | レイヤー名を変える（Undo 対応、#95）。前後の空白・改行は取り除き（`normalizedLayerName(_:)`）、空になる名前は無視して元の名前のままにする。同じ名前のレイヤーは禁止しない |
 | **ファイル** | `openDocument(at:)` / `newDocument()` | パネルなしで開く・新規にし、その場でエディタの状態（document・選択・アクティブレイヤー・Undo 履歴）を合わせる。未保存の変更は確認しない |
 | **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
