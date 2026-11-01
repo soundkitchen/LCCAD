@@ -18,14 +18,17 @@ import SwiftUI
 //   文字列(未確定文字を含む)から読む
 //
 // Enter・欄の外のクリック・フォーカスが外れたとき(Tab など)で確定し、Escape で取り消す。
-// 確定・取り消しはどちらか 1 回だけ親に伝える。確定・取り消しの後は、フォーカスをキャンバスに移す
-// (キャンバスの 1 文字のショートカットがすぐ効くように)。
+// 確定・取り消しはどちらか 1 回だけ親に伝える。Enter・Escape・欄の外のクリックで終えたときは、
+// フォーカスをキャンバスに移す(キャンバスの 1 文字のショートカットがすぐ効くように)。Tab や別の
+// ウィンドウのクリックなど、先にフォーカスがほかへ移ったときは、その移動に任せる。
 
 struct LayerNameField: NSViewRepresentable {
     let initialName: String
     var fontSize: CGFloat = 11
     /// 文字列が変わるたびに呼ばれる(未確定文字を含む)。親が下書きを持つため
     var onChange: (String) -> Void = { _ in }
+    /// 編集を終えたときにフォーカスを移すビュー(キャンバス)。nil ならウィンドウに移す
+    var focusAfterEditing: () -> NSView? = { nil }
     /// 確定した文字列(前後の空白は取り除いていない)
     let onCommit: (String) -> Void
     let onCancel: () -> Void
@@ -87,21 +90,23 @@ struct LayerNameField: NSViewRepresentable {
         }
 
         /// 欄にフォーカスを移して全選択し、欄の外のクリックの監視を始める
-        func beginEditing() {
+        /// - Parameter installsMouseDownMonitor: テストでは false にして、本物のクリックで確定しないようにする
+        func beginEditing(installsMouseDownMonitor: Bool = true) {
             guard let field, let window = field.window, !isFinished else { return }
             window.makeFirstResponder(field)
             field.currentEditor()?.selectAll(nil)
-            installMouseDownMonitor()
+            if installsMouseDownMonitor { self.installMouseDownMonitor() }
         }
 
-        /// 編集を終えたときにフォーカスを移す先。同じウィンドウのキャンバス(`ScrollZoomNSView`)、
-        /// 見つからなければ nil(ウィンドウ)。
+        /// 編集を終えたときにフォーカスを移す先。親が渡すキャンバスのビュー(同じウィンドウにあるときだけ)、
+        /// なければ nil(ウィンドウ)。
         /// キャンバスの 1 文字のツール切り替えなどは、キャンバスがファーストレスポンダーのときだけ効く。
         /// 編集前のファーストレスポンダーに戻すだけでは、Properties の入力欄で値を確定した直後
         /// (SwiftUI の入力欄は Enter の後もフォーカスを持ったまま)に名前を編集したときなどに
-        /// キャンバスへ戻らないので、いつもキャンバスに移す
+        /// キャンバスへ戻らないので、キャンバスに移す
         private func responderAfterEditing(in window: NSWindow) -> NSResponder? {
-            window.contentView?.firstDescendant(of: ScrollZoomNSView.self)
+            guard let view = parent.focusAfterEditing(), view.window === window else { return nil }
+            return view
         }
 
         private func installMouseDownMonitor() {
@@ -145,7 +150,9 @@ struct LayerNameField: NSViewRepresentable {
                 }
             }
             let text = fieldEditor?.string ?? field?.stringValue ?? ""
-            // フォーカスをキャンバスに移す。ここから textDidEndEditing が呼ばれても、終えた後なので何もしない
+            // まだ欄にフォーカスがあれば(Enter・Escape・欄の外のクリック)、キャンバスに移す。
+            // Tab などで先にフォーカスが移っていれば、その移動に任せる。
+            // ここから textDidEndEditing が呼ばれても、終えた後なので何もしない
             if let field, let window = field.window, let fieldEditor, window.firstResponder === fieldEditor {
                 window.makeFirstResponder(responderAfterEditing(in: window))
             }
@@ -228,16 +235,5 @@ final class LayerNameTextField: NSTextField, NSMenuItemValidation {
         default:
             return true
         }
-    }
-}
-
-private extension NSView {
-    /// 子孫のビューから、指定した型の最初のものを深さ優先で探す
-    func firstDescendant<T: NSView>(of type: T.Type) -> T? {
-        for subview in subviews {
-            if let match = subview as? T { return match }
-            if let match = subview.firstDescendant(of: type) { return match }
-        }
-        return nil
     }
 }

@@ -19,11 +19,14 @@ struct ScrollZoomRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> ScrollZoomNSView {
         let view = ScrollZoomNSView()
         view.editor = editor
+        // キャンバスのキー入力を受けるビューとして登録する(レイヤー名の編集を終えたらここへフォーカスを戻す)
+        editor.canvasKeyView = view
         return view
     }
 
     func updateNSView(_ nsView: ScrollZoomNSView, context: Context) {
         nsView.editor = editor
+        editor.canvasKeyView = nsView
     }
 }
 

@@ -109,6 +109,7 @@ struct LayerListView: View {
         LayerNameField(
             initialName: layer.name,
             onChange: { draftName = $0 },
+            focusAfterEditing: { editor.canvasKeyView },
             onCommit: { name in
                 // 別のレイヤーの編集に移った後に、古い欄から届いた確定は無視する
                 guard editingLayerId == layer.id else { return }

@@ -33,16 +33,19 @@ final class LayerNameFieldTests: XCTestCase {
 
         committed = []
         cancelCount = 0
+        let canvas = canvas!
         let parent = LayerNameField(
             initialName: "Layer 1",
+            focusAfterEditing: { canvas },
             onCommit: { [unowned self] in committed.append($0) },
             onCancel: { [unowned self] in cancelCount += 1 })
         coordinator = LayerNameField.Coordinator(parent)
         coordinator.field = field
         field.delegate = coordinator
-        // ウィンドウに載せた後に結ぶ(載せたときの非同期のフォーカス移動は使わず、beginEditing() を直接呼ぶ)
+        // ウィンドウに載せた後に結ぶ(載せたときの非同期のフォーカス移動は使わず、beginEditing() を直接呼ぶ。
+        // 本物のクリックで確定しないように、欄の外のクリックの監視は置かない)
         field.coordinator = coordinator
-        coordinator.beginEditing()
+        coordinator.beginEditing(installsMouseDownMonitor: false)
         XCTAssertNotNil(field.currentEditor(), "欄にフォーカスが移る")
     }
 
@@ -118,20 +121,22 @@ final class LayerNameFieldTests: XCTestCase {
         XCTAssertIdentical(window.firstResponder, canvas, "編集前のフォーカスがどこでも、キャンバスに移る")
     }
 
-    /// キャンバスが無いウィンドウでは、ウィンドウにフォーカスを移す
+    /// キャンバスが同じウィンドウに無ければ、ウィンドウにフォーカスを移す
     func testFocusFallsBackToWindowWithoutCanvas() throws {
         canvas.removeFromSuperview()
         coordinator.finish(commit: true)
         XCTAssertIdentical(window.firstResponder, window)
     }
 
-    /// Tab などでフォーカスが外れたときも確定する
+    /// Tab などでフォーカスがほかへ移ったときも確定する。フォーカスはキャンバスに移さず、その移動に任せる
     func testLosingFocusCommits() throws {
         let editor = try fieldEditor()
         editor.selectAll(nil)
         editor.insertText("型紙", replacementRange: editor.selectedRange())
 
-        window.makeFirstResponder(nil)
+        XCTAssertTrue(window.makeFirstResponder(otherField))
         XCTAssertEqual(committed, ["型紙"])
+        XCTAssertNotNil(otherField.currentEditor())
+        XCTAssertIdentical(window.firstResponder, otherField.currentEditor(), "移った先のフォーカスはそのまま")
     }
 }

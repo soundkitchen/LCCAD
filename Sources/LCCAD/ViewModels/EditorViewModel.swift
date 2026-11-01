@@ -326,6 +326,10 @@ final class EditorViewModel {
     // Document binding
     weak var fileDocument: LCCADFileDocument?
     var undoManager: UndoManager?
+    /// キャンバスのキー入力を受けるビュー(`ScrollZoomNSView`)。キャンバスの 1 文字のショートカットは
+    /// これがファーストレスポンダーのときだけ効くので、レイヤー名の編集を終えたらここへフォーカスを移す
+    /// (`LayerNameField`、review #98)。キャンバス側が `ScrollZoomRepresentable` で登録する
+    @ObservationIgnored weak var canvasKeyView: NSView?
     /// エディタの状態を合わせ済みの `LCCADFileDocument.loadGeneration`
     /// (`adoptLoadedDocumentIfNeeded()` 参照、#78)
     @ObservationIgnored var adoptedLoadGeneration = 0
