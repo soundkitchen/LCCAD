@@ -4,11 +4,13 @@ import MCP
 // MARK: - ツールの定義 (#79)
 //
 // エージェントが読む説明文は、アプリの UI 文言と同じく英語で書く。
-// 引数は snake_case。座標と長さは mm、座標系は左上原点・Y 軸下向き。
+// 引数は snake_case。座標と長さは mm(get_view / set_view の表示の値だけは画面の pt)、
+// 座標系は左上原点・Y 軸下向き。
 
 enum MCPToolCatalog {
     static let instructions = """
-        LCCAD is a leathercraft CAD app. All coordinates and lengths are in millimeters. \
+        LCCAD is a leathercraft CAD app. All coordinates and lengths are in millimeters, except the screen-point values of get_view and set_view \
+        (pan_by, offset_pt, canvas_size_pt). \
         The coordinate system has its origin at the top-left with the Y axis pointing down. \
         Points are [x, y] arrays. Every tool that changes the document registers one undo step. \
         Call get_document to read the current state and render_image to check the result visually. \
