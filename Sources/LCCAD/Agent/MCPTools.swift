@@ -148,6 +148,15 @@ enum MCPToolCatalog {
              inputSchema: object([
                 "ids": ["type": "array", "items": ["type": "string"]],
              ], required: ["ids"])),
+        Tool(name: "rename_layer",
+             description: """
+                Rename a layer. Leading and trailing whitespace is trimmed; an empty name is rejected. \
+                The layer name becomes the <g id> in SVG exports and the LAYER name in DXF exports.
+                """,
+             inputSchema: object([
+                "layer_index": ["type": "integer", "minimum": 0, "description": "Target layer (0-based), as in get_document"],
+                "name": ["type": "string"],
+             ], required: ["layer_index", "name"])),
         Tool(name: "undo", description: "Undo the last change.", inputSchema: object([:])),
         Tool(name: "redo", description: "Redo the last undone change.", inputSchema: object([:])),
         Tool(name: "new_document",
@@ -220,6 +229,7 @@ struct MCPToolExecutor {
         case "set_stroke": return try setStroke(decode(StrokeArguments.self, arguments))
         case "set_text": return try setText(decode(TextArguments.self, arguments))
         case "select_shapes": return try selectShapes(decode(SelectArguments.self, arguments))
+        case "rename_layer": return try renameLayer(decode(RenameLayerArguments.self, arguments))
         case "undo": return try undo()
         case "redo": return try redo()
         case "new_document": return try newDocument(decode(DiscardArguments.self, arguments))
@@ -255,6 +265,7 @@ struct MCPToolExecutor {
         let align: TextAlignment?
     }
     private struct SelectArguments: Decodable { let ids: [String] }
+    private struct RenameLayerArguments: Decodable { let layerIndex: Int; let name: String }
     private struct DiscardArguments: Decodable { let discardChanges: Bool? }
     private struct PathArguments: Decodable { let path: String }
     private struct OptionalPathArguments: Decodable { let path: String? }
@@ -419,6 +430,19 @@ struct MCPToolExecutor {
         editor.selectedShapeIds = Set(ids)
         body()
         editor.selectedShapeIds = previous.filter { editor.findShape(id: $0) != nil }
+    }
+
+    // MARK: Layers
+
+    private func renameLayer(_ arguments: RenameLayerArguments) throws -> CallTool.Result {
+        guard editor.document.layers.indices.contains(arguments.layerIndex) else {
+            throw ToolError("layer_index \(arguments.layerIndex) is out of range (0..<\(editor.document.layers.count))")
+        }
+        let name = EditorViewModel.normalizedLayerName(arguments.name)
+        // UI では空の名前は元に戻すだけだが、エージェントには失敗として返して気付けるようにする
+        guard !name.isEmpty else { throw ToolError("name must not be empty") }
+        editor.renameLayer(at: arguments.layerIndex, to: name)
+        return Self.success(["layer_index": .int(arguments.layerIndex), "name": .string(name)])
     }
 
     // MARK: Undo

@@ -489,6 +489,7 @@ AI エージェントから LCCAD を操作するための MCP Server をアプ�
 | `delete_shapes` / `move_shapes` | 削除 / 移動(ステッチは従来どおり消える / 追従する) |
 | `set_stroke` / `set_text` | 線の色(`#RRGGBB` / `#RRGGBBAA`)・線種 / テキストの内容・フォント・サイズなど |
 | `select_shapes` | 選択を指定する(画面にも反映される) |
+| `rename_layer` | `layer_index` のレイヤー名を変える(#95)。`EditorViewModel.renameLayer(at:to:)` を通り、前後の空白は取り除く。UI と違い、空になる名前は無視せずエラーにする(エージェントが気付けるように)。範囲外の `layer_index` もエラー |
 | `undo` / `redo` | 取り消し / やり直し |
 | `new_document` / `open_document` | 未保存の変更があればエラー。`discard_changes: true` のときだけ破棄する。`EditorViewModel.newDocument()` / `openDocument(at:)` を通るので、Undo 履歴は消える |
 | `save_document` | `path` を省いたら今のファイルに保存する |

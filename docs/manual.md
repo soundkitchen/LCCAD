@@ -324,7 +324,7 @@ LCCAD の印刷は常に**実寸(100%)**です。型紙をそのまま印刷し�
 
 ### Agent(AI エージェントからの操作)
 
-Claude Code などの AI エージェントから、図形の作成・変更、保存、書き出しなどを行えるようにします。エージェントは [MCP](https://modelcontextprotocol.io/)(Model Context Protocol)で LCCAD に接続します。
+Claude Code などの AI エージェントから、図形の作成・変更、レイヤー名の変更、保存、書き出しなどを行えるようにします。エージェントは [MCP](https://modelcontextprotocol.io/)(Model Context Protocol)で LCCAD に接続します。
 
 1. **Enable MCP Server** をオンにします。**Status** が `Listening on http://127.0.0.1:47821/mcp` のようになれば待ち受け中です
 2. **Connect** に表示されるコマンドを **Copy Command** でコピーし、ターミナルで実行して Claude Code に登録します(例: `claude mcp add --transport http lccad http://127.0.0.1:47821/mcp`)
