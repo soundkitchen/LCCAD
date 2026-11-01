@@ -12,7 +12,7 @@ enum MCPToolCatalog {
         The coordinate system has its origin at the top-left with the Y axis pointing down. \
         Points are [x, y] arrays. Every tool that changes the document registers one undo step. \
         Call get_document to read the current state and render_image to check the result visually. \
-        While the user is dragging on the canvas, only get_document and render_image run; \
+        While the user is dragging on the canvas, only get_document, render_image and get_view run; \
         the other tools fail, so wait a moment and call them again.
         """
 
@@ -87,7 +87,15 @@ enum MCPToolCatalog {
     private static let readOnly = Tool.Annotations(readOnlyHint: true)
 
     /// ユーザーがキャンバスでドラッグしている間も実行できるツール(読み取りだけのもの)
-    static let toolsAllowedDuringGesture: Set<String> = ["get_document", "render_image"]
+    static let toolsAllowedDuringGesture: Set<String> = ["get_document", "render_image", "get_view"]
+
+    /// get_view / set_view が返す表示状態の説明(両方のツールの説明文で共有する)
+    private static let viewStateDescription = """
+        zoom_percent (100 = real size on this display), points_per_mm (current scale), \
+        baseline_points_per_mm (the scale at 100%), offset_pt (where the world origin is in the canvas, in points \
+        from the canvas's top-left corner), canvas_size_pt (the canvas area, without rulers and panels) \
+        and visible_rect_mm (the part of the drawing shown in the canvas)
+        """
 
     static let tools: [Tool] = [
         Tool(name: "get_document",
@@ -182,6 +190,29 @@ enum MCPToolCatalog {
                 "width": ["type": "integer", "minimum": 200, "maximum": 4096,
                           "description": "Image width in pixels. Default 1600"],
              ]), annotations: readOnly),
+        Tool(name: "get_view",
+             description: """
+                Return how the editor canvas is zoomed and scrolled: \(viewStateDescription). \
+                Unlike render_image, the real canvas also shows the grid, rulers and selection; \
+                to look at it, change the view with set_view and take a screenshot of the window.
+                """,
+             inputSchema: object([:]), annotations: readOnly),
+        Tool(name: "set_view",
+             description: """
+                Change how the editor canvas is zoomed and scrolled, and return the new view state as get_view does. \
+                This does not change the document and is not undoable. Pass at least one argument; \
+                they are applied in this order: reset, zoom_percent, center, pan_by.
+                """,
+             inputSchema: object([
+                "reset": ["type": "string", "enum": ["actual_size", "fit"],
+                          "description": "actual_size: 100% with the world origin at the canvas center. fit: fit the visible shapes in the canvas"],
+                "zoom_percent": ["type": "number", "exclusiveMinimum": 0,
+                                 "description": "Zoom around the canvas center. The scale is clamped to 0.5...50 points per mm"],
+                "center": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
+                           "description": "[x, y] in mm to show at the canvas center"],
+                "pan_by": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
+                           "description": "[dx, dy] in points (fractions allowed) to move the drawing on screen; positive dx moves it right, positive dy moves it down"],
+             ])),
     ]
 }
 
@@ -244,6 +275,8 @@ struct MCPToolExecutor {
             try editor.exportDXF(to: url)
             return Self.success(["path": .string(url.path)])
         case "render_image": return try renderImage(decode(RenderArguments.self, arguments))
+        case "get_view": return Self.success(viewState())
+        case "set_view": return try setView(decode(ViewArguments.self, arguments))
         default:
             throw ToolError("Unknown tool: \(name)")
         }
@@ -271,6 +304,13 @@ struct MCPToolExecutor {
     private struct OptionalPathArguments: Decodable { let path: String? }
     private struct PathDiscardArguments: Decodable { let path: String; let discardChanges: Bool? }
     private struct RenderArguments: Decodable { let width: Int? }
+    private struct ViewArguments: Decodable {
+        enum Reset: String, Decodable { case actualSize = "actual_size", fit }
+        let reset: Reset?
+        let zoomPercent: Double?
+        let center: [Double]?
+        let panBy: [Double]?
+    }
 
     private func decode<T: Decodable>(_ type: T.Type, _ arguments: [String: Value]) throws -> T {
         let data = try JSONEncoder().encode(Value.object(arguments))
@@ -477,6 +517,56 @@ struct MCPToolExecutor {
             .image(data: rendered.png.base64EncodedString(), mimeType: "image/png", annotations: nil, _meta: nil),
             .plainText(info),
         ])
+    }
+
+    // MARK: View
+
+    /// 表示を変える(#81)。document は変えず、Undo にも積まない。
+    /// 引数をすべて確かめてから適用し、途中で失敗して表示が半端に変わることがないようにする
+    private func setView(_ arguments: ViewArguments) throws -> CallTool.Result {
+        guard arguments.reset != nil || arguments.zoomPercent != nil
+                || arguments.center != nil || arguments.panBy != nil else {
+            throw ToolError("Pass at least one of reset, zoom_percent, center and pan_by")
+        }
+        if let zoom = arguments.zoomPercent, !(zoom > 0 && zoom.isFinite) {
+            throw ToolError("zoom_percent must be a positive number")
+        }
+        let center = try arguments.center.map { try Self.finitePoint($0, name: "center") }
+        let panBy = try arguments.panBy.map { try Self.finitePoint($0, name: "pan_by") }
+
+        switch arguments.reset {
+        case .actualSize: editor.zoomToActualSize()
+        case .fit: editor.zoomToFit()
+        case nil: break
+        }
+        if let zoom = arguments.zoomPercent { editor.setZoomPercentage(zoom) }
+        if let center { editor.centerView(on: center) }
+        if let panBy { editor.panView(by: panBy) }
+        return Self.success(viewState())
+    }
+
+    private func viewState() -> [String: Value] {
+        let transform = editor.transform
+        let visible = editor.visibleWorldRect
+        return [
+            "zoom_percent": .int(transform.zoomPercentage),
+            "points_per_mm": .double(transform.scale),
+            "baseline_points_per_mm": .double(transform.baselineScale),
+            "offset_pt": [.double(transform.offset.x), .double(transform.offset.y)],
+            "canvas_size_pt": [.double(editor.canvasSize.width), .double(editor.canvasSize.height)],
+            "visible_rect_mm": [
+                "x": .double(visible.minX), "y": .double(visible.minY),
+                "width": .double(visible.width), "height": .double(visible.height),
+            ],
+        ]
+    }
+
+    /// `[x, y]` の 2 要素で、どちらも有限の数かを確かめる
+    private static func finitePoint(_ values: [Double], name: String) throws -> CGPoint {
+        guard values.count == 2, values.allSatisfy(\.isFinite) else {
+            throw ToolError("\(name) must be [x, y] with two finite numbers")
+        }
+        return CGPoint(x: values[0], y: values[1])
     }
 
     // MARK: Helpers
