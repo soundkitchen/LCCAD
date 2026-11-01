@@ -64,10 +64,10 @@ enum DXFExporter {
 
         // LAYER table
         s += "0\nTABLE\n2\nLAYER\n70\n\(document.layers.count + 1)\n"
-        for layer in document.layers {
-            s += "0\nLAYER\n2\n\(sanitize(layer.name))\n70\n0\n62\n7\n6\nCONTINUOUS\n"
+        for name in layerNames(for: document.layers) {
+            s += "0\nLAYER\n2\n\(name)\n70\n0\n62\n7\n6\nCONTINUOUS\n"
         }
-        s += "0\nLAYER\n2\nSTITCH\n70\n0\n62\n1\n6\nCONTINUOUS\n"
+        s += "0\nLAYER\n2\n\(stitchLayerName)\n70\n0\n62\n1\n6\nCONTINUOUS\n"
         s += "0\nENDTAB\n0\nENDSEC\n"
         return s
     }
@@ -99,14 +99,14 @@ enum DXFExporter {
     private static func entitiesSection(document: DocumentData, options: DXFExportOptions) -> String {
         var s = "0\nSECTION\n2\nENTITIES\n"
 
-        for layer in document.layers where layer.isVisible {
-            let layerName = sanitize(layer.name)
+        let layerNames = layerNames(for: document.layers)
+        for (layer, layerName) in zip(document.layers, layerNames) where layer.isVisible {
             for shape in layer.shapes {
                 s += dxfEntities(for: shape, layer: layerName, options: options)
             }
             for stitchLine in layer.stitchLines {
                 for hole in stitchLine.holes {
-                    s += pointEntity(x: hole.position.x, y: yVal(hole.position.y, options), layer: "STITCH")
+                    s += pointEntity(x: hole.position.x, y: yVal(hole.position.y, options), layer: stitchLayerName)
                 }
             }
         }
@@ -313,21 +313,42 @@ enum DXFExporter {
         String(format: "%.4f", v)
     }
 
-    /// Sanitize a DXF layer / linetype name. DXF is a newline-delimited format,
-    /// so any control character embedded in user input could be interpreted as
-    /// an entity delimiter. Replace spaces, control chars, and brace characters
-    /// with `_`.
-    private static func sanitize(_ name: String) -> String {
-        var result = ""
-        result.reserveCapacity(name.count)
-        for scalar in name.unicodeScalars {
-            if scalar.value < 0x20 || scalar == " " || scalar == "{" || scalar == "}" {
-                result.append("_")
-            } else {
-                result.unicodeScalars.append(scalar)
+    /// ステッチ穴を入れるレイヤー。ユーザーのレイヤー名はこれと重ならないようにする
+    static let stitchLayerName = "STITCH"
+
+    /// 文字を `_` に置き換えるもの。DXF は改行区切りの形式なので、制御文字は値の区切りとして
+    /// 読まれてしまう。空白と波かっこは従来どおり、`<>/\":;?*|=`` は AutoCAD のレイヤー名で
+    /// 使えない文字(review #97)
+    private static let forbiddenLayerNameScalars: Set<Unicode.Scalar> = [
+        " ", "{", "}", "<", ">", "/", "\\", "\"", ":", ";", "?", "*", "|", "=", "`",
+    ]
+
+    /// レイヤーごとの DXF のレイヤー名(`layers` と同じ順)。表示 / 非表示によらず全レイヤーで決めるので、
+    /// LAYER テーブルとエンティティで同じ名前になる。
+    /// - 制御文字と使えない文字は `_` に置き換える。空になったら `Layer`
+    /// - DXF のレイヤー名は大文字と小文字を区別しないので、区別せずに比べて、ほかのレイヤーや
+    ///   `STITCH` と重なったら `_2`, `_3`... を付けて一意にする(review #97)
+    static func layerNames(for layers: [Layer]) -> [String] {
+        var used: Set<String> = [stitchLayerName.uppercased()]
+        return layers.map { layer in
+            var base = ""
+            for scalar in layer.name.unicodeScalars {
+                if scalar.value < 0x20 || scalar.value == 0x7F || forbiddenLayerNameScalars.contains(scalar) {
+                    base.append("_")
+                } else {
+                    base.unicodeScalars.append(scalar)
+                }
             }
+            if base.isEmpty { base = "Layer" }
+            var name = base
+            var suffix = 2
+            while used.contains(name.uppercased()) {
+                name = "\(base)_\(suffix)"
+                suffix += 1
+            }
+            used.insert(name.uppercased())
+            return name
         }
-        return result
     }
 
     /// Sanitize DXF TEXT content. DXF TEXT values must not contain raw

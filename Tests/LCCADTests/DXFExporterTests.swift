@@ -54,6 +54,41 @@ final class DXFExporterTests: XCTestCase {
         XCTAssertTrue(dxf.contains("_evil_"))
     }
 
+    /// AutoCAD のレイヤー名で使えない文字は `_` に置き換える(review #97)
+    func testLayerNameForbiddenCharactersAreReplaced() {
+        let names = DXFExporter.layerNames(for: [Layer(name: "a<b>c/d\\e\"f:g;h?i*j|k=l`m"), Layer(name: "裁断線")])
+        XCTAssertEqual(names, ["a_b_c_d_e_f_g_h_i_j_k_l_m", "裁断線"])
+    }
+
+    /// 置き換えた結果や大文字・小文字だけが違う名前は、重ならないように番号を付ける。
+    /// ステッチ穴の STITCH とも重ならない(review #97)
+    func testLayerNamesAreUniqueIgnoringCase() {
+        let names = DXFExporter.layerNames(for: [
+            Layer(name: "A B"), Layer(name: "A_B"), Layer(name: "a_b"),
+            Layer(name: "Stitch"), Layer(name: "A_B_2"),
+        ])
+        XCTAssertEqual(names, ["A_B", "A_B_2", "a_b_3", "Stitch_2", "A_B_2_2"])
+        XCTAssertEqual(Set(names.map { $0.uppercased() }).count, names.count)
+    }
+
+    func testEmptyLayerNameFallsBack() {
+        XCTAssertEqual(DXFExporter.layerNames(for: [Layer(name: ""), Layer(name: "")]), ["Layer", "Layer_2"])
+    }
+
+    /// LAYER テーブルとエンティティで同じ(一意にした)名前を使う。非表示のレイヤーがあっても名前はずれない
+    func testEntitiesUseTheSameUniqueLayerNames() {
+        var doc = DocumentData()
+        let line = LineShape(start: .zero, end: CGPoint(x: 10, y: 0))
+        doc.layers = [
+            Layer(name: "Cut", isVisible: false),
+            Layer(name: "cut", shapes: [.line(line)]),
+        ]
+        let dxf = DXFExporter.export(document: doc)
+        XCTAssertTrue(dxf.contains("0\nLAYER\n2\nCut\n"))
+        XCTAssertTrue(dxf.contains("0\nLAYER\n2\ncut_2\n"))
+        XCTAssertTrue(dxf.contains("0\nLINE\n8\ncut_2\n"), dxf)
+    }
+
     // MARK: - Text content sanitization
 
     func testTextContentWithNewlineDoesNotInjectEntity() {
