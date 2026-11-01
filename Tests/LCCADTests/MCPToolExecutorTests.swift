@@ -133,6 +133,7 @@ final class MCPToolExecutorTests: XCTestCase {
 
         assertFailed(call("add_shapes", ["shapes": twoLines]), containing: "dragging")
         assertFailed(call("delete_shapes", ["ids": [.string(ids[0])]]), containing: "dragging")
+        assertFailed(call("rename_layer", ["layer_index": 0, "name": "A"]), containing: "dragging")
         assertFailed(call("save_document", ["path": .string(temporaryURL("lccad").path)]), containing: "dragging")
         assertSucceeded(call("get_document"))
         assertSucceeded(call("render_image", ["width": 200]))
@@ -197,6 +198,32 @@ final class MCPToolExecutorTests: XCTestCase {
         XCTAssertEqual(editor.selectedShapeIds, Set(ids.compactMap(UUID.init(uuidString:))))
         assertSucceeded(call("select_shapes", ["ids": []]))
         XCTAssertTrue(editor.selectedShapeIds.isEmpty)
+    }
+
+    // MARK: - レイヤー (#95)
+
+    func testRenameLayerWithUndo() throws {
+        // addLayer() も Undo を積み、同じイベントのグループにまとまるので、Undo を通さずに足す
+        editor.document.layers.append(Layer(name: "Layer 2"))
+        editor.activeLayerIndex = 1
+        let result = call("rename_layer", ["layer_index": 0, "name": "  裁断線 "])
+        assertSucceeded(result)
+        XCTAssertEqual(try json(result)["name"] as? String, "裁断線", "前後の空白を除いた名前を返す")
+        XCTAssertEqual(editor.document.layers.map(\.name), ["裁断線", "Layer 2"])
+        XCTAssertEqual(editor.activeLayerIndex, 1, "アクティブレイヤーは変えない")
+        XCTAssertEqual(undo.undoActionName, "Rename Layer")
+
+        undo.undo()
+        XCTAssertEqual(editor.document.layers.map(\.name), ["Layer 1", "Layer 2"])
+    }
+
+    func testRenameLayerRejectsEmptyNameAndOutOfRange() {
+        assertFailed(call("rename_layer", ["layer_index": 0, "name": " \n "]), containing: "must not be empty")
+        assertFailed(call("rename_layer", ["layer_index": 1, "name": "A"]), containing: "out of range")
+        assertFailed(call("rename_layer", ["layer_index": -1, "name": "A"]), containing: "out of range")
+        assertFailed(call("rename_layer", ["name": "A"]), containing: "Invalid arguments")
+        XCTAssertEqual(editor.document.layers.map(\.name), ["Layer 1"])
+        XCTAssertFalse(undo.canUndo)
     }
 
     // MARK: - Undo

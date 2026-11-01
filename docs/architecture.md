@@ -74,7 +74,8 @@ Sources/LCCAD/
 │   │   └── CoalescedEditBoundaryObserver.swift # マウスダウン・カラーパネルのキー入力で連続編集のまとめを終える (#72)
 │   ├── LeftPanel/
 │   │   ├── LeftPanelView.swift
-│   │   └── LayerListView.swift
+│   │   ├── LayerListView.swift
+│   │   └── LayerNameField.swift  # レイヤー名をその場で編集する 1 行の欄。入力の Undo は欄の中だけ (#95)
 │   ├── RightPanel/
 │   │   ├── RightPanelView.swift
 │   │   ├── PositionSection.swift  # X/Y 直接入力で図形移動
@@ -179,7 +180,8 @@ Sources/LCCAD/
 | **テキスト編集** | `updateTextProperty(_:)` | TextShape のプロパティ更新（Undo 対応） |
 | **描画** | `handleDrag(startLocation:currentLocation:phase:shiftHeld:)` | ドラッグ描画。shiftHeld で正方形/正円制約 |
 | **図形の追加** | `addShape(_:actionName:)` / `addShapes(_:actionName:)` | mm 座標の図形をアクティブレイヤーに追加（`addShapes` は複数をまとめて Undo 1 件）。作図ツールもここを通す |
-| **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo は登録しない）。Undo でレイヤーが減ると `activeLayerIndex` が範囲外のまま残ることがあるので、添字は範囲内に丸めた `safeActiveLayerIndex` を使う |
+| **レイヤー** | `addLayer()` / `removeActiveLayer()` / `moveActiveLayerUp()` / `moveActiveLayerDown()` / `toggleLayerVisibility(at:)` | レイヤーの追加・削除・並べ替え・表示切り替え（Undo 対応、#84）。追加・削除・並べ替えは変更前のアクティブレイヤーも `registerUndo(oldActiveLayerIndex:)` に渡し、Undo では変更前、Redo では変更直後のアクティブレイヤーに戻す（削除を Undo すると、戻したレイヤーがまたアクティブになる）。削除したレイヤーの図形は選択から外す。添字は念のため範囲内に丸めた `safeActiveLayerIndex` を使う |
+| **レイヤー名** | `renameLayer(at:to:)` | レイヤー名を変え、保存した名前を返す（Undo 対応、#95）。前後の空白・改行は取り除く。範囲外の添字と空になる名前は `EditorOperationError` を投げ、document は変えない（UI は無視して元の名前のままにし、MCP はエラーとして返す。検証をここに一本化するため）。同じ名前のレイヤーは禁止しない |
 | **ファイル** | `openDocument(at:)` / `newDocument()` | パネルなしで開く・新規にし、その場でエディタの状態（document・選択・アクティブレイヤー・Undo 履歴）を合わせる。未保存の変更は確認しない |
 | **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準 |
@@ -199,7 +201,7 @@ Sources/LCCAD/
 
 読み込み・新規作成で document が丸ごと置き換わったら、エディタの document を差し替え、古い document を指す状態(選択・アクティブレイヤー・Undo 履歴)をリセットする。これは `EditorViewModel.adoptLoadedDocumentIfNeeded()` が行い、合わせ済みの `loadGeneration` を覚えておいて、2 回目以降は何もしない。`openDocument(at:)` / `newDocument()` は置き換えの直後にその場で呼ぶので、続けて編集してもよい。メニューの開く・新規(パネルと未保存の確認つき)は `LCCADFileDocument` 側で置き換え、`MainEditorView` が `loadGeneration` の変化を見て呼ぶ。エディタを通さずに `LCCADFileDocument.read(from:)` を呼んで、そのまま `EditorViewModel` で編集してはいけない(エディタの古い document が、編集のたびに `LCCADFileDocument.data` へ書き戻されるため)。
 
-「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
+「Undo 対応」の操作は、すべて `registerUndo(actionName:oldDocument:)` を通して Undo を登録する。Undo / Redo で document を戻したら、`activeLayerIndex` を範囲内に合わせ、戻した document に無い図形を選択から外す(`removeMissingShapesFromSelection()`。レイヤーや図形が減っても、範囲外の添字や存在しない id が残らないように、#84)。`registerUndo` は変更前と現在の document が等しければ何もしないので、値が変わらない操作(選択中の整列ボタンの押し直しや、ピッカーで現在値を選び直すなど)では Undo が積まれない(#70)。`updateTextProperty` / `updatePageProperty` は打鍵などで頻繁に呼ばれるため、編集対象の値だけを先に比較し、変化がなければ document に書き込まずに終える。
 
 **連続編集のまとめ (#72)**: 内容欄の打鍵やカラーピッカーのドラッグは 1 イベントごとに値が更新されるため、そのままだと Undo がイベントの数だけ積まれる。`updateTextProperty(coalescing:)` / `updateStroke(coalescing:)` に `CoalescedEdit.Kind`(`textContent` / `textColor` / `strokeColor`)を渡すと、種類と対象の図形 id の組を「まとめ中の連続編集」として覚え、最初の編集でだけ Undo を登録する。続く編集は document を更新するだけなので、最初に登録した Undo の `oldDocument`(編集前の状態)に 1 回で戻り、Redo すると最後の状態まで進む。まとめが終わる条件は次のとおり:
 
@@ -213,6 +215,8 @@ Sources/LCCAD/
 最初の編集が値の変わらない呼び出しで Undo が登録されなかった場合は、まとめを始めない(始めてしまうと、続く実際の変更が Undo なしで素通りするため)。
 
 内容欄は SwiftUI の `TextEditor` ではなく `UndoFreeTextView`(`allowsUndo = false` の NSTextView を包んだ `NSViewRepresentable`)を使う。`TextEditor` の中の NSTextView は自前の入力 Undo を document と同じ UndoManager に登録するため、ViewModel の Undo と二重になって ⌘Z が両方を別々に戻してしまうほか、選択を変えた後の ⌘Z でテキストビューの文字列が別の図形に書き込まれるおそれがある。Undo は ViewModel 側に一本化し、⌘Z で戻した document は `updateNSView` で欄に反映する。
+
+レイヤー名の入力欄(`LayerNameField`、#95)も SwiftUI の `TextField` ではなく、`NSTextField` を包んだ `NSViewRepresentable` を使う。内容欄と違い、名前は確定するまで document に書き込まない下書きなので、編集中の ⌘Z / ⇧⌘Z は欄の中の入力だけを戻す(Finder の名前変更と同じ)。フィールドエディタの delegate とレスポンダーチェーンの次は編集中の `NSTextField` なので、そのサブクラス `LayerNameTextField` が `undoManagerForTextView:` で欄だけの UndoManager を返し、`undo:` / `redo:` も受け止める。どのフィールドエディタが使われても、入力の Undo が document の Undo と混ざらず、編集中の ⌘Z で document の Undo(直前の「Add Layer」で編集中のレイヤーが消えるなど)が走らない。パネルの空きスペースなどフォーカスを取らない場所のクリックでは欄がフォーカスを手放さないので、編集中だけ NSEvent のローカルモニターでマウスダウンを拾い、欄の外なら確定する。確定する文字列はフィールドエディタから読むので、IME の未確定文字も含まれる。編集中のレイヤーが Undo などで消えたら、`LayerListView` が編集をやめる。
 
 カラーピッカーは SwiftUI の `ColorPicker` ではなく `CodableColorPicker`(`NSColorWell` を包んだ `NSViewRepresentable`)を使う。スタイルは `.minimal` で、クリックするとウェルのすぐそばにポップオーバーで色見本を出し、細かい指定はポップオーバーから全部入りのカラーパネルを開いて行う。`ColorPicker` はクリックで直接カラーパネルを開き、パネルは前回の位置(クリックした場所から離れていることが多い)に出るうえ、スタイルも選べないため。カラーパネルも前回の位置に出るので、`ColorPanelPlacer` がウェルのクリックをローカルの NSEvent モニターで拾い、閉じているパネルをクリックした位置の左(`panelOrigin`、画面の `visibleFrame` の内側に寄せる。パネルが画面より大きいときは上端と右端を残す)へ動かしておく。基準はモニターに届いたイベントのクリック位置で、今のカーソルの位置(`NSEvent.mouseLocation`)ではない。色見本を選ぶだけのクリックでもパネルの位置は変わるが、パネルを開く経路はウェルのポップオーバーだけなので、困らない。ポップオーバーのボタンからパネルを開く経路は AppKit の内側で、開く瞬間を受け取れないため、見えないうちに動かしておく。`NSColorWell(style:)` はサブクラスを作れず(素の `NSColorWell` を返す)、クリックもジェスチャー認識で受けて `mouseDown(with:)` を呼ばないので、ウェルの派生ではなくモニターを使う。モニターは `dismantleNSView` で外し、`dismantleNSView` を通らずに捨てられたときのために `deinit` でも外す。ウェルに色を渡し直すのは、保存値がウェルの表示中の色と誤差の範囲(`isApproximatelyEqual`、許容差 1e-4)を超えて違うときだけ(`colorToShow`。Undo や選択の切り替え)。document の更新で再描画されるたびに変換誤差(Float 精度)を含んだ色を渡し直すと、開いているカラーパネルの色が上書きされ、ホイールの指示点がマウス位置から飛ぶため。渡し直すときは、ピッカーから届いた色を「保存値 → 元の色」の対応で覚えておき(`ColorPickerHistory`、アプリ起動中のみ・最大 256 件)、元の色を渡す。色成分は描画・印刷と同じく sRGB で取り出すが、カラーパネルが返す色は sRGB とは限らない(汎用 RGB など)。そのため Undo で戻した保存値を sRGB の色としてパネルに渡すと、見た目は同じでも明度などの表示が変わる(明度 100% → 97.8% など)。元の色を渡すのはこれを防ぐため。覚えていない色(再起動後やファイルを開き直した後)は sRGB の色として渡す。`NSColorWell` は、コードから色を変えたときには action を送らず、ユーザーがポップオーバー・パネル・ドロップで色を変えたときだけ送る(アクティブなウェルの色を変えるとパネルの色も変わるが、送り返しは起きない)。そのため、渡し直した色が送り返されて図形に適用されることはない。編集対象(複数選択では選択中の全図形)がすべてすでにその色(誤差の範囲)なら書き込まない(`shouldApply`)。編集対象の色は、変更が届いた時点で ViewModel から読む。sRGB にできない色(カラーパネルの画像のパレットのパターンなど)は使えないので、適用せずにウェルの表示をすぐ保存値の色へ戻す。ウェルを取り除くとき(選択が変わると右パネルのセクションが作り直される)は `dismantleNSView` で `deactivate()` し、共有のカラーパネルが取り除いたウェルを指したまま残らないようにする。SwiftUI の `.disabled()` は `isEnabled` の環境値をウェルに渡して効かせる。
 
@@ -488,6 +492,7 @@ AI エージェントから LCCAD を操作するための MCP Server をアプ�
 | `delete_shapes` / `move_shapes` | 削除 / 移動(ステッチは従来どおり消える / 追従する) |
 | `set_stroke` / `set_text` | 線の色(`#RRGGBB` / `#RRGGBBAA`)・線種 / テキストの内容・フォント・サイズなど |
 | `select_shapes` | 選択を指定する(画面にも反映される) |
+| `rename_layer` | `layer_index` のレイヤー名を変える(#95)。検証は `EditorViewModel.renameLayer(at:to:)` が行い、前後の空白は取り除く。UI と違い、空になる名前は無視せずエラーにする(エージェントが気付けるように)。範囲外の `layer_index` もエラー |
 | `undo` / `redo` | 取り消し / やり直し |
 | `new_document` / `open_document` | 未保存の変更があればエラー。`discard_changes: true` のときだけ破棄する。`EditorViewModel.newDocument()` / `openDocument(at:)` を通るので、Undo 履歴は消える |
 | `save_document` | `path` を省いたら今のファイルに保存する |
@@ -527,6 +532,15 @@ Blender / Houdini でデザインしたものから型紙を作るときは、�
 - **配置**: パーツが重ならないように正の座標へ並べ、`render_image` で確かめる
 
 この手順は、事情を知らないエージェントに説明文だけで Blender のテスト用パーツ(Apply していない変換、穴、下向きの法線、立っているパーツ、512 点の円)を取り込ませて確かめた。最初の説明(トップビューの向きに合わせる)では、下向きの法線のパーツが裏側から見た形で入り、立っているパーツの扱いはエージェント任せになった。法線の側から見る決まりは、この 2 つをまとめて扱うためのもの。
+
+## 書き出しのレイヤー名 (review #97)
+
+レイヤー名はユーザーが自由に付けられる(#95)ので、SVG / DXF に書き出すときに、それぞれの形式で正しく一意な名前に変える。名前は表示 / 非表示によらず全レイヤーで決めるので、非表示のレイヤーがあってもほかのレイヤーの名前は変わらない。
+
+| 形式 | 関数 | 規則 |
+|---|---|---|
+| SVG(`<g id>`) | `SVGExporter.layerIds(for:)` | 文字(日本語を含む)・数字・`_`・`-`・`.` 以外は `_` に置き換え、先頭が文字か `_` でなければ `_` を前に付ける(空なら `layer`)。重なったら `-2`, `-3`... を付ける。id が元の名前と違うときは、元の名前を `data-name` 属性に残す(Illustrator はこれをレイヤー名として読む) |
+| DXF(LAYER 名) | `DXFExporter.layerNames(for:)` | 制御文字・空白・`{}`・AutoCAD のレイヤー名で使えない `<>/\":;?*\|=`` を `_` に置き換える(空なら `Layer`)。DXF のレイヤー名は大文字と小文字を区別しないので、区別せずに比べて、ほかのレイヤーやステッチ穴用の `STITCH` と重なったら `_2`, `_3`... を付ける。LAYER テーブルとエンティティは同じ名前を使う |
 
 ## 印刷 + プリンターキャリブレーション
 

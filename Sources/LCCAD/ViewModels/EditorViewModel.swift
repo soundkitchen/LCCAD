@@ -440,10 +440,17 @@ final class EditorViewModel {
         coalescedEditResult = nil
     }
 
-    /// Undo を登録する。
+    /// Undo を登録する。Undo / Redo で document を戻したら、`activeLayerIndex` を範囲内に合わせ、
+    /// 戻した document に無い図形を選択から外す(レイヤーや図形が減って、範囲外の添字や
+    /// 存在しない id が残らないように、#84)。
+    /// - Parameter oldActiveLayerIndex: 変更前のアクティブレイヤー。レイヤー操作が渡し、
+    ///   Undo では変更前、Redo では変更直後(この登録を呼んだ時点)のアクティブレイヤーに戻す
+    ///   (削除したレイヤーを Undo で戻したら、またアクティブにする)。
+    ///   `nil` ならアクティブレイヤーはそのまま(範囲内への丸めだけ行う)
     /// - Parameter edit: 連続編集としてまとめる単位。同じ編集がまとめ中で、変更前の状態が
     ///   その編集の結果のままなら登録を省き、そうでなければ通常どおり登録してまとめを始める
-    private func registerUndo(actionName: String, oldDocument: DocumentData, coalescing edit: CoalescedEdit? = nil) {
+    func registerUndo(actionName: String, oldDocument: DocumentData, oldActiveLayerIndex: Int? = nil,
+                      coalescing edit: CoalescedEdit? = nil) {
         if let edit, edit == activeCoalescedEdit, oldDocument == coalescedEditResult {
             coalescedEditResult = document
             return
@@ -455,21 +462,39 @@ final class EditorViewModel {
         // Redo 用の再登録は old と現在値が必ず異なるため、このガードには掛からない。
         // 登録しなかった編集はまとめの起点にしない(続く実際の変更が Undo なしで素通りするため)
         guard let undoManager, oldDocument != document else { return }
+        // Redo で戻すアクティブレイヤーは、Undo した時点ではなく変更直後のもの
+        // (Undo の前にユーザーが別のレイヤーを選んでいても、Redo で操作の結果に戻す)
+        let redoActiveLayerIndex = oldActiveLayerIndex.map { _ in activeLayerIndex }
         undoManager.registerUndo(withTarget: self) { target in
             let redoDoc = target.document
             target.document = oldDocument
+            if let oldActiveLayerIndex {
+                target.activeLayerIndex = oldActiveLayerIndex
+            }
+            target.activeLayerIndex = target.safeActiveLayerIndex
+            target.removeMissingShapesFromSelection()
             // Undo/redo swaps the document out from under a pending hybrid pick; the
             // parked walkers would go stale against the restored geometry, so a later
             // click could commit holes for shapes that no longer match. Drop the pick.
             target.pendingHybridRuns = []
             target.hybridPickPreview = nil
-            target.registerUndo(actionName: actionName, oldDocument: redoDoc)
+            target.registerUndo(actionName: actionName, oldDocument: redoDoc,
+                                oldActiveLayerIndex: redoActiveLayerIndex)
         }
         undoManager.setActionName(actionName)
         if let edit {
             activeCoalescedEdit = edit
             coalescedEditResult = document
         }
+    }
+
+    /// document に無い図形の id を選択から外す。レイヤーの削除や Undo / Redo で図形が消えたときに呼ぶ。
+    /// 選択が変わらなければ書き込まない(選択の変更は連続編集のまとめを終えるため)
+    func removeMissingShapesFromSelection() {
+        guard !selectedShapeIds.isEmpty else { return }
+        let existing = Set(document.layers.flatMap { $0.shapes.map(\.id) })
+        let kept = selectedShapeIds.intersection(existing)
+        if kept != selectedShapeIds { selectedShapeIds = kept }
     }
 
     /// 図形をアクティブレイヤーに追加する(Undo 1 件)。座標は mm。

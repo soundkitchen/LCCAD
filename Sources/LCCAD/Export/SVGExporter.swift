@@ -17,8 +17,11 @@ enum SVGExporter {
              width="\(fmt(vw))mm" height="\(fmt(vh))mm">
         """
 
-        for layer in document.layers where (!visibleOnly || layer.isVisible) {
-            svg += "\n<g id=\"\(escapeXML(layer.name))\">\n"
+        let layerIds = layerIds(for: document.layers)
+        for (layer, layerId) in zip(document.layers, layerIds) where (!visibleOnly || layer.isVisible) {
+            // id が元の名前と違うときは、元の名前を data-name に残す(Illustrator はこれをレイヤー名として読む)
+            let dataName = layerId == layer.name ? "" : " data-name=\"\(escapeXMLAttribute(layer.name))\""
+            svg += "\n<g id=\"\(layerId)\"\(dataName)>\n"
             for shape in layer.shapes {
                 svg += svgElement(for: shape) + "\n"
             }
@@ -183,6 +186,56 @@ enum SVGExporter {
 
     private static func fmt(_ v: CGFloat) -> String {
         String(format: "%.2f", v)
+    }
+
+    /// レイヤーごとの `<g>` の id(`layers` と同じ順)。表示 / 非表示によらず全レイヤーで決める。
+    /// XML の id として正しい形にし、一意にする(review #97):
+    /// - 文字・数字・`_`・`-`・`.` 以外は `_` に置き換える(日本語などの文字はそのまま)
+    /// - 先頭が文字か `_` でなければ `_` を前に付ける。空なら `layer`
+    /// - 重なったら `-2`, `-3`... を付ける(id は大文字と小文字を区別する)
+    static func layerIds(for layers: [Layer]) -> [String] {
+        var used: Set<String> = []
+        return layers.map { layer in
+            var base = ""
+            for scalar in layer.name.unicodeScalars {
+                if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar)
+                    || scalar == "_" || scalar == "-" || scalar == "." {
+                    base.unicodeScalars.append(scalar)
+                } else {
+                    base.append("_")
+                }
+            }
+            if base.isEmpty {
+                base = "layer"
+            } else if let first = base.unicodeScalars.first,
+                      !(first == "_" || (CharacterSet.letters.contains(first)
+                                         && !CharacterSet.nonBaseCharacters.contains(first))) {
+                base = "_" + base
+            }
+            var id = base
+            var suffix = 2
+            while used.contains(id) {
+                id = "\(base)-\(suffix)"
+                suffix += 1
+            }
+            used.insert(id)
+            return id
+        }
+    }
+
+    /// 属性値用のエスケープ。XML で使えない制御文字は空白に置き換え、改行・タブは文字参照にする
+    private static func escapeXMLAttribute(_ s: String) -> String {
+        var result = ""
+        for scalar in escapeXML(s).unicodeScalars {
+            switch scalar.value {
+            case 0x09: result += "&#9;"
+            case 0x0A: result += "&#10;"
+            case 0x0D: result += "&#13;"
+            case 0x00..<0x20, 0x7F: result += " "
+            default: result.unicodeScalars.append(scalar)
+            }
+        }
+        return result
     }
 
     private static func escapeXML(_ s: String) -> String {

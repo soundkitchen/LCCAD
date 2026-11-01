@@ -122,4 +122,30 @@ final class SVGExporterTests: XCTestCase {
         // 縦寸法のラベルは -90°(反時計回り、下から上に読む)回転で出力される
         XCTAssertTrue(svg.contains("rotate(-90"), "Vertical dimension label should carry a -90° rotate transform")
     }
+
+    // MARK: - レイヤーの id (review #97)
+
+    func testLayerIdsAreValidAndUnique() {
+        let ids = SVGExporter.layerIds(for: [
+            Layer(name: "裁断線"), Layer(name: "A B"), Layer(name: "A_B"), Layer(name: "1st"),
+            Layer(name: "<x>&\"y\""), Layer(name: ""), Layer(name: "裁断線"), Layer(name: "-a"),
+        ])
+        XCTAssertEqual(ids, ["裁断線", "A_B", "A_B-2", "_1st", "_x___y_", "layer", "裁断線-2", "_-a"])
+        XCTAssertEqual(Set(ids).count, ids.count)
+    }
+
+    /// id が元の名前と違うときだけ、元の名前を data-name に残す
+    func testLayerGroupKeepsOriginalNameInDataName() {
+        var doc = DocumentData()
+        let line = LineShape(start: .zero, end: CGPoint(x: 10, y: 0))
+        doc.layers = [
+            Layer(name: "Cut", shapes: [.line(line)]),
+            Layer(name: "Stitch & Mark", shapes: [.line(line)]),
+            Layer(name: "Cut", shapes: [.line(line)]),
+        ]
+        let svg = SVGExporter.export(document: doc)
+        XCTAssertTrue(svg.contains("<g id=\"Cut\">"), svg)
+        XCTAssertTrue(svg.contains("<g id=\"Stitch___Mark\" data-name=\"Stitch &amp; Mark\">"), svg)
+        XCTAssertTrue(svg.contains("<g id=\"Cut-2\" data-name=\"Cut\">"), svg)
+    }
 }

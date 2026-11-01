@@ -5,10 +5,26 @@ import Foundation
 // 画面のジェスチャーやパネルを通さずに呼べる操作。UI もこれを呼び、
 // 外部からの操作(エージェント用の操作 API、#75)も同じ経路を通す。
 
-/// 操作の前提が満たされていないときのエラー
-enum EditorOperationError: Error, Equatable {
+/// 操作の前提が満たされていないときのエラー。
+/// 説明文はエージェント(MCP)にもそのまま返すので、英語で書く
+enum EditorOperationError: Error, Equatable, CustomStringConvertible {
     /// ファイルを扱う操作で、エディタに `LCCADFileDocument` が結び付いていない
     case noFileDocument
+    /// レイヤーの添字が範囲外
+    case layerIndexOutOfRange(index: Int, count: Int)
+    /// 前後の空白を取り除くと空になるレイヤー名
+    case emptyLayerName
+
+    var description: String {
+        switch self {
+        case .noFileDocument:
+            return "The editor has no file document"
+        case .layerIndexOutOfRange(let index, let count):
+            return "layer_index \(index) is out of range (0..<\(count))"
+        case .emptyLayerName:
+            return "name must not be empty"
+        }
+    }
 }
 
 extension EditorViewModel {
@@ -55,45 +71,77 @@ extension EditorViewModel {
 
     // MARK: - Layers
     //
-    // レイヤー操作は従来どおり Undo を登録しない。
-    // Undo でレイヤーが減ると `activeLayerIndex` が範囲外のまま残ることがあるので、
-    // 添字は範囲内に丸めた `safeActiveLayerIndex` を使う
+    // レイヤー操作はどれも Undo 1 件になる(#84)。追加・削除・並べ替えはアクティブレイヤーも
+    // 変えるので、変更前のアクティブレイヤーも一緒に登録し、Undo / Redo で戻す。
+    // 添字は念のため範囲内に丸めた `safeActiveLayerIndex` を使う
 
     /// 新しいレイヤーを末尾に追加し、アクティブにする
     func addLayer() {
+        let old = document
+        let oldActive = activeLayerIndex
         let newLayer = Layer(name: "Layer \(document.layers.count + 1)")
         document.layers.append(newLayer)
         activeLayerIndex = document.layers.count - 1
+        registerUndo(actionName: "Add Layer", oldDocument: old, oldActiveLayerIndex: oldActive)
     }
 
     /// アクティブレイヤーを削除する。最後の 1 枚は削除しない
     func removeActiveLayer() {
         guard document.layers.count > 1 else { return }
+        let old = document
         let index = safeActiveLayerIndex
         document.layers.remove(at: index)
         activeLayerIndex = min(index, document.layers.count - 1)
+        // 削除したレイヤーの図形が選択に残らないようにする(Redo も registerUndo で同じく外す)
+        removeMissingShapesFromSelection()
+        registerUndo(actionName: "Delete Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 
     /// アクティブレイヤーを 1 つ上(リストの前)へ移す
     func moveActiveLayerUp() {
         let index = safeActiveLayerIndex
         guard index > 0 else { return }
+        let old = document
         document.layers.swapAt(index, index - 1)
         activeLayerIndex = index - 1
+        registerUndo(actionName: "Move Layer", oldDocument: old, oldActiveLayerIndex: index)
     }
 
     /// アクティブレイヤーを 1 つ下(リストの後ろ)へ移す
     func moveActiveLayerDown() {
         let index = safeActiveLayerIndex
         guard index < document.layers.count - 1 else { return }
+        let old = document
         document.layers.swapAt(index, index + 1)
         activeLayerIndex = index + 1
+        registerUndo(actionName: "Move Layer", oldDocument: old, oldActiveLayerIndex: index)
+    }
+
+    /// レイヤー名を変え(#95)、保存した名前を返す。前後の空白・改行は取り除く。
+    /// 名前が変わらなければ Undo は積まない。UI(空なら元の名前のままにする)と
+    /// MCP(エラーとして返す)が同じ検証を通るように、不正な指定は投げる
+    /// - Throws: 範囲外の添字は `layerIndexOutOfRange`、空になる名前は `emptyLayerName`。
+    ///   どちらも document は変えない
+    @discardableResult
+    func renameLayer(at index: Int, to name: String) throws -> String {
+        guard document.layers.indices.contains(index) else {
+            throw EditorOperationError.layerIndexOutOfRange(index: index, count: document.layers.count)
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw EditorOperationError.emptyLayerName }
+        let old = document
+        document.layers[index].name = trimmed
+        registerUndo(actionName: "Rename Layer", oldDocument: old)
+        return trimmed
     }
 
     /// レイヤーの表示 / 非表示を切り替える
     func toggleLayerVisibility(at index: Int) {
         guard document.layers.indices.contains(index) else { return }
+        let old = document
         document.layers[index].isVisible.toggle()
+        let actionName = document.layers[index].isVisible ? "Show Layer" : "Hide Layer"
+        registerUndo(actionName: actionName, oldDocument: old)
     }
 
     // MARK: - Export
