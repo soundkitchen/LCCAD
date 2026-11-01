@@ -6,7 +6,13 @@ import XCTest
 @MainActor
 final class LayerNameFieldTests: XCTestCase {
 
+    /// キャンバスの代わり。クリックでファーストレスポンダーになる NSView
+    private final class FocusableView: NSView {
+        override var acceptsFirstResponder: Bool { true }
+    }
+
     private var window: NSWindow!
+    private var canvas: FocusableView!
     private var field: LayerNameTextField!
     private var coordinator: LayerNameField.Coordinator!
     private var committed: [String] = []
@@ -16,6 +22,9 @@ final class LayerNameFieldTests: XCTestCase {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 240, height: 60),
                           styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
+        canvas = FocusableView(frame: NSRect(x: 0, y: 40, width: 240, height: 20))
+        window.contentView?.addSubview(canvas)
+        XCTAssertTrue(window.makeFirstResponder(canvas), "編集前はキャンバスにフォーカスがある")
         field = LayerNameTextField(frame: NSRect(x: 10, y: 10, width: 200, height: 22))
         field.stringValue = "Layer 1"
         field.isEditable = true
@@ -30,9 +39,10 @@ final class LayerNameFieldTests: XCTestCase {
         coordinator = LayerNameField.Coordinator(parent)
         coordinator.field = field
         field.delegate = coordinator
-        // ウィンドウに載せた後に結ぶ(載せたときの自動フォーカスと欄の外のクリックの監視は、テストでは使わない)
+        // ウィンドウに載せた後に結ぶ(載せたときの非同期のフォーカス移動は使わず、beginEditing() を直接呼ぶ)
         field.coordinator = coordinator
-        XCTAssertTrue(window.makeFirstResponder(field))
+        coordinator.beginEditing()
+        XCTAssertNotNil(field.currentEditor(), "欄にフォーカスが移る")
     }
 
     override func tearDown() async throws {
@@ -77,6 +87,7 @@ final class LayerNameFieldTests: XCTestCase {
 
         coordinator.finish(commit: true)
         XCTAssertEqual(committed, ["さいだんせん"])
+        XCTAssertIdentical(window.firstResponder, canvas, "フォーカスは編集前のキャンバスに戻る")
         XCTAssertEqual(cancelCount, 0)
     }
 
@@ -88,7 +99,7 @@ final class LayerNameFieldTests: XCTestCase {
 
         XCTAssertTrue(coordinator.control(field, textView: editor, doCommandBy: #selector(NSResponder.insertNewline(_:))))
         XCTAssertEqual(committed, ["ステッチ"])
-        XCTAssertNotIdentical(window.firstResponder, editor, "フォーカスが外れる")
+        XCTAssertIdentical(window.firstResponder, canvas, "フォーカスは編集前のキャンバスに戻る")
 
         coordinator.finish(commit: true)
         XCTAssertEqual(committed, ["ステッチ"], "2 回目は何もしない")
@@ -103,6 +114,14 @@ final class LayerNameFieldTests: XCTestCase {
         XCTAssertTrue(coordinator.control(field, textView: editor, doCommandBy: #selector(NSResponder.cancelOperation(_:))))
         XCTAssertEqual(cancelCount, 1)
         XCTAssertTrue(committed.isEmpty)
+        XCTAssertIdentical(window.firstResponder, canvas, "フォーカスは編集前のキャンバスに戻る")
+    }
+
+    /// 編集前のファーストレスポンダーがウィンドウから外れていたら、ウィンドウに戻す
+    func testFocusFallsBackToWindowWhenPreviousResponderIsGone() throws {
+        canvas.removeFromSuperview()
+        coordinator.finish(commit: true)
+        XCTAssertIdentical(window.firstResponder, window)
     }
 
     /// Tab などでフォーカスが外れたときも確定する

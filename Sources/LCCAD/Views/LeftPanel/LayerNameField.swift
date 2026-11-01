@@ -18,7 +18,8 @@ import SwiftUI
 //   文字列(未確定文字を含む)から読む
 //
 // Enter・欄の外のクリック・フォーカスが外れたとき(Tab など)で確定し、Escape で取り消す。
-// 確定・取り消しはどちらか 1 回だけ親に伝える。
+// 確定・取り消しはどちらか 1 回だけ親に伝える。確定・取り消しの後は、フォーカスを編集前の
+// ファーストレスポンダー(ふつうはキャンバス)に戻す。
 
 struct LayerNameField: NSViewRepresentable {
     let initialName: String
@@ -70,6 +71,10 @@ struct LayerNameField: NSViewRepresentable {
         weak var field: LayerNameTextField?
         private var isFinished = false
         private var mouseDownMonitor: Any?
+        /// 編集を始める前のファーストレスポンダー(ふつうはキャンバス)。編集を終えたらここへ戻す。
+        /// キャンバスの 1 文字のツール切り替えなどは、キャンバスがファーストレスポンダーのときだけ
+        /// 効くので、戻さないとキャンバスをクリックし直すまでショートカットが効かない
+        private weak var previousFirstResponder: NSResponder?
 
         init(_ parent: LayerNameField) {
             self.parent = parent
@@ -81,11 +86,29 @@ struct LayerNameField: NSViewRepresentable {
             // 右クリックメニューから始めたときは、メニューが閉じてからでないと
             // フォーカスが移らないことがあるので、次のループで移す
             DispatchQueue.main.async { [weak self] in
-                guard let self, let field = self.field, let window = field.window, !self.isFinished else { return }
-                window.makeFirstResponder(field)
-                field.currentEditor()?.selectAll(nil)
-                self.installMouseDownMonitor()
+                self?.beginEditing()
             }
+        }
+
+        /// 今のファーストレスポンダーを覚えてから欄にフォーカスを移して全選択し、欄の外のクリックの監視を始める
+        func beginEditing() {
+            guard let field, let window = field.window, !isFinished else { return }
+            let current = window.firstResponder
+            // ほかの欄の編集中(フィールドエディタ)やウィンドウ自身は、戻す先にしない
+            if let current, current !== window, !((current as? NSTextView)?.isFieldEditor ?? false) {
+                previousFirstResponder = current
+            }
+            window.makeFirstResponder(field)
+            field.currentEditor()?.selectAll(nil)
+            installMouseDownMonitor()
+        }
+
+        /// 編集を終えたときにフォーカスを戻す先。編集前のファーストレスポンダーが同じウィンドウに
+        /// 残っていればそれ、なければ nil(ウィンドウ)
+        private func responderToRestore(in window: NSWindow) -> NSResponder? {
+            guard let previous = previousFirstResponder else { return nil }
+            if let view = previous as? NSView, view.window !== window { return nil }
+            return previous
         }
 
         private func installMouseDownMonitor() {
@@ -129,9 +152,10 @@ struct LayerNameField: NSViewRepresentable {
                 }
             }
             let text = fieldEditor?.string ?? field?.stringValue ?? ""
-            // フォーカスを外す。ここから textDidEndEditing が呼ばれても、終えた後なので何もしない
+            // フォーカスを編集前のファーストレスポンダー(キャンバスなど)に戻す。
+            // ここから textDidEndEditing が呼ばれても、終えた後なので何もしない
             if let field, let window = field.window, let fieldEditor, window.firstResponder === fieldEditor {
-                window.makeFirstResponder(nil)
+                window.makeFirstResponder(responderToRestore(in: window))
             }
             if commit {
                 parent.onCommit(text)
