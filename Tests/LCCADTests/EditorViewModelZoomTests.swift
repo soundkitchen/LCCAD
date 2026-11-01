@@ -242,6 +242,44 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, 50.0, accuracy: 1e-9)
     }
 
+    // MARK: - Pan
+
+    func testCenterViewPutsWorldPointAtCanvasCenterKeepingScale() {
+        let editor = makeEditor(shapes: [])
+        editor.transform.scale = 6.0
+
+        editor.centerView(on: CGPoint(x: 25, y: -10))
+
+        XCTAssertEqual(editor.transform.scale, 6.0, accuracy: 1e-9)
+        let screenPoint = editor.transform.worldToScreen(CGPoint(x: 25, y: -10))
+        XCTAssertEqual(screenPoint.x, 400, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 300, accuracy: 1e-9)
+    }
+
+    func testPanViewMovesDrawingByScreenDelta() {
+        let editor = makeEditor(shapes: [])
+        editor.transform.offset = CGPoint(x: 400, y: 300)
+
+        editor.panView(by: CGPoint(x: 3.7, y: -12))
+
+        // 図面が右へ 3.7pt、上へ 12pt 動く
+        XCTAssertEqual(editor.transform.offset.x, 403.7, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 288, accuracy: 1e-9)
+    }
+
+    func testVisibleWorldRect() {
+        let editor = makeEditor(shapes: [])
+        editor.transform.scale = 4.0
+        editor.transform.offset = CGPoint(x: 400, y: 300)
+
+        let rect = editor.visibleWorldRect
+
+        XCTAssertEqual(rect.minX, -100, accuracy: 1e-9)
+        XCTAssertEqual(rect.minY, -75, accuracy: 1e-9)
+        XCTAssertEqual(rect.width, 200, accuracy: 1e-9)
+        XCTAssertEqual(rect.height, 150, accuracy: 1e-9)
+    }
+
     func testZoomToFitDegenerateFallbackUsesBaseline() {
         let line = LineShape(start: CGPoint(x: 30, y: 40), end: CGPoint(x: 30, y: 40))
         let editor = makeEditor(shapes: [.line(line)])

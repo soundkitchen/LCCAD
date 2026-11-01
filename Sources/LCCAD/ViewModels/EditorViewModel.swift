@@ -2078,6 +2078,28 @@ final class EditorViewModel {
         transform.offset.y = center.y - worldCenter.y * transform.scale
     }
 
+    // MARK: - View (Pan)
+
+    /// ワールド座標の点(mm)がキャンバスの中央に来るように表示をずらす。ズーム率は変えない
+    func centerView(on worldPoint: CGPoint) {
+        transform.offset.x = canvasSize.width / 2 - worldPoint.x * transform.scale
+        transform.offset.y = canvasSize.height / 2 - worldPoint.y * transform.scale
+    }
+
+    /// 図面を画面上で `screenDelta`(pt)だけずらす。x が正なら図面は右へ動く
+    /// (マウスのドラッグでつかんで動かす向きと同じ)
+    func panView(by screenDelta: CGPoint) {
+        transform.pan(by: screenDelta)
+    }
+
+    /// キャンバスに今見えている範囲(ワールド座標、mm)
+    var visibleWorldRect: CGRect {
+        let topLeft = transform.screenToWorld(.zero)
+        let bottomRight = transform.screenToWorld(CGPoint(x: canvasSize.width, y: canvasSize.height))
+        return CGRect(x: topLeft.x, y: topLeft.y,
+                      width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y)
+    }
+
     /// 実在ディスプレイとして妥当な物理密度レンジ（pt/mm、約 51〜381 論理 ppi）。
     /// EDID から物理サイズが取れないディスプレイで CGDisplayScreenSize が返す
     /// 72dpi 仮定の推定値（2x 仮想ディスプレイで約 1.4pt/mm）を弾く (review #64)
