@@ -280,6 +280,15 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(rect.height, 150, accuracy: 1e-9)
     }
 
+    func testZoomPercentageRangeFollowsBaseline() {
+        let editor = makeEditor(shapes: [])
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        // scale の範囲 0.5〜50 pt/mm を、100% = 5 pt/mm で割る
+        XCTAssertEqual(editor.zoomPercentageRange.lowerBound, 10, accuracy: 1e-9)
+        XCTAssertEqual(editor.zoomPercentageRange.upperBound, 1000, accuracy: 1e-9)
+    }
+
     func testZoomToFitDegenerateFallbackUsesBaseline() {
         let line = LineShape(start: CGPoint(x: 30, y: 40), end: CGPoint(x: 30, y: 40))
         let editor = makeEditor(shapes: [.line(line)])

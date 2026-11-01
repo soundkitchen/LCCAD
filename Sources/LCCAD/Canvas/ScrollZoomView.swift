@@ -64,7 +64,7 @@ class ScrollZoomNSView: NSView {
         let dy = current.y - last.y
 
         Task { @MainActor in
-            editor.transform.pan(by: CGPoint(x: dx, y: -dy))
+            editor.panView(by: CGPoint(x: dx, y: -dy))
         }
         lastMiddleDragLocation = current
     }

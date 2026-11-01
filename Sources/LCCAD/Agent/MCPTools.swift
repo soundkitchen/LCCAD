@@ -93,7 +93,8 @@ enum MCPToolCatalog {
 
     /// get_view / set_view が返す表示状態の説明(両方のツールの説明文で共有する)
     private static let viewStateDescription = """
-        zoom_percent (100 = real size on this display), points_per_mm (current scale), \
+        zoom_percent (100 = real size on this display), zoom_percent_range ([min, max] that zoom_percent can take \
+        on this display; values outside are clamped), points_per_mm (current scale), \
         baseline_points_per_mm (the scale at 100%), offset_pt (where the world origin is in the canvas, in points \
         from the canvas's top-left corner), canvas_size_pt (the canvas area, without rulers and panels) \
         and visible_rect_mm (the part of the drawing shown in the canvas)
@@ -203,13 +204,15 @@ enum MCPToolCatalog {
              description: """
                 Change how the editor canvas is zoomed and scrolled, and return the new view state as get_view does. \
                 This does not change the document and is not undoable. Pass at least one argument; \
-                they are applied in this order: reset, zoom_percent, center, pan_by.
+                they are applied in this order: reset, zoom_percent, center, pan_by. \
+                Fails while the user is dragging or drawing a selection rectangle on the canvas, \
+                and when the result would show coordinates beyond ±1,000,000 mm (the view is then left unchanged).
                 """,
              inputSchema: object([
                 "reset": ["type": "string", "enum": ["actual_size", "fit"],
                           "description": "actual_size: 100% with the world origin at the canvas center. fit: fit the visible shapes in the canvas"],
                 "zoom_percent": ["type": "number", "exclusiveMinimum": 0,
-                                 "description": "Zoom around the canvas center. The scale is clamped to 0.5...50 points per mm"],
+                                 "description": "Zoom around the canvas center. Clamped to zoom_percent_range (see get_view)"],
                 "center": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
                            "description": "[x, y] in mm to show at the canvas center"],
                 "pan_by": ["type": "array", "items": ["type": "number"], "minItems": 2, "maxItems": 2,
@@ -277,7 +280,7 @@ struct MCPToolExecutor {
             try editor.exportDXF(to: url)
             return Self.success(["path": .string(url.path)])
         case "render_image": return try renderImage(decode(RenderArguments.self, arguments))
-        case "get_view": return Self.success(viewState())
+        case "get_view": return try getView()
         case "set_view": return try setView(decode(ViewArguments.self, arguments))
         default:
             throw ToolError("Unknown tool: \(name)")
@@ -523,9 +526,24 @@ struct MCPToolExecutor {
 
     // MARK: View
 
+    /// 表示で見せてよい座標の大きさ(mm)。極端に大きいと、グリッドやルーラーを間隔ずつ
+    /// 進めて描くループが、足しても値が変わらずに終わらなくなるため (review #100)
+    static let maxViewCoordinate: CGFloat = 1_000_000
+
+    private func getView() throws -> CallTool.Result {
+        try requireViewReady()
+        return Self.success(viewState())
+    }
+
     /// 表示を変える(#81)。document は変えず、Undo にも積まない。
     /// 引数をすべて確かめてから適用し、途中で失敗して表示が半端に変わることがないようにする
     private func setView(_ arguments: ViewArguments) throws -> CallTool.Result {
+        try requireViewReady()
+        // マーキー選択は始点を画面座標で持つので、途中で表示が変わると囲んだのと別の図形が選ばれる。
+        // 中ボタンのパンと図形のドラッグ描画は差分・ワールド座標で持つので、途中で変わっても崩れない (review #100)
+        if editor.marqueeStart != nil {
+            throw ToolError("The user is drawing a selection rectangle on the canvas. Wait a moment and try again")
+        }
         guard arguments.reset != nil || arguments.zoomPercent != nil
                 || arguments.center != nil || arguments.panBy != nil else {
             throw ToolError("Pass at least one of reset, zoom_percent, center and pan_by")
@@ -536,6 +554,7 @@ struct MCPToolExecutor {
         let center = try arguments.center.map { try Self.finitePoint($0, name: "center") }
         let panBy = try arguments.panBy.map { try Self.finitePoint($0, name: "pan_by") }
 
+        let previous = editor.transform
         switch arguments.reset {
         case .actualSize: editor.zoomToActualSize()
         case .fit: editor.zoomToFit()
@@ -544,7 +563,21 @@ struct MCPToolExecutor {
         if let zoom = arguments.zoomPercent { editor.setZoomPercentage(zoom) }
         if let center { editor.centerView(on: center) }
         if let panBy { editor.panView(by: panBy) }
+        // 見えている範囲が有限で上限の内なら、offset(= -範囲の端 × scale)も有限になる
+        let visible = editor.visibleWorldRect
+        guard [visible.minX, visible.minY, visible.maxX, visible.maxY]
+                .allSatisfy({ $0.isFinite && abs($0) <= Self.maxViewCoordinate }) else {
+            editor.transform = previous
+            throw ToolError("The view would show coordinates beyond ±\(Int(Self.maxViewCoordinate)) mm; the view was left unchanged")
+        }
         return Self.success(viewState())
+    }
+
+    /// 起動時の実寸 100% の適用が済むまでは、表示の値が仮のもので、変えても後で上書きされる (review #100)
+    private func requireViewReady() throws {
+        guard editor.isViewReady else {
+            throw ToolError("The canvas is not ready yet (its size or the display density is not known). Wait a moment and try again")
+        }
     }
 
     private func viewState() -> [String: Value] {
@@ -552,6 +585,7 @@ struct MCPToolExecutor {
         let visible = editor.visibleWorldRect
         return [
             "zoom_percent": .int(transform.zoomPercentage),
+            "zoom_percent_range": [.double(editor.zoomPercentageRange.lowerBound), .double(editor.zoomPercentageRange.upperBound)],
             "points_per_mm": .double(transform.scale),
             "baseline_points_per_mm": .double(transform.baselineScale),
             "offset_pt": [.double(transform.offset.x), .double(transform.offset.y)],
