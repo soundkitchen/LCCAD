@@ -185,11 +185,13 @@ Sources/LCCAD/
 | **ファイル** | `openDocument(at:)` / `newDocument()` | パネルなしで開く・新規にし、その場でエディタの状態（document・選択・アクティブレイヤー・Undo 履歴）を合わせる。未保存の変更は確認しない |
 | **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
 | **ズーム** | `zoomIn(center:)` / `zoomOut(center:)` | 1 段階（1.2 倍）拡大・縮小。`center`（画面座標）の点を動かさない。省略したとき（メニューの ⌘+ / ⌘−、ステータスバーの +/-）はキャンバスの中央を中心にする（#101） |
+| **ズーム** | `zoom(by:center:)` | 指定の倍率でズーム。`center`（画面座標）の点を動かさない。scale は 0.5〜50 pt/mm に丸める。マウスホイールのズームはここを通す（#101） |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準。scale は 0.5〜50 pt/mm に丸める |
 | **ズーム** | `zoomPercentageRange` | 今のディスプレイで指定できるズーム率の範囲（%）。scale の範囲を 100% の基準で割ったもので、ディスプレイの密度によって変わる。MCP の `get_view` / `set_view` が返す |
 | **ズーム** | `zoomToFit()` | 表示中の全図形の外接矩形がビューに収まるようにズーム・パン（図形がなければ Actual Size にフォールバック） |
 | **ズーム** | `zoomToActualSize()` | 実寸 100%（`transform.baselineScale`）に戻し、原点をキャンバス中央に配置 |
-| **パン** | `centerView(on:)` / `panView(by:)` | ワールド座標の点（mm）をキャンバス中央に置く / 図面を画面上で指定の pt だけずらす（x が正なら右へ。マウスのドラッグと同じ向き）。どちらもズーム率は変えない。表示の変更は Undo に積まない（#81）。中央に寄せる計算は `centerView(on:)` に一本化し、`zoomToFit` / `zoomToActualSize` / `setZoomPercentage` もこれを使う。パンはマウスの中ボタン・端のスクロール・MCP のどれも `panView(by:)` を通す |
+| **パン** | `centerView(on:)` / `panView(by:)` | ワールド座標の点（mm）をキャンバス中央に置く / 図面を画面上で指定の pt だけずらす（x が正なら右へ。マウスのドラッグと同じ向き）。どちらもズーム率は変えない。表示の変更は Undo に積まない（#81）。中央に寄せる計算は `centerView(on:)` に一本化し、`zoomToFit` / `zoomToActualSize` / `setZoomPercentage` もこれを使う。パンはマウスの中ボタン・端のスクロール・MCP のどれも `panView(by:)` を通す。表示を変える入口はすべてこの表のメソッドで、`transform` を外から直接書き換えない（起動時の表示のままかを追うため、#101） |
+| **表示の準備** | `canvasSize` | キャンバスの大きさ（pt）。`CanvasView` が渡す。起動時の実寸 100% を適用したあと、ユーザーやエージェントがまだ表示を変えていない間（`keepsInitialViewCentered`）に大きさが変わったら（ウィンドウの復元・最大化など）、ズーム率はそのままで原点を中央に置き直す。表示を変えるメソッド（`zoomIn` / `zoomOut` / `zoom(by:center:)` / `zoomToFit` / `zoomToActualSize` / `setZoomPercentage` / `centerView` / `panView`。MCP の `set_view` も含む）を一度でも通ったら置き直さず、左上を基準にそのままにする（#101） |
 | **表示範囲** | `visibleWorldRect` | キャンバスに今見えている範囲（mm）。MCP の `get_view` が返す |
 | **表示の準備** | `isViewReady` | 起動時の実寸 100% の適用が済んだか。済む前は `canvasSize` と 100% の基準が仮の値（800×600、3 pt/mm）で、外から表示を変えても適用のときに上書きされるため、MCP の `get_view` / `set_view` はこれを待つ。密度が取れない環境では `markDisplayDensityUnavailable()` によりフォールバックの基準で済むので、待ち続けることはない（review #100） |
 | **ズーム** | `updateDisplayBaseline(pointsPerMm:)` | ディスプレイの物理密度を 100% の基準として反映。妥当レンジ（2〜15 pt/mm）外は誤推定（EDID 不明時の 72dpi 仮定値）として無視。初回はキャンバス実サイズの確定と両待ちで起動時の実寸 100% を適用、以降は % 表記の基準のみ更新（`DisplayDensityObserver` から供給。ディスプレイ移動とスケーリング変更に追従、#62） |
