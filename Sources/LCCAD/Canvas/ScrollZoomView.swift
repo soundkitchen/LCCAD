@@ -47,7 +47,7 @@ class ScrollZoomNSView: NSView {
         let center = CGPoint(x: mouseLocation.x, y: flippedY)
 
         Task { @MainActor in
-            editor.transform.zoom(by: factor, center: center)
+            editor.zoom(by: factor, center: center)
         }
     }
 

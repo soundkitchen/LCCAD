@@ -253,8 +253,7 @@ final class MCPToolExecutorTests: XCTestCase {
 
     func testGetViewReturnsViewState() throws {
         makeViewReady()
-        editor.transform.scale = 8.0
-        editor.transform.offset = CGPoint(x: 400, y: 300)
+        editor.setViewForTesting(scale: 8.0, offset: CGPoint(x: 400, y: 300))
 
         let view = try json(call("get_view"))
 
@@ -271,8 +270,7 @@ final class MCPToolExecutorTests: XCTestCase {
 
     func testSetViewAppliesResetZoomCenterAndPanInOrder() throws {
         makeViewReady()
-        editor.transform.scale = 1.0
-        editor.transform.offset = CGPoint(x: -123, y: 456)
+        editor.setViewForTesting(scale: 1.0, offset: CGPoint(x: -123, y: 456))
 
         let result = call("set_view", [
             "reset": "actual_size", "zoom_percent": 300, "center": [10, 20], "pan_by": [3.7, -1.5],
@@ -312,8 +310,7 @@ final class MCPToolExecutorTests: XCTestCase {
 
     func testSetViewRejectsInvalidArgumentsWithoutChangingTheView() {
         makeViewReady()
-        editor.transform.scale = 5.0
-        editor.transform.offset = CGPoint(x: 10, y: 20)
+        editor.setViewForTesting(scale: 5.0, offset: CGPoint(x: 10, y: 20))
 
         assertFailed(call("set_view"), containing: "Pass at least one")
         assertFailed(call("set_view", ["zoom_percent": 0]), containing: "zoom_percent")
@@ -337,6 +334,17 @@ final class MCPToolExecutorTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, before.scale)
         XCTAssertEqual(editor.transform.offset, before.offset)
         assertSucceeded(call("set_view", ["center": [900_000, -900_000]]))
+    }
+
+    /// 範囲のチェックで失敗した set_view は、起動時の表示のままかも元に戻す。そのあと
+    /// ウィンドウが大きくなったら、原点を中央に置き直す (#101 review)
+    func testFailedSetViewKeepsRecenteringOnResize() {
+        makeViewReady()
+
+        assertFailed(call("set_view", ["center": [2_000_000, 0]]), containing: "left unchanged")
+        editor.canvasSize = CGSize(width: 1600, height: 1200)
+
+        XCTAssertEqual(editor.transform.offset, CGPoint(x: 800, y: 600))
     }
 
     /// 起動時の実寸 100% の適用が済むまでは、表示の値が仮のもので、変えても後で上書きされる(review #100)

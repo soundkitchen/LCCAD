@@ -1,6 +1,18 @@
 import XCTest
 @testable import LCCAD
 
+extension EditorViewModel {
+    /// テスト用に表示を直接決める(transform は private(set) なので restoreView(_:) を通す)。
+    /// 表示を変えたことにする(起動時の表示のままではなくなる)
+    func setViewForTesting(scale: CGFloat? = nil, offset: CGPoint? = nil) {
+        var snapshot = viewSnapshot
+        if let scale { snapshot.transform.scale = scale }
+        if let offset { snapshot.transform.offset = offset }
+        snapshot.keepsInitialViewCentered = false
+        restoreView(snapshot)
+    }
+}
+
 @MainActor
 final class EditorViewModelZoomTests: XCTestCase {
 
@@ -134,8 +146,7 @@ final class EditorViewModelZoomTests: XCTestCase {
     func testZoomToActualSizeResetsScaleAndCentersOrigin() {
         let rect = RectangleShape(origin: CGPoint(x: 10, y: 20), size: CGSize(width: 100, height: 50))
         let editor = makeEditor(shapes: [.rectangle(rect)])
-        editor.transform.scale = 12.0
-        editor.transform.offset = CGPoint(x: -500, y: 700)
+        editor.setViewForTesting(scale: 12.0, offset: CGPoint(x: -500, y: 700))
 
         editor.zoomToActualSize()
 
@@ -250,11 +261,140 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
     }
 
+    // MARK: - 起動後のキャンバスの大きさの変化 (#101)
+
+    /// 起動時の実寸 100% を済ませた editor(キャンバス 800×600、100% = 5 pt/mm)
+    private func makeStartedEditor() -> EditorViewModel {
+        let editor = makeEditor(shapes: [])
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+        XCTAssertTrue(editor.isViewReady)
+        return editor
+    }
+
+    func testResizeAfterStartupRecentersOrigin() {
+        let editor = makeStartedEditor()
+
+        // ウィンドウの復元・最大化でキャンバスが大きくなる
+        editor.canvasSize = CGSize(width: 3154, height: 2006)
+
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9, "ズーム率は変えない")
+        XCTAssertEqual(editor.transform.offset.x, 1577, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 1003, accuracy: 1e-9)
+
+        // 表示に触れていなければ、何度変わっても中央に置き直す
+        editor.canvasSize = CGSize(width: 1000, height: 700)
+        XCTAssertEqual(editor.transform.offset.x, 500, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 350, accuracy: 1e-9)
+    }
+
+    func testResizeBeforeStartupDoesNotMoveView() {
+        // 起動時の適用より前(密度が未確定)の大きさの変化では、表示を動かさない
+        let editor = EditorViewModel(document: DocumentData.empty())
+        editor.canvasSize = CGSize(width: 800, height: 600)
+        let before = editor.transform
+
+        editor.canvasSize = CGSize(width: 1200, height: 900)
+
+        XCTAssertFalse(editor.isViewReady)
+        XCTAssertEqual(editor.transform.offset, before.offset)
+    }
+
+    func testResizeAfterViewChangeKeepsView() {
+        let operations: [(String, (EditorViewModel) -> Void)] = [
+            ("zoomIn", { $0.zoomIn() }),
+            ("zoomOut", { $0.zoomOut() }),
+            ("zoom(by:center:)", { $0.zoom(by: 1.1, center: CGPoint(x: 100, y: 100)) }),
+            ("zoomToFit", { $0.zoomToFit() }),
+            ("zoomToActualSize", { $0.zoomToActualSize() }),
+            ("setZoomPercentage", { $0.setZoomPercentage(150) }),
+            ("centerView", { $0.centerView(on: CGPoint(x: 10, y: 20)) }),
+            ("panView", { $0.panView(by: CGPoint(x: 30, y: -40)) }),
+        ]
+        for (name, operation) in operations {
+            let editor = makeStartedEditor()
+            operation(editor)
+            let after = editor.transform
+
+            editor.canvasSize = CGSize(width: 1600, height: 1200)
+
+            // 表示を変えたあとは置き直さない(左上を基準にそのまま)
+            XCTAssertEqual(editor.transform.scale, after.scale, accuracy: 1e-9, name)
+            XCTAssertEqual(editor.transform.offset.x, after.offset.x, accuracy: 1e-9, name)
+            XCTAssertEqual(editor.transform.offset.y, after.offset.y, accuracy: 1e-9, name)
+        }
+    }
+
+    /// 図形を描いたあとは、パネルの幅やウィンドウの大きさが変わっても図面を動かさない (#101 review)
+    func testResizeAfterEditKeepsView() {
+        let editor = makeStartedEditor()
+        editor.addShape(.line(LineShape(start: .zero, end: CGPoint(x: 10, y: 0))))
+        let after = editor.transform
+
+        editor.canvasSize = CGSize(width: 1600, height: 1200)
+
+        XCTAssertEqual(editor.transform.offset.x, after.offset.x, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, after.offset.y, accuracy: 1e-9)
+    }
+
+    /// 開く・新規で document を置き換えるのは編集ではないので、置き直しは続く (#101 review)
+    func testResizeAfterReplacingDocumentStillRecenters() {
+        let editor = makeStartedEditor()
+        var loaded = DocumentData.empty()
+        loaded.layers[0].shapes = [.line(LineShape(start: .zero, end: CGPoint(x: 10, y: 0)))]
+
+        editor.replaceDocument(with: loaded)
+        editor.canvasSize = CGSize(width: 1600, height: 1200)
+
+        XCTAssertEqual(editor.document.layers[0].shapes.count, 1)
+        XCTAssertEqual(editor.transform.offset.x, 800, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 600, accuracy: 1e-9)
+    }
+
+    /// マーキー選択の最中は始点を画面座標で持つので、置き直さない (#101 review)
+    func testResizeDuringMarqueeDoesNotMoveView() {
+        let editor = makeStartedEditor()
+        editor.marqueeStart = CGPoint(x: 100, y: 100)
+
+        editor.canvasSize = CGSize(width: 1600, height: 1200)
+        XCTAssertEqual(editor.transform.offset.x, 400, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 300, accuracy: 1e-9)
+
+        // マーキーが終われば、次に大きさが変わったときに置き直す
+        editor.marqueeStart = nil
+        editor.canvasSize = CGSize(width: 1000, height: 700)
+        XCTAssertEqual(editor.transform.offset.x, 500, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 350, accuracy: 1e-9)
+    }
+
+    func testRestoreViewRestoresRecenteringState() {
+        let editor = makeStartedEditor()
+        let snapshot = editor.viewSnapshot
+        editor.panView(by: CGPoint(x: 50, y: 0))
+
+        editor.restoreView(snapshot)
+        editor.canvasSize = CGSize(width: 1600, height: 1200)
+
+        // 控えた時点では起動時の表示のままだったので、また置き直す
+        XCTAssertEqual(editor.transform.offset.x, 800, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 600, accuracy: 1e-9)
+    }
+
+    func testZoomByKeepsGivenPoint() {
+        let editor = makeStartedEditor()
+        let worldAtCursor = editor.transform.screenToWorld(CGPoint(x: 120, y: 80))
+
+        editor.zoom(by: 1.5, center: CGPoint(x: 120, y: 80))
+
+        XCTAssertEqual(editor.transform.scale, 7.5, accuracy: 1e-9)
+        let screenPoint = editor.transform.worldToScreen(worldAtCursor)
+        XCTAssertEqual(screenPoint.x, 120, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 80, accuracy: 1e-9)
+    }
+
     func testZoomToActualSizeUsesBaseline() {
         let editor = makeEditor(shapes: [])
         editor.updateDisplayBaseline(pointsPerMm: 4.85)
-        editor.transform.scale = 12.0
-        editor.transform.offset = CGPoint(x: -500, y: 700)
+        editor.setViewForTesting(scale: 12.0, offset: CGPoint(x: -500, y: 700))
 
         editor.zoomToActualSize()
 
@@ -274,11 +414,45 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, 50.0, accuracy: 1e-9)
     }
 
+    // MARK: - Zoom In / Out
+
+    /// 中心を渡さないズームは、キャンバスの中央の点を動かさない (#101)
+    func testZoomInOutWithoutCenterKeepsCanvasCenter() {
+        let editor = makeEditor(shapes: [])
+        editor.canvasSize = CGSize(width: 2000, height: 1200)
+        editor.setViewForTesting(scale: 4.0, offset: CGPoint(x: 300, y: 200))
+        let worldAtCenter = editor.transform.screenToWorld(CGPoint(x: 1000, y: 600))
+
+        editor.zoomIn()
+        XCTAssertEqual(editor.transform.scale, 4.8, accuracy: 1e-9)
+        var screenPoint = editor.transform.worldToScreen(worldAtCenter)
+        XCTAssertEqual(screenPoint.x, 1000, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 600, accuracy: 1e-9)
+
+        editor.zoomOut()
+        XCTAssertEqual(editor.transform.scale, 4.0, accuracy: 1e-9)
+        screenPoint = editor.transform.worldToScreen(worldAtCenter)
+        XCTAssertEqual(screenPoint.x, 1000, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 600, accuracy: 1e-9)
+    }
+
+    func testZoomInWithCenterKeepsGivenPoint() {
+        let editor = makeEditor(shapes: [])
+        editor.setViewForTesting(scale: 4.0, offset: CGPoint(x: 300, y: 200))
+        let worldAtCursor = editor.transform.screenToWorld(CGPoint(x: 50, y: 70))
+
+        editor.zoomIn(center: CGPoint(x: 50, y: 70))
+
+        let screenPoint = editor.transform.worldToScreen(worldAtCursor)
+        XCTAssertEqual(screenPoint.x, 50, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 70, accuracy: 1e-9)
+    }
+
     // MARK: - Pan
 
     func testCenterViewPutsWorldPointAtCanvasCenterKeepingScale() {
         let editor = makeEditor(shapes: [])
-        editor.transform.scale = 6.0
+        editor.setViewForTesting(scale: 6.0)
 
         editor.centerView(on: CGPoint(x: 25, y: -10))
 
@@ -290,7 +464,7 @@ final class EditorViewModelZoomTests: XCTestCase {
 
     func testPanViewMovesDrawingByScreenDelta() {
         let editor = makeEditor(shapes: [])
-        editor.transform.offset = CGPoint(x: 400, y: 300)
+        editor.setViewForTesting(offset: CGPoint(x: 400, y: 300))
 
         editor.panView(by: CGPoint(x: 3.7, y: -12))
 
@@ -301,8 +475,7 @@ final class EditorViewModelZoomTests: XCTestCase {
 
     func testVisibleWorldRect() {
         let editor = makeEditor(shapes: [])
-        editor.transform.scale = 4.0
-        editor.transform.offset = CGPoint(x: 400, y: 300)
+        editor.setViewForTesting(scale: 4.0, offset: CGPoint(x: 400, y: 300))
 
         let rect = editor.visibleWorldRect
 

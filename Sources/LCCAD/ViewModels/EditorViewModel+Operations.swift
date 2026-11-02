@@ -62,7 +62,7 @@ extension EditorViewModel {
     func adoptLoadedDocumentIfNeeded() {
         guard let fileDocument, fileDocument.loadGeneration != adoptedLoadGeneration else { return }
         adoptedLoadGeneration = fileDocument.loadGeneration
-        document = fileDocument.data
+        replaceDocument(with: fileDocument.data)
         activeLayerIndex = safeActiveLayerIndex
         selectedShapeIds = []
         // 破棄した document を ⌘Z で戻せないように Undo 履歴を消す
