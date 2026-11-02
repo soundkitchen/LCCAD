@@ -158,7 +158,8 @@ final class EditorViewModel {
     /// 起動時の実寸 100% 適用を一度だけ行うためのフラグ（applyInitialActualSizeIfNeeded 参照）
     private var hasAppliedInitialActualSize = false
 
-    /// ディスプレイの物理密度が一度でも供給されたか
+    /// 100% の基準が確定したか。ディスプレイの物理密度が一度でも供給されたか、
+    /// 密度が取れない環境だと知らされた(フォールバックの 1mm = 3pt のまま確定した)とき true
     private var isDisplayBaselineKnown = false
 
     /// canvasSize がビュー側から一度でも供給されたか（初期値 800×600 のままかの区別）
@@ -389,7 +390,7 @@ final class EditorViewModel {
 
         // Pan the canvas
         let screenDelta = CGPoint(x: d.x * transform.scale, y: d.y * transform.scale)
-        transform.pan(by: screenDelta)
+        panView(by: screenDelta)
 
         // Move the selected shapes in the opposite world direction
         // so they track with the cursor position (skip during bezier point drag).
@@ -2059,29 +2060,57 @@ final class EditorViewModel {
         let sy = box.height > 0.0001 ? availH / box.height : .infinity
         let fit = min(sx, sy)
         transform.scale = fit.isFinite ? CanvasTransform.clampScale(fit) : transform.baselineScale
-        transform.offset.x = canvasSize.width / 2 - box.midX * transform.scale
-        transform.offset.y = canvasSize.height / 2 - box.midY * transform.scale
+        centerView(on: CGPoint(x: box.midX, y: box.midY))
     }
 
     /// ズームを実寸 100%（画面上の 1mm = 実物の 1mm）に戻し、原点をキャンバス中央に置く。
     /// 基準 scale は updateDisplayBaseline(pointsPerMm:) で供給される（未供給時は 1mm = 3pt）。
     func zoomToActualSize() {
-        transform.offset = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
         transform.scale = transform.baselineScale
+        centerView(on: .zero)
     }
 
+    /// キャンバスの中央を基準にズームする。scale は [minScale, maxScale] に丸める
     func setZoomPercentage(_ percentage: CGFloat) {
-        let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
-        let worldCenter = transform.screenToWorld(center)
+        let worldCenter = transform.screenToWorld(CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2))
         transform.scale = CanvasTransform.clampScale(percentage / 100.0 * transform.baselineScale)
-        transform.offset.x = center.x - worldCenter.x * transform.scale
-        transform.offset.y = center.y - worldCenter.y * transform.scale
+        centerView(on: worldCenter)
+    }
+
+    /// 今のディスプレイで指定できるズーム率の範囲(%)。scale の範囲 [minScale, maxScale] を
+    /// 100% の基準で割ったもので、ディスプレイの密度によって変わる
+    var zoomPercentageRange: ClosedRange<Double> {
+        let base = Double(transform.baselineScale)
+        return (Double(CanvasTransform.minScale) / base * 100)...(Double(CanvasTransform.maxScale) / base * 100)
+    }
+
+    // MARK: - View (Pan)
+
+    /// ワールド座標の点(mm)がキャンバスの中央に来るように表示をずらす。ズーム率は変えない。
+    /// 中央に寄せる計算はここに一本化している(zoomToFit / zoomToActualSize / setZoomPercentage も使う)
+    func centerView(on worldPoint: CGPoint) {
+        transform.offset.x = canvasSize.width / 2 - worldPoint.x * transform.scale
+        transform.offset.y = canvasSize.height / 2 - worldPoint.y * transform.scale
+    }
+
+    /// 図面を画面上で `screenDelta`(pt)だけずらす。x が正なら図面は右へ動く
+    /// (マウスのドラッグでつかんで動かす向きと同じ)。マウス・端のスクロール・MCP のパンはここを通す
+    func panView(by screenDelta: CGPoint) {
+        transform.pan(by: screenDelta)
+    }
+
+    /// キャンバスに今見えている範囲(ワールド座標、mm)
+    var visibleWorldRect: CGRect {
+        let topLeft = transform.screenToWorld(.zero)
+        let bottomRight = transform.screenToWorld(CGPoint(x: canvasSize.width, y: canvasSize.height))
+        return CGRect(x: topLeft.x, y: topLeft.y,
+                      width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y)
     }
 
     /// 実在ディスプレイとして妥当な物理密度レンジ（pt/mm、約 51〜381 論理 ppi）。
     /// EDID から物理サイズが取れないディスプレイで CGDisplayScreenSize が返す
     /// 72dpi 仮定の推定値（2x 仮想ディスプレイで約 1.4pt/mm）を弾く (review #64)
-    private static let plausibleDensityRange: ClosedRange<CGFloat> = 2.0...15.0
+    static let plausibleDensityRange: ClosedRange<CGFloat> = 2.0...15.0
 
     /// ウィンドウのあるディスプレイの物理密度（pt/mm）を 100% の基準として反映する (#62)。
     /// 初回はキャンバス実サイズの確定と両待ちで起動時の実寸 100% を適用する。以降の
@@ -2093,6 +2122,20 @@ final class EditorViewModel {
         isDisplayBaselineKnown = true
         applyInitialActualSizeIfNeeded()
     }
+
+    /// ウィンドウのあるディスプレイの物理密度が取れない(物理サイズを返さない仮想ディスプレイ、
+    /// 妥当レンジ外の誤推定など)と知らせる。基準はフォールバック(未供給なら 1mm = 3pt)のまま確定し、
+    /// キャンバス実サイズが揃っていれば起動時の実寸 100% を適用する。これがないと、こうした環境では
+    /// 起動時の適用がいつまでも済まず、MCP の表示のツールが使えないままになる (review #100)。
+    /// すでに密度が供給されていれば、その基準をそのまま使う
+    func markDisplayDensityUnavailable() {
+        isDisplayBaselineKnown = true
+        applyInitialActualSizeIfNeeded()
+    }
+
+    /// 起動時の実寸 100% の適用が済み、表示(transform と canvasSize)が仮の値でなくなったか。
+    /// 済む前に外から表示を変えても、適用のときに上書きされるため、MCP の表示のツールはこれを待つ (review #100)
+    var isViewReady: Bool { hasAppliedInitialActualSize }
 
     /// 起動時の実寸 100% 適用。ディスプレイ密度とキャンバス実サイズの到着順序は
     /// ウィンドウ生成タイミングに依存するため、両方が揃った時点で一度だけ実行する

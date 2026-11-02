@@ -242,6 +242,154 @@ final class MCPToolExecutorTests: XCTestCase {
         assertFailed(call("redo"), containing: "Nothing to redo")
     }
 
+    // MARK: - 表示 (#81)
+
+    /// キャンバスの大きさ 800×600、100% = 4 pt/mm で、起動時の実寸 100% の適用を済ませる
+    private func makeViewReady() {
+        editor.canvasSize = CGSize(width: 800, height: 600)
+        editor.updateDisplayBaseline(pointsPerMm: 4.0)
+        XCTAssertTrue(editor.isViewReady)
+    }
+
+    func testGetViewReturnsViewState() throws {
+        makeViewReady()
+        editor.transform.scale = 8.0
+        editor.transform.offset = CGPoint(x: 400, y: 300)
+
+        let view = try json(call("get_view"))
+
+        XCTAssertEqual(view["zoom_percent"] as? Int, 200)
+        // 0.5〜50 pt/mm を 4 pt/mm で割った範囲
+        XCTAssertEqual(view["zoom_percent_range"] as? [Double], [12.5, 1250])
+        XCTAssertEqual(view["points_per_mm"] as? Double, 8.0)
+        XCTAssertEqual(view["baseline_points_per_mm"] as? Double, 4.0)
+        XCTAssertEqual(view["offset_pt"] as? [Double], [400, 300])
+        XCTAssertEqual(view["canvas_size_pt"] as? [Double], [800, 600])
+        let visible = try XCTUnwrap(view["visible_rect_mm"] as? [String: Double])
+        XCTAssertEqual(visible, ["x": -50, "y": -37.5, "width": 100, "height": 75])
+    }
+
+    func testSetViewAppliesResetZoomCenterAndPanInOrder() throws {
+        makeViewReady()
+        editor.transform.scale = 1.0
+        editor.transform.offset = CGPoint(x: -123, y: 456)
+
+        let result = call("set_view", [
+            "reset": "actual_size", "zoom_percent": 300, "center": [10, 20], "pan_by": [3.7, -1.5],
+        ])
+
+        assertSucceeded(result)
+        XCTAssertEqual(editor.transform.scale, 12.0, accuracy: 1e-9)
+        // (10, 20) を中央に置いてから、図面を右へ 3.7pt・上へ 1.5pt ずらす
+        let screen = editor.transform.worldToScreen(CGPoint(x: 10, y: 20))
+        XCTAssertEqual(screen.x, 403.7, accuracy: 1e-9)
+        XCTAssertEqual(screen.y, 298.5, accuracy: 1e-9)
+        // 結果は変えたあとの表示状態
+        XCTAssertEqual(try json(result)["zoom_percent"] as? Int, 300)
+        // 表示の変更は document も Undo も変えない
+        XCTAssertFalse(undo.canUndo)
+        XCTAssertEqual(fileDocument.isModified, false)
+    }
+
+    func testSetViewFitShowsShapes() throws {
+        makeViewReady()
+        try addTwoLines()
+
+        assertSucceeded(call("set_view", ["reset": "fit"]))
+
+        let visible = editor.visibleWorldRect
+        XCTAssertTrue(visible.contains(CGRect(x: 0, y: 0, width: 10, height: 10)))
+    }
+
+    func testSetViewClampsZoomToTheReportedRange() throws {
+        makeViewReady()
+
+        let view = try json(call("set_view", ["zoom_percent": 5000]))
+
+        XCTAssertEqual(view["zoom_percent"] as? Int, 1250)
+        XCTAssertEqual(editor.transform.scale, CanvasTransform.maxScale, accuracy: 1e-9)
+    }
+
+    func testSetViewRejectsInvalidArgumentsWithoutChangingTheView() {
+        makeViewReady()
+        editor.transform.scale = 5.0
+        editor.transform.offset = CGPoint(x: 10, y: 20)
+
+        assertFailed(call("set_view"), containing: "Pass at least one")
+        assertFailed(call("set_view", ["zoom_percent": 0]), containing: "zoom_percent")
+        assertFailed(call("set_view", ["reset": "actual_size", "center": [1]]), containing: "center")
+        assertFailed(call("set_view", ["reset": "actual_size", "pan_by": [1, .double(.nan)]]), containing: "pan_by")
+        assertFailed(call("set_view", ["reset": "zoom_in"]), containing: "Invalid arguments")
+
+        XCTAssertEqual(editor.transform.scale, 5.0)
+        XCTAssertEqual(editor.transform.offset, CGPoint(x: 10, y: 20))
+    }
+
+    /// 有限でも極端に大きい座標を見せる表示にはせず、元の表示に戻す(review #100)
+    func testSetViewRejectsViewsBeyondTheCoordinateLimit() throws {
+        makeViewReady()
+        let before = editor.transform
+
+        assertFailed(call("set_view", ["reset": "actual_size", "center": [1e308, 0]]), containing: "left unchanged")
+        assertFailed(call("set_view", ["center": [2_000_000, 0]]), containing: "left unchanged")
+        assertFailed(call("set_view", ["pan_by": [0, 1e12]]), containing: "left unchanged")
+
+        XCTAssertEqual(editor.transform.scale, before.scale)
+        XCTAssertEqual(editor.transform.offset, before.offset)
+        assertSucceeded(call("set_view", ["center": [900_000, -900_000]]))
+    }
+
+    /// 起動時の実寸 100% の適用が済むまでは、表示の値が仮のもので、変えても後で上書きされる(review #100)
+    func testViewToolsWaitUntilTheViewIsReady() throws {
+        XCTAssertFalse(editor.isViewReady)
+        assertFailed(call("get_view"), containing: "not ready")
+        assertFailed(call("set_view", ["zoom_percent": 200]), containing: "not ready")
+
+        editor.canvasSize = CGSize(width: 800, height: 600)
+        assertFailed(call("get_view"), containing: "not ready")
+
+        editor.updateDisplayBaseline(pointsPerMm: 4.0)
+        assertSucceeded(call("get_view"))
+        assertSucceeded(call("set_view", ["zoom_percent": 200]))
+    }
+
+    /// 密度が取れない環境(仮想ディスプレイなど)でも、表示のツールがいつまでも断られない(review #100)
+    func testViewToolsWorkWhenDisplayDensityIsUnavailable() throws {
+        editor.canvasSize = CGSize(width: 800, height: 600)
+        assertFailed(call("get_view"), containing: "not ready")
+
+        editor.markDisplayDensityUnavailable()
+
+        let view = try json(call("get_view"))
+        XCTAssertEqual(view["baseline_points_per_mm"] as? Double, Double(CanvasTransform.fallbackBaselineScale))
+        assertSucceeded(call("set_view", ["zoom_percent": 200]))
+    }
+
+    /// ドラッグの途中は表示を変えない(画面とワールド座標の対応が変わるとドラッグが崩れるため)
+    func testSetViewWaitsForTheGestureButGetViewDoesNot() throws {
+        makeViewReady()
+        editor.moveUndoSnapshot = editor.document
+        let scale = editor.transform.scale
+
+        assertFailed(call("set_view", ["zoom_percent": 200]), containing: "dragging")
+        assertSucceeded(call("get_view"))
+        XCTAssertEqual(editor.transform.scale, scale)
+    }
+
+    /// マーキー選択は始点を画面座標で持つので、途中で表示を変えると別の図形が選ばれる(review #100)
+    func testSetViewWaitsForTheMarquee() throws {
+        makeViewReady()
+        editor.beginMarquee(at: CGPoint(x: 100, y: 100))
+        let scale = editor.transform.scale
+
+        assertFailed(call("set_view", ["zoom_percent": 200]), containing: "selection rectangle")
+        assertSucceeded(call("get_view"))
+        XCTAssertEqual(editor.transform.scale, scale)
+
+        editor.endMarquee()
+        assertSucceeded(call("set_view", ["zoom_percent": 200]))
+    }
+
     // MARK: - ファイル
 
     func testGetDocument() throws {

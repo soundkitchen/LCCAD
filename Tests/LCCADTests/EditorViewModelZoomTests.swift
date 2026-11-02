@@ -218,6 +218,38 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, 3.0, accuracy: 1e-9)
     }
 
+    /// 密度が取れない環境でも、フォールバックの基準で起動時の実寸 100% を済ませる(review #100)
+    func testDisplayDensityUnavailableAppliesActualSizeWithFallback() {
+        let editor = EditorViewModel(document: DocumentData.empty())
+
+        editor.markDisplayDensityUnavailable()
+        XCTAssertFalse(editor.isViewReady, "キャンバス実サイズが揃うまでは済まない")
+
+        editor.canvasSize = CGSize(width: 1000, height: 800)
+
+        XCTAssertTrue(editor.isViewReady)
+        XCTAssertEqual(editor.transform.baselineScale, CanvasTransform.fallbackBaselineScale, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.scale, CanvasTransform.fallbackBaselineScale, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.x, 500, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 400, accuracy: 1e-9)
+
+        // あとで別のディスプレイで密度が取れたら、% 表記の基準だけ更新する
+        editor.updateDisplayBaseline(pointsPerMm: 6.0)
+        XCTAssertEqual(editor.transform.scale, CanvasTransform.fallbackBaselineScale, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.zoomPercentage, 50)
+    }
+
+    func testDisplayDensityUnavailableKeepsSuppliedBaseline() {
+        let editor = EditorViewModel(document: DocumentData.empty())
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        editor.markDisplayDensityUnavailable()
+        editor.canvasSize = CGSize(width: 800, height: 600)
+
+        XCTAssertTrue(editor.isViewReady)
+        XCTAssertEqual(editor.transform.scale, 5.0, accuracy: 1e-9)
+    }
+
     func testZoomToActualSizeUsesBaseline() {
         let editor = makeEditor(shapes: [])
         editor.updateDisplayBaseline(pointsPerMm: 4.85)
@@ -240,6 +272,53 @@ final class EditorViewModelZoomTests: XCTestCase {
         // クランプは scale 単位（CanvasTransform.maxScale = 50）
         editor.setZoomPercentage(100_000)
         XCTAssertEqual(editor.transform.scale, 50.0, accuracy: 1e-9)
+    }
+
+    // MARK: - Pan
+
+    func testCenterViewPutsWorldPointAtCanvasCenterKeepingScale() {
+        let editor = makeEditor(shapes: [])
+        editor.transform.scale = 6.0
+
+        editor.centerView(on: CGPoint(x: 25, y: -10))
+
+        XCTAssertEqual(editor.transform.scale, 6.0, accuracy: 1e-9)
+        let screenPoint = editor.transform.worldToScreen(CGPoint(x: 25, y: -10))
+        XCTAssertEqual(screenPoint.x, 400, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 300, accuracy: 1e-9)
+    }
+
+    func testPanViewMovesDrawingByScreenDelta() {
+        let editor = makeEditor(shapes: [])
+        editor.transform.offset = CGPoint(x: 400, y: 300)
+
+        editor.panView(by: CGPoint(x: 3.7, y: -12))
+
+        // 図面が右へ 3.7pt、上へ 12pt 動く
+        XCTAssertEqual(editor.transform.offset.x, 403.7, accuracy: 1e-9)
+        XCTAssertEqual(editor.transform.offset.y, 288, accuracy: 1e-9)
+    }
+
+    func testVisibleWorldRect() {
+        let editor = makeEditor(shapes: [])
+        editor.transform.scale = 4.0
+        editor.transform.offset = CGPoint(x: 400, y: 300)
+
+        let rect = editor.visibleWorldRect
+
+        XCTAssertEqual(rect.minX, -100, accuracy: 1e-9)
+        XCTAssertEqual(rect.minY, -75, accuracy: 1e-9)
+        XCTAssertEqual(rect.width, 200, accuracy: 1e-9)
+        XCTAssertEqual(rect.height, 150, accuracy: 1e-9)
+    }
+
+    func testZoomPercentageRangeFollowsBaseline() {
+        let editor = makeEditor(shapes: [])
+        editor.updateDisplayBaseline(pointsPerMm: 5.0)
+
+        // scale の範囲 0.5〜50 pt/mm を、100% = 5 pt/mm で割る
+        XCTAssertEqual(editor.zoomPercentageRange.lowerBound, 10, accuracy: 1e-9)
+        XCTAssertEqual(editor.zoomPercentageRange.upperBound, 1000, accuracy: 1e-9)
     }
 
     func testZoomToFitDegenerateFallbackUsesBaseline() {
