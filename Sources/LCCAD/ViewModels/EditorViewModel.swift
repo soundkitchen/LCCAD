@@ -151,9 +151,15 @@ struct BoxStitchEstimate: Sendable {
 @MainActor
 final class EditorViewModel {
     var document: DocumentData {
-        didSet { fileDocument?.data = document }
+        didSet {
+            fileDocument?.data = document
+            // 図形を描いたあとは、パネルの幅やウィンドウの大きさが変わっても図面を動かさない (#101 review)
+            keepsInitialViewCentered = false
+        }
     }
-    var transform: CanvasTransform = CanvasTransform()
+    /// 表示(ズーム率と原点の位置)。外から直接書き換えず、ズーム・パンのメソッドか restoreView(_:) を通す。
+    /// 起動時の表示のままか(keepsInitialViewCentered)を、表示を変えるたびに漏れなく反映するため (#101 review)
+    private(set) var transform: CanvasTransform = CanvasTransform()
 
     /// 起動時の実寸 100% 適用を一度だけ行うためのフラグ（applyInitialActualSizeIfNeeded 参照）
     private var hasAppliedInitialActualSize = false
@@ -165,9 +171,10 @@ final class EditorViewModel {
     /// canvasSize がビュー側から一度でも供給されたか（初期値 800×600 のままかの区別）
     private var isCanvasSizeKnown = false
 
-    /// 起動時の実寸 100% を適用したあと、ユーザーやエージェントがまだ表示を変えていないか。
+    /// 起動時の実寸 100% を適用したあと、ユーザーやエージェントがまだ表示も document も変えていないか。
     /// この間にキャンバスの大きさが変わったら(ウィンドウの復元・最大化など)、原点を中央に置き直す (#101)。
-    /// 表示を変えるメソッド(ズーム・パン・Fit・実寸・set_view)を通ると false になる
+    /// 表示を変えるメソッド(ズーム・パン・Fit・実寸・set_view)を通るか、document を編集すると false になる。
+    /// 開く・新規で document を置き換えたとき(replaceDocument(with:))は変えない
     private var keepsInitialViewCentered = false
     var currentTool: DrawingTool = .select
     var selectedShapeIds: Set<UUID> = [] {
@@ -274,8 +281,9 @@ final class EditorViewModel {
     var canvasSize: CGSize = CGSize(width: 800, height: 600) {
         didSet {
             isCanvasSizeKnown = true
-            // 起動時の表示のままなら、新しい大きさの中央に原点を置き直す (#101)
-            if keepsInitialViewCentered { placeAtCanvasCenter(.zero) }
+            // 起動時の表示のままなら、新しい大きさの中央に原点を置き直す (#101)。
+            // マーキー選択の最中は始点を画面座標で持っているので、動かさない(set_view と同じ理由、#101 review)
+            if keepsInitialViewCentered, marqueeStart == nil { placeAtCanvasCenter(.zero) }
             applyInitialActualSizeIfNeeded()
         }
     }
@@ -2047,6 +2055,31 @@ final class EditorViewModel {
     func zoom(by factor: CGFloat, center: CGPoint) {
         keepsInitialViewCentered = false
         transform.zoom(by: factor, center: center)
+    }
+
+    /// 表示の状態をまるごと戻すための控え。transform と、起動時の表示のままか(keepsInitialViewCentered)を持つ
+    struct ViewSnapshot {
+        var transform: CanvasTransform
+        var keepsInitialViewCentered: Bool
+    }
+
+    /// 今の表示の控え。restoreView(_:) で戻す
+    var viewSnapshot: ViewSnapshot {
+        ViewSnapshot(transform: transform, keepsInitialViewCentered: keepsInitialViewCentered)
+    }
+
+    /// 控えておいた表示に戻す。MCP の set_view が範囲のチェックで失敗したとき、起動時の表示のままかも
+    /// 一緒に戻すために使う (#101 review)
+    func restoreView(_ snapshot: ViewSnapshot) {
+        transform = snapshot.transform
+        keepsInitialViewCentered = snapshot.keepsInitialViewCentered
+    }
+
+    /// 開く・新規で document を丸ごと置き換える。編集ではないので、起動時の表示のままかは変えない (#101 review)
+    func replaceDocument(with newDocument: DocumentData) {
+        let keeps = keepsInitialViewCentered
+        document = newDocument
+        keepsInitialViewCentered = keeps
     }
 
     /// キャンバスの中央(画面座標、pt)

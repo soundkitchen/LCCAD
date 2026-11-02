@@ -554,7 +554,7 @@ struct MCPToolExecutor {
         let center = try arguments.center.map { try Self.finitePoint($0, name: "center") }
         let panBy = try arguments.panBy.map { try Self.finitePoint($0, name: "pan_by") }
 
-        let previous = editor.transform
+        let previous = editor.viewSnapshot
         switch arguments.reset {
         case .actualSize: editor.zoomToActualSize()
         case .fit: editor.zoomToFit()
@@ -567,7 +567,7 @@ struct MCPToolExecutor {
         let visible = editor.visibleWorldRect
         guard [visible.minX, visible.minY, visible.maxX, visible.maxY]
                 .allSatisfy({ $0.isFinite && abs($0) <= Self.maxViewCoordinate }) else {
-            editor.transform = previous
+            editor.restoreView(previous)
             throw ToolError("The view would show coordinates beyond ±\(Int(Self.maxViewCoordinate)) mm; the view was left unchanged")
         }
         return Self.success(viewState())
