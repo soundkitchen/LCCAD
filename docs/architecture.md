@@ -184,6 +184,7 @@ Sources/LCCAD/
 | **レイヤー名** | `renameLayer(at:to:)` | レイヤー名を変え、保存した名前を返す（Undo 対応、#95）。前後の空白・改行は取り除く。範囲外の添字と空になる名前は `EditorOperationError` を投げ、document は変えない（UI は無視して元の名前のままにし、MCP はエラーとして返す。検証をここに一本化するため）。同じ名前のレイヤーは禁止しない |
 | **ファイル** | `openDocument(at:)` / `newDocument()` | パネルなしで開く・新規にし、その場でエディタの状態（document・選択・アクティブレイヤー・Undo 履歴）を合わせる。未保存の変更は確認しない |
 | **書き出し** | `exportSVG(to:)` / `exportDXF(to:options:)` | 現在の document をパスを指定して書き出す（パネルなし） |
+| **ズーム** | `zoomIn(center:)` / `zoomOut(center:)` | 1 段階（1.2 倍）拡大・縮小。`center`（画面座標）の点を動かさない。省略したとき（メニューの ⌘+ / ⌘−、ステータスバーの +/-）はキャンバスの中央を中心にする（#101） |
 | **ズーム** | `setZoomPercentage(_:)` | パーセント指定ズーム。キャンバス中心基準。scale は 0.5〜50 pt/mm に丸める |
 | **ズーム** | `zoomPercentageRange` | 今のディスプレイで指定できるズーム率の範囲（%）。scale の範囲を 100% の基準で割ったもので、ディスプレイの密度によって変わる。MCP の `get_view` / `set_view` が返す |
 | **ズーム** | `zoomToFit()` | 表示中の全図形の外接矩形がビューに収まるようにズーム・パン（図形がなければ Actual Size にフォールバック） |

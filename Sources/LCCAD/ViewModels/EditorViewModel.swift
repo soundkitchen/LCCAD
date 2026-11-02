@@ -2025,14 +2025,19 @@ final class EditorViewModel {
 
     // MARK: - Zoom
 
+    /// 1 段階拡大する。中心を渡さないとき(メニュー・ステータスバー)はキャンバスの中央を中心にする (#101)
     func zoomIn(center: CGPoint? = nil) {
-        let c = center ?? CGPoint(x: 600, y: 400)
-        transform.zoom(by: 1.2, center: c)
+        transform.zoom(by: 1.2, center: center ?? canvasCenter)
     }
 
+    /// 1 段階縮小する。中心を渡さないとき(メニュー・ステータスバー)はキャンバスの中央を中心にする (#101)
     func zoomOut(center: CGPoint? = nil) {
-        let c = center ?? CGPoint(x: 600, y: 400)
-        transform.zoom(by: 1 / 1.2, center: c)
+        transform.zoom(by: 1 / 1.2, center: center ?? canvasCenter)
+    }
+
+    /// キャンバスの中央(画面座標、pt)
+    private var canvasCenter: CGPoint {
+        CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
     }
 
     /// 表示中レイヤーの全図形が収まるようにズーム・パンする（CAD の Zoom Extents 相当）。
@@ -2072,7 +2077,7 @@ final class EditorViewModel {
 
     /// キャンバスの中央を基準にズームする。scale は [minScale, maxScale] に丸める
     func setZoomPercentage(_ percentage: CGFloat) {
-        let worldCenter = transform.screenToWorld(CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2))
+        let worldCenter = transform.screenToWorld(canvasCenter)
         transform.scale = CanvasTransform.clampScale(percentage / 100.0 * transform.baselineScale)
         centerView(on: worldCenter)
     }

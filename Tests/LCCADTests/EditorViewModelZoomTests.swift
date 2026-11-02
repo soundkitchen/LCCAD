@@ -274,6 +274,42 @@ final class EditorViewModelZoomTests: XCTestCase {
         XCTAssertEqual(editor.transform.scale, 50.0, accuracy: 1e-9)
     }
 
+    // MARK: - Zoom In / Out
+
+    /// 中心を渡さないズームは、キャンバスの中央の点を動かさない (#101)
+    func testZoomInOutWithoutCenterKeepsCanvasCenter() {
+        let editor = makeEditor(shapes: [])
+        editor.canvasSize = CGSize(width: 2000, height: 1200)
+        editor.transform.scale = 4.0
+        editor.transform.offset = CGPoint(x: 300, y: 200)
+        let worldAtCenter = editor.transform.screenToWorld(CGPoint(x: 1000, y: 600))
+
+        editor.zoomIn()
+        XCTAssertEqual(editor.transform.scale, 4.8, accuracy: 1e-9)
+        var screenPoint = editor.transform.worldToScreen(worldAtCenter)
+        XCTAssertEqual(screenPoint.x, 1000, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 600, accuracy: 1e-9)
+
+        editor.zoomOut()
+        XCTAssertEqual(editor.transform.scale, 4.0, accuracy: 1e-9)
+        screenPoint = editor.transform.worldToScreen(worldAtCenter)
+        XCTAssertEqual(screenPoint.x, 1000, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 600, accuracy: 1e-9)
+    }
+
+    func testZoomInWithCenterKeepsGivenPoint() {
+        let editor = makeEditor(shapes: [])
+        editor.transform.scale = 4.0
+        editor.transform.offset = CGPoint(x: 300, y: 200)
+        let worldAtCursor = editor.transform.screenToWorld(CGPoint(x: 50, y: 70))
+
+        editor.zoomIn(center: CGPoint(x: 50, y: 70))
+
+        let screenPoint = editor.transform.worldToScreen(worldAtCursor)
+        XCTAssertEqual(screenPoint.x, 50, accuracy: 1e-9)
+        XCTAssertEqual(screenPoint.y, 70, accuracy: 1e-9)
+    }
+
     // MARK: - Pan
 
     func testCenterViewPutsWorldPointAtCanvasCenterKeepingScale() {
